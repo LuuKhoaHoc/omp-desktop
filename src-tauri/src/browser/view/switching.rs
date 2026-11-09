@@ -85,6 +85,16 @@ impl Core {
                 json!({ "targetId": target_id }),
             );
             self.call(Some(&session), "Page.enable", json!({}))?;
+            // Fork: a passkey request (WebAuthn) opens a modal the headless
+            // browser never shows, and it swallows every click until it times
+            // out. The CDP domain takes WebAuthn over with no UI and no
+            // authenticator: the request just waits, the page stays usable,
+            // and no fake key can ever be registered.
+            self.notify(
+                Some(&session),
+                "WebAuthn.enable",
+                json!({ "enableUI": false }),
+            );
             // Best effort: turning annotate on installs it again and says why not.
             let _ = self.install_overlay(&session);
             self.apply_viewport(&session, size)?;
@@ -139,6 +149,11 @@ mod tests {
             states.last_error(),
             None,
             "the switch that worked cleared the error"
+        );
+        assert_eq!(
+            sent_count(&sent, "WebAuthn.enable"),
+            1,
+            "a shown page takes passkey requests without the modal"
         );
         assert_eq!(core.switch_to("a"), Ok(()));
         assert_eq!(
