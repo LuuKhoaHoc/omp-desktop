@@ -247,3 +247,10 @@
 .cp-sent { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--line-soft); color: var(--fg-3); font-size: var(--d-text-xs); }
 .md-run { display: contents; }
 .md-mermaid { margin: 10px 0; }
+.ip-sources { flex-wrap: wrap; row-gap: 6px; }
+.ip-source-seg { flex-wrap: wrap; max-width: 100%; }
+.ip-source-seg button { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-sources .btn.small { height: 24px; padding: 0 8px; font-size: var(--d-text-xs); gap: 4px; }
+.btn.small.danger { color: var(--red, #e5484d); border-color: color-mix(in oklab, var(--red, #e5484d) 50%, transparent); }
+.ip-broken { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ip-docs { display: flex; flex-direction: column; gap: 12px; }

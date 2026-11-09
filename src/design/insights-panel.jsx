@@ -6,9 +6,9 @@
    while the panel is open, so the agent's writes show up as it works.
 
    File formats (documented in docs/insights.md):
-     doc-analysis.json  { title, source?, summary, sections?: [{ heading, points[] }],
+     docs/<slug>.json (or doc-analysis.json)  { title, source?, summary, sections?: [{ heading, points[] }],
                           requirements?: [{ id, text, priority? }] }
-     testcases.json     { cases: [{ id, title, requirement?, priority?, type?,
+     testcases/<slug>.json (or testcases.json)  { cases: [{ id, title, requirement?, priority?, type?,
                           preconditions?, steps: [string | { action, expected }],
                           expected?, status?: "untested"|"pass"|"fail"|"blocked" }] }
      diagrams/*         what the diagram skills write: .mmd/.mermaid
@@ -23,8 +23,45 @@ const { Icon: _IP_Icon } = window;
 const _IP_POLL_MS = 4000;
 const _IP_STATUS = ["untested", "pass", "fail", "blocked"];
 
-function _IP_Cases({ data }) {
-  const cases = Array.isArray(data?.cases) ? data.cases : [];
+// A two-step delete: the first click asks, the second within 4 s deletes.
+function _IP_Delete({ label, onDelete }) {
+  const [ask, setAsk] = React.useState(false);
+  React.useEffect(() => { if (!ask) return; const id = setTimeout(() => setAsk(false), 4000); return () => clearTimeout(id); }, [ask]);
+  return (
+    <button className={`btn ghost small${ask ? " danger" : ""}`} title={`Delete ${label}`}
+      onClick={() => (ask ? (setAsk(false), onDelete()) : setAsk(true))}>
+      {ask ? "Delete?" : <_IP_Icon name="trash" size={12} />}
+    </button>
+  );
+}
+
+// The source picker above Test cases and Document: one chip per file, a
+// delete button for the selected one, "Add document" at the end.
+function _IP_Sources({ items, sel, onSel, all, labelOf, onDelete, onAdd }) {
+  const cur = items.find(it => it.file === sel);
+  return (
+    <div className="ip-filter ip-sources">
+      <div className="wp-seg small ip-source-seg">
+        {all && <button className={sel === null ? "on" : ""} onClick={() => onSel(null)}>All</button>}
+        {items.map(it => (
+          <button key={it.file} className={sel === it.file ? "on" : ""} title={it.file} onClick={() => onSel(it.file)}>{labelOf(it)}</button>
+        ))}
+      </div>
+      {cur && onDelete && <_IP_Delete label={cur.file} onDelete={() => onDelete(cur.file)} />}
+      <span style={{ flex: 1 }} />
+      {onAdd && <button className="btn ghost small" onClick={onAdd}><_IP_Icon name="plus" size={12} /> Add document</button>}
+    </div>
+  );
+}
+
+const _ipSlug = file => String(file).replace(/^.*\//, "").replace(/\.json$/i, "");
+
+function _IP_Cases({ sets, onDelete, onAdd }) {
+  const [sel, setSel] = React.useState(null);
+  const valid = sets.filter(s => Array.isArray(s.data?.cases));
+  const pick = valid.some(s => s.file === sel) ? sel : null;
+  const cases = valid.filter(s => pick === null || s.file === pick)
+    .flatMap(s => s.data.cases.map(c => ({ ...c, _key: `${s.file}#${c.id}` })));
   const [q, setQ] = React.useState("");
   const [status, setStatus] = React.useState("all");
   const [openId, setOpenId] = React.useState(null);
@@ -32,10 +69,20 @@ function _IP_Cases({ data }) {
   const needle = q.trim().toLowerCase();
   const shown = cases.filter(c => (status === "all" || (c.status ?? "untested") === status)
     && (!needle || `${c.id} ${c.title} ${c.requirement ?? ""}`.toLowerCase().includes(needle)));
-  if (!cases.length) return <div className="wp-empty-line pad">No test cases yet (testcases.json).</div>;
+  const sources = (valid.length > 1 || onAdd) && (
+    <_IP_Sources items={valid} sel={pick} onSel={setSel} all={valid.length > 1}
+      labelOf={it => `${_ipSlug(it.file)} · ${it.data.cases.length}`}
+      onDelete={pick !== null || valid.length === 1 ? f => { onDelete(f); setSel(null); } : null} onAdd={onAdd} />
+  );
+  const broken = sets.filter(s => !Array.isArray(s.data?.cases)).map(s => (
+    <div key={s.file} className="wp-note err ip-broken">{s.data?.error ?? `${s.file}: no "cases" list`} {onDelete && <_IP_Delete label={s.file} onDelete={() => onDelete(s.file)} />}</div>
+  ));
+  if (!cases.length) return <div className="ip-cases">{sources}{broken}<div className="wp-empty-line pad">No test cases yet.</div></div>;
   const pct = s => `${(counts[s] / cases.length) * 100}%`;
   return (
     <div className="ip-cases">
+      {sources}
+      {broken}
       <div className="ip-progress" aria-label="test status">
         {_IP_STATUS.filter(s => counts[s]).map(s => <i key={s} className={s} style={{ width: pct(s) }} title={`${s}: ${counts[s]}`} />)}
       </div>
@@ -51,10 +98,10 @@ function _IP_Cases({ data }) {
       </div>
       <div className="ip-case-list">
         {shown.map(c => {
-          const st = c.status ?? "untested", isOpen = openId === c.id;
+          const st = c.status ?? "untested", isOpen = openId === c._key;
           return (
-            <div key={c.id} className={`ip-case${isOpen ? " open" : ""}`}>
-              <button className="ip-case-head" aria-expanded={isOpen} onClick={() => setOpenId(isOpen ? null : c.id)}>
+            <div key={c._key} className={`ip-case${isOpen ? " open" : ""}`}>
+              <button className="ip-case-head" aria-expanded={isOpen} onClick={() => setOpenId(isOpen ? null : c._key)}>
                 <span className={`ip-st ${st}`} title={st} />
                 <span className="mono ip-case-id">{c.id}</span>
                 <span className="ip-case-title">{c.title}</span>
@@ -87,8 +134,19 @@ function _IP_Cases({ data }) {
   );
 }
 
+function _IP_Docs({ docs, onDelete, onAdd }) {
+  const [sel, setSel] = React.useState(null);
+  const cur = docs.find(d => d.file === sel) ?? docs[docs.length - 1];
+  return (
+    <div className="ip-docs">
+      <_IP_Sources items={docs} sel={cur?.file} onSel={setSel} labelOf={d => d.data?.title || _ipSlug(d.file)}
+        onDelete={f => { onDelete(f); setSel(null); }} onAdd={onAdd} />
+      {cur ? <_IP_Doc doc={cur.data} /> : <div className="wp-empty-line pad">No document analysis yet.</div>}
+    </div>
+  );
+}
+
 function _IP_Doc({ doc }) {
-  if (!doc) return <div className="wp-empty-line pad">No document analysis yet (doc-analysis.json).</div>;
   if (doc.error) return <div className="wp-note err">{doc.error}</div>;
   return (
     <div className="ip-doc">
@@ -206,7 +264,7 @@ function _ipUseDiagram({ kind, source, data, error }) {
   return out;
 }
 
-function _IP_Diagram({ file, kind = "mermaid", source, data, error }) {
+function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete }) {
   const out = _ipUseDiagram({ kind, source, data, error });
   const [zoom, setZoom] = React.useState(null); // null = fit width
   const [max, setMax] = React.useState(false);
@@ -273,6 +331,7 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error }) {
         {text && <button className="btn ghost small" title="Copy source" onClick={() => _ipCopy(source)}>Copy</button>}
         {out?.mermaid && <button className="btn ghost small" title="Copy as SVG" onClick={() => _ipCopy(out.mermaid)}>SVG</button>}
         <button className="btn ghost small" aria-pressed={max} title={max ? "Close (Esc)" : "Expand"} onClick={() => setMax(v => !v)}>{max ? "Close" : "Expand"}</button>
+        {onDelete && !max && <_IP_Delete label={file} onDelete={onDelete} />}
       </figcaption>
       {out?.err && <div className="wp-note err"><_IP_Icon name="warn" size={12} /> {file}: {out.err}</div>}
       {body}
@@ -302,7 +361,7 @@ function _IP_NewDiagram({ onAsk }) {
   );
 }
 
-function _IP_Diagrams({ diagrams, onAsk }) {
+function _IP_Diagrams({ diagrams, onAsk, onDelete }) {
   const [q, setQ] = React.useState("");
   const needle = q.trim().toLowerCase();
   const shown = needle ? diagrams.filter(d => `${_ipDiagramTitle(d.source, d.file)} ${d.file} ${d.kind}`.toLowerCase().includes(needle)) : diagrams;
@@ -313,7 +372,7 @@ function _IP_Diagrams({ diagrams, onAsk }) {
         <span style={{ flex: 1 }} />
         {onAsk && <_IP_NewDiagram onAsk={onAsk} />}
       </div>
-      {shown.map(d => <_IP_Diagram key={d.file} {...d} />)}
+      {shown.map(d => <_IP_Diagram key={d.file} {...d} onDelete={onDelete && (() => onDelete(`diagrams/${d.file}`))} />)}
       {!diagrams.length && <div className="wp-empty-line pad">No diagrams yet. Pick a skill under "New diagram"; files land in .omp/insights/diagrams/.</div>}
       {diagrams.length > 0 && !shown.length && <div className="wp-empty-line pad">No diagram matches "{q}".</div>}
     </div>
@@ -332,19 +391,29 @@ function InsightsPanel({ projectPath, onAsk }) {
     const load = () => inv("insights_read", { project: projectPath })
       .then(v => { const s = JSON.stringify(v); if (live && s !== last) { last = s; setData(v); } setErr(null); })
       .catch(e => live && setErr(String(e)));
+    reload.current = load;
     load();
     const id = setInterval(load, _IP_POLL_MS);
-    return () => { live = false; clearInterval(id); };
+    return () => { live = false; clearInterval(id); reload.current = null; };
+  }, [projectPath]);
+  const reload = React.useRef(null);
+  const remove = React.useCallback(file => {
+    window.__TAURI__.core.invoke("insights_delete", { project: projectPath, file })
+      .then(() => reload.current?.(), e => setErr(String(e)));
   }, [projectPath]);
 
   const diagrams = data?.diagrams ?? [];
-  const cases = data?.testcases?.cases ?? [];
+  const sets = data?.testcases ?? [];
+  const docs = data?.docs ?? [];
+  const nCases = sets.reduce((n, s) => n + (Array.isArray(s.data?.cases) ? s.data.cases.length : 0), 0);
   const tabs = [
     { id: "diagrams", label: "Diagrams", n: diagrams.length },
-    { id: "cases", label: "Test cases", n: cases.length },
-    { id: "doc", label: "Document", n: data?.doc ? 1 : 0 },
+    { id: "cases", label: "Test cases", n: nCases },
+    { id: "doc", label: "Documents", n: docs.length },
   ];
-  const prompt = "Read the document I attach, then draw its flows as Mermaid diagrams in .omp/insights/diagrams/*.mmd (one diagram per file: flowchart for business flows, sequenceDiagram for FE/BE/API calls, stateDiagram-v2 for statuses, erDiagram for data; first line `%% title: <name>`), and write .omp/insights/doc-analysis.json and testcases.json in the formats the Insights panel expects (see docs/insights.md in omp-desktop).";
+  // One slug per document, so a new one never overwrites the last.
+  const prompt = "Read the document I attach. Pick a short kebab-case slug for it (not one already used in .omp/insights/docs/). Draw its flows as Mermaid diagrams in .omp/insights/diagrams/<slug>-*.mmd (one diagram per file: flowchart for business flows, sequenceDiagram for FE/BE/API calls, stateDiagram-v2 for statuses, erDiagram for data; first line `%% title: <name>`), and write .omp/insights/docs/<slug>.json and .omp/insights/testcases/<slug>.json in the formats the Insights panel expects (see docs/insights.md in omp-desktop). Do not touch other documents' files.";
+  const add = onAsk ? () => onAsk(prompt) : null;
   return (
     <div className="wp-panel ip-panel">
       <div className="wp-head">
@@ -368,9 +437,9 @@ function InsightsPanel({ projectPath, onAsk }) {
             {onAsk && <div className="ip-empty-new"><_IP_NewDiagram onAsk={onAsk} /></div>}
           </div>
         )}
-        {data?.exists && tab === "diagrams" && <_IP_Diagrams diagrams={diagrams} onAsk={onAsk} />}
-        {data?.exists && tab === "cases" && <_IP_Cases data={data.testcases} />}
-        {data?.exists && tab === "doc" && <_IP_Doc doc={data.doc} />}
+        {data?.exists && tab === "diagrams" && <_IP_Diagrams diagrams={diagrams} onAsk={onAsk} onDelete={remove} />}
+        {data?.exists && tab === "cases" && <_IP_Cases sets={sets} onDelete={remove} onAdd={add} />}
+        {data?.exists && tab === "doc" && <_IP_Docs docs={docs} onDelete={remove} onAdd={add} />}
       </div>
     </div>
   );

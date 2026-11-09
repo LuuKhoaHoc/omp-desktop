@@ -218,16 +218,42 @@ fn diagrams(dir: &std::path::Path) -> Vec<serde_json::Value> {
         .collect()
 }
 
-/// The Insights panel's data: `<project>/.omp/insights/` → `doc-analysis.json`,
-/// `testcases.json` and `diagrams/*` (see `diagrams`). Fixed names only, so
-/// the webview cannot read elsewhere. A missing folder is not an error:
-/// `exists: false` lets the panel show how to fill it.
-pub fn insights(project: &str) -> Result<serde_json::Value, String> {
+/// One JSON file per document: the single legacy file (`legacy`, at the
+/// folder root) first, then `<sub>/*.json` sorted, at most 60. Each entry is
+/// `{ file, data }` with `file` relative to the insights folder (what
+/// `insights_delete` takes back); bad JSON comes as `data.error`.
+fn json_files(dir: &std::path::Path, legacy: &str, sub: &str) -> Vec<serde_json::Value> {
+    let mut out: Vec<_> = read_json(&dir.join(legacy))
+        .map(|data| serde_json::json!({ "file": legacy, "data": data }))
+        .into_iter()
+        .collect();
+    let mut files: Vec<_> = std::fs::read_dir(dir.join(sub))
+        .map(|rd| rd.flatten().map(|e| e.path()).collect())
+        .unwrap_or_default();
+    files.retain(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("json")));
+    files.sort();
+    out.extend(files.into_iter().take(INSIGHT_DIAGRAM_LIMIT).filter_map(|p| {
+        let name = p.file_name()?.to_str()?;
+        Some(serde_json::json!({ "file": format!("{sub}/{name}"), "data": read_json(&p)? }))
+    }));
+    out
+}
+
+fn insights_dir(project: &str) -> Result<std::path::PathBuf, String> {
     let root = std::path::Path::new(project);
     if !root.is_absolute() || !root.is_dir() {
         return Err("project folder not found".into());
     }
-    let dir = root.join(".omp").join("insights");
+    Ok(root.join(".omp").join("insights"))
+}
+
+/// The Insights panel's data: `<project>/.omp/insights/` → documents
+/// (`doc-analysis.json`, `docs/*.json`), test case sets (`testcases.json`,
+/// `testcases/*.json`) and `diagrams/*` (see `diagrams`). Fixed places only,
+/// so the webview cannot read elsewhere. A missing folder is not an error:
+/// `exists: false` lets the panel show how to fill it.
+pub fn insights(project: &str) -> Result<serde_json::Value, String> {
+    let dir = insights_dir(project)?;
     if !dir.is_dir() {
         return Ok(serde_json::json!({ "exists": false, "dir": dir }));
     }
@@ -235,9 +261,35 @@ pub fn insights(project: &str) -> Result<serde_json::Value, String> {
         "exists": true,
         "dir": dir,
         "diagrams": diagrams(&dir.join("diagrams")),
-        "doc": read_json(&dir.join("doc-analysis.json")),
-        "testcases": read_json(&dir.join("testcases.json")),
+        "docs": json_files(&dir, "doc-analysis.json", "docs"),
+        "testcases": json_files(&dir, "testcases.json", "testcases"),
     }))
+}
+
+/// Deletes one file the panel listed: `doc-analysis.json`, `testcases.json`,
+/// `docs/<name>.json`, `testcases/<name>.json` or `diagrams/<name>` of a
+/// diagram kind. Anything else (another folder, `..`, a hidden name, a
+/// symlink or a directory) is refused, so the webview cannot delete outside.
+pub fn insights_delete(project: &str, file: &str) -> Result<(), String> {
+    let dir = insights_dir(project)?;
+    let ok_name = |n: &str| !n.is_empty() && !n.starts_with('.') && !n.contains(['/', '\\', '\0']);
+    let allowed = match file.split_once('/') {
+        None => file == "doc-analysis.json" || file == "testcases.json",
+        Some(("docs" | "testcases", name)) => {
+            ok_name(name) && std::path::Path::new(name).extension().is_some_and(|e| e.eq_ignore_ascii_case("json"))
+        }
+        Some(("diagrams", name)) => ok_name(name) && diagram_kind(std::path::Path::new(name)).is_some(),
+        Some(_) => false,
+    };
+    if !allowed {
+        return Err(format!("refusing to delete {file}"));
+    }
+    let path = dir.join(file);
+    let meta = std::fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+    if !meta.is_file() {
+        return Err(format!("{file} is not a file"));
+    }
+    std::fs::remove_file(&path).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -292,8 +344,28 @@ mod tests {
         assert!(d[4]["source"].is_null());
         assert_eq!(v["exists"], true);
         assert!(v["charts"].is_null());
-        assert!(v["doc"].is_null());
-        assert_eq!(v["testcases"]["cases"], serde_json::json!([]));
+        assert_eq!(v["docs"], serde_json::json!([]));
+        assert_eq!(v["testcases"], serde_json::json!([{ "file": "testcases.json", "data": { "cases": [] } }]));
+        let ins = tmp.join(".omp/insights");
+        std::fs::create_dir_all(ins.join("docs")).unwrap();
+        std::fs::write(ins.join("docs/b.json"), r#"{"title":"B"}"#).unwrap();
+        std::fs::write(ins.join("docs/a.json"), "{bad").unwrap();
+        std::fs::write(ins.join("docs/z.txt"), "x").unwrap();
+        std::fs::write(ins.join("doc-analysis.json"), r#"{"title":"Old"}"#).unwrap();
+        let docs = insights(tmp.to_str().unwrap()).unwrap()["docs"].clone();
+        let files: Vec<_> = docs.as_array().unwrap().iter().map(|d| d["file"].as_str().unwrap().to_owned()).collect();
+        assert_eq!(files, ["doc-analysis.json", "docs/a.json", "docs/b.json"]);
+        assert!(docs[1]["data"]["error"].is_string());
+        let p = tmp.to_str().unwrap();
+        for bad in ["docs/../doc-analysis.json", "docs/z.txt", "../x.json", "docs/.h.json", "diagrams/c.txt", "other/a.json", "docs", "diagrams/sub/a.mmd"] {
+            assert!(insights_delete(p, bad).is_err(), "{bad}");
+        }
+        assert!(insights_delete(p, "docs/missing.json").is_err());
+        insights_delete(p, "docs/b.json").unwrap();
+        insights_delete(p, "doc-analysis.json").unwrap();
+        insights_delete(p, "diagrams/a.mmd").unwrap();
+        assert!(!ins.join("docs/b.json").exists() && !ins.join("doc-analysis.json").exists() && !dg.join("a.mmd").exists());
+        assert!(ins.join("docs/z.txt").exists());
         assert_eq!(insights("relative/path").unwrap_err(), "project folder not found");
         std::fs::remove_dir_all(&tmp).unwrap();
         let empty = std::env::temp_dir();
