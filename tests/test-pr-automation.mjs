@@ -346,6 +346,42 @@ await checkAsync(
 );
 
 await checkAsync(
+  "a non-GitHub upstream hides that tab's card and turns Auto-fix off; a GitHub tab keeps it",
+  async () => {
+    const result = snapshot({ failedChecks: [check("ci")] });
+    let gitlab = true;
+    const h = harness({
+      getSnapshot: (id) =>
+        gitlab && id === "a"
+          ? Promise.reject({ message: "Auto-fix supports GitHub.com HTTPS or SSH remotes only", notGitHub: true, ghMissing: false })
+          : result,
+    });
+    await h.time.advance(0);
+    let view = h.view();
+    assert.equal(view.notGitHub, true);
+    assert.equal(view.ghMissing, false);
+    assert.equal(view.discoveryError, null);
+    assert.equal(view.snapshot, null);
+    h.toggle();
+    await h.time.advance(0);
+    assert.equal(h.view().enabled, false);
+    assert.deepEqual(h.sends, []);
+    // Per tab: a GitHub project in another tab shows its card.
+    h.update({ tabId: "b" });
+    await h.time.advance(0);
+    assert.equal(h.view().notGitHub, false);
+    assert.deepEqual(h.view().snapshot, result);
+    // The remote moved to GitHub: the next read brings the card back.
+    h.update({ tabId: "a" });
+    gitlab = false;
+    h.refresh();
+    await h.time.advance(0);
+    assert.equal(h.view().notGitHub, false);
+    assert.deepEqual(h.view().snapshot, result);
+  },
+);
+
+await checkAsync(
   "any answer but 'not installed' brings the card back, a read error included",
   async () => {
     let answer = () => Promise.reject({ message: "gh was not found", ghMissing: true });

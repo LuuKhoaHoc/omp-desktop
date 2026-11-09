@@ -169,6 +169,8 @@
        accent. Dependency-free IIFE; app/use-bridge-snapshot.jsx's
        useThemeEffect calls window.OMP_ACCENT at effect time. -->
   <script src="app/accent.js"></script>
+<script src="app/excalidraw-svg.js"></script>
+<script src="app/chat-pages.js"></script>
 
   <!-- Steer / follow-up queue strip: pure helpers over omp's queue
        snapshot. IIFE; its refusal note calls window.OMP_MARKDOWN
@@ -347,6 +349,7 @@
   <script type="text/babel" src="design/chat/file-preview.jsx"></script>
   <script type="text/babel" src="design/chat/user-bubble.jsx"></script>
   <script type="text/babel" src="design/chat/eval-cell.jsx"></script>
+  <script type="text/babel" src="design/chat/chat-page.jsx"></script>
   <script type="text/babel" src="design/chat/assistant-bubble.jsx"></script>
   <script type="text/babel" src="design/chat/tool-card.jsx"></script>
   <!-- ask-bubble.jsx destructures window.AskDialog at top level. -->
@@ -474,6 +477,15 @@
   <script type="text/babel" src="design/conversation-tree-rows.jsx"></script>
   <script type="text/babel" src="design/conversation-tree-detail.jsx"></script>
   <script type="text/babel" src="design/conversation-tree.jsx"></script>
+  <!-- Fork panels: Work (tickets) and Insights (charts, test cases). -->
+  <script src="app/work-adapters.js"></script>
+  <script src="app/work-views.js"></script>
+  <script src="app/work-review.js"></script>
+  <script type="text/babel" src="design/work-pickers.jsx"></script>
+  <script type="text/babel" src="design/work-forms.jsx"></script>
+  <script type="text/babel" src="design/work-review.jsx"></script>
+  <script type="text/babel" src="design/work-panel.jsx"></script>
+  <script type="text/babel" src="design/insights-panel.jsx"></script>
   <!-- Per-tab terminal panel and the list app-live.jsx renders; destructures
        window.Icon and window.OMP_TERMINAL (app/terminal.js, above) at top
        level. -->
@@ -493,6 +505,7 @@
   <script type="text/babel" src="design/settings/rows-programs.jsx"></script>
   <script type="text/babel" src="design/settings/rows-agent.jsx"></script>
   <script type="text/babel" src="design/settings/rows-session.jsx"></script>
+  <script type="text/babel" src="design/settings/rows-fonts.jsx"></script>
   <script type="text/babel" src="design/settings/rows-approvals.jsx"></script>
   <script type="text/babel" src="design/settings/rows-remote-shared.jsx"></script>
   <script type="text/babel" src="design/settings/rows-remote-server.jsx"></script>

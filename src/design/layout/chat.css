@@ -364,7 +364,7 @@
   display: flex; align-items: center; gap: 6px;
   padding: 3px 10px;
   background: var(--bg-input);
-  font-size: 10px;
+  font-size: var(--d-text-xs);
   border-bottom: 1px solid var(--line);
 }
 .eval-lang { color: var(--rose); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
@@ -372,7 +372,7 @@
 .eval-dur { color: var(--fg-4); }
 .eval-code {
   margin: 0; padding: 6px 10px;
-  font-size: 11px; line-height: 1.5;
+  font-size: var(--d-text-xs); line-height: 1.5;
   white-space: pre-wrap; word-break: break-all;
   max-height: 240px; overflow-y: auto;
 }
@@ -381,7 +381,7 @@
 .eval-code code { font-size: inherit; }
 .eval-output {
   margin: 0; padding: 6px 10px;
-  font-size: 11px; line-height: 1.5;
+  font-size: var(--d-text-xs); line-height: 1.5;
   color: var(--fg-3);
   white-space: pre-wrap; word-break: break-all;
   border-top: 1px solid var(--line);
@@ -489,15 +489,15 @@
 }
 .ta-hd:hover { background: var(--bg-hover); }
 .ta-agent {
-  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  font-family: var(--font-mono); font-size: var(--d-text-xs); font-weight: 600;
   color: var(--fg-2); flex-shrink: 0;
 }
 .ta-hint {
-  font-size: 11px; color: var(--fg-4);
+  font-size: var(--d-text-xs); color: var(--fg-4);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   min-width: 0; max-width: 260px;
 }
-.ta-chip { font-size: 10px !important; padding: 0 4px !important; height: 16px !important; min-width: 0 !important; }
+.ta-chip { font-size: var(--d-text-xs) !important; padding: 0 4px !important; height: 16px !important; min-width: 0 !important; }
 .ta-body {
   margin: 0; padding: 4px 0 6px;
   background: var(--bg-input);
@@ -517,17 +517,17 @@
 }
 .ta-stream-empty {
   display: block; padding: 10px 12px;
-  font-size: 11px; color: var(--fg-4); font-style: italic;
+  font-size: var(--d-text-xs); color: var(--fg-4); font-style: italic;
 }
 .ta-stream-block { padding: 8px 0 4px; border-bottom: 1px solid var(--line); }
 .ta-stream-block:last-child { border-bottom: 0; }
 .ta-stream-hd {
   display: flex; align-items: center; gap: 6px;
-  padding: 0 10px 4px; font-size: 11px;
+  padding: 0 10px 4px; font-size: var(--d-text-xs);
 }
 .ta-stream-line {
   padding: 0 10px 0 26px;
-  font-family: var(--font-mono); font-size: 11px; line-height: 1.55;
+  font-family: var(--font-mono); font-size: var(--d-text-xs); line-height: 1.55;
   color: var(--fg-3); white-space: pre-wrap; word-break: break-all;
 }
 

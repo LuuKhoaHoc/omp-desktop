@@ -9,7 +9,7 @@
   "app": {
     "withGlobalTauri": true,
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost; frame-src 'none'; object-src 'none'",
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost; frame-src omp-page: http://omp-page.localhost; object-src 'none'",
       "dangerousDisableAssetCspModification": true,
       "assetProtocol": {
         "enable": false,
@@ -36,7 +36,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUwRTg1QkEyNjE2NjVEREYKUldUZlhXWmhvbHZvVUJzQkROakpTdHhvcWdQdVRoMnNZNDl3T3ZKeEZJenNzc1p4RzArekIrcnoK",
       "endpoints": [
-        "https://github.com/apoc/omp-desktop/releases/latest/download/latest.json"
+        "https://github.com/LuuKhoaHoc/omp-desktop/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

@@ -47,7 +47,7 @@
   border-bottom: 1px solid var(--line);
   font-size: var(--d-text-xs);
 }
-.gitb-pane-title { font-weight: 600; color: var(--fg-2); text-transform: uppercase; letter-spacing: .06em; font-size: 10px; }
+.gitb-pane-title { font-weight: 600; color: var(--fg-2); text-transform: uppercase; letter-spacing: .06em; font-size: var(--d-text-xs); }
 .gitb-pane-sub { color: var(--fg-4); }
 .gitb-empty { padding: 14px 12px; color: var(--fg-4); font-size: var(--d-text-sm); }
 .gitb-empty.tall { flex: 1; display: flex; align-items: center; justify-content: center; }
@@ -59,14 +59,14 @@
   display: inline-flex; align-items: center; gap: 4px;
   padding: 0 7px; height: 18px;
   border: 1px solid var(--line); border-radius: var(--r-pill);
-  font-size: 10px; color: var(--fg-3);
+  font-size: var(--d-text-xs); color: var(--fg-3);
   white-space: nowrap;
 }
 .gitb-ref {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 0 6px; height: 16px;
   border: 1px solid var(--line-bright); border-radius: var(--r-pill);
-  font-family: var(--font-mono); font-size: 10px;
+  font-family: var(--font-mono); font-size: var(--d-text-xs);
   color: var(--fg-2);
   white-space: nowrap; flex: none;
   max-width: 180px; overflow: hidden; text-overflow: ellipsis;
@@ -80,7 +80,7 @@
 .gitb-ref.tag { color: var(--amber); border-color: color-mix(in oklab, var(--amber) 45%, var(--line)); }
 
 /* ── Files pane ─────────────────────────────────────────────────────────── */
-.gitb-toggle { margin-left: auto; height: 20px; padding: 0 6px; gap: 4px; font-size: 10px; }
+.gitb-toggle { margin-left: auto; height: 20px; padding: 0 6px; gap: 4px; font-size: var(--d-text-xs); }
 .gitb-toggle.on { color: var(--accent); background: var(--accent-soft); }
 .gitb-filter {
   display: flex; align-items: center; gap: 6px;
@@ -112,7 +112,7 @@
 .gitb-row-pad { width: 0.6875rem; flex: none; }
 .gitb-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .gitb-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--amber); flex: none; margin-right: 4px; }
-.gitb-mark { width: 12px; text-align: center; font-size: 10px; font-weight: 600; flex: none; }
+.gitb-mark { width: 12px; text-align: center; font-size: var(--d-text-xs); font-weight: 600; flex: none; }
 
 /* ── File view ──────────────────────────────────────────────────────────── */
 .gitb-view-head { gap: 10px; }
@@ -124,7 +124,7 @@
 .gitb-view-subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-2); font-family: var(--font-sans); }
 .gitb-hunks { display: inline-flex; align-items: center; gap: 2px; color: var(--fg-3); margin-left: auto; }
 .gitb-hunks .btn.icon { height: 1.125rem; width: 1.125rem; }
-.gitb-act { height: 20px; padding: 0 7px; gap: 4px; font-size: 10px; border: 1px solid var(--line); }
+.gitb-act { height: 20px; padding: 0 7px; gap: 4px; font-size: var(--d-text-xs); border: 1px solid var(--line); }
 .gitb-copy { position: static; opacity: 1; }
 .gitb-view-body {
   flex: 1; min-height: 0; overflow: auto;
@@ -170,7 +170,7 @@
 .gitb-commit-top { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .gitb-commit-subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--d-text-sm); color: var(--fg); }
 .gitb-commit.worktree .gitb-commit-subject { color: var(--fg-3); }
-.gitb-commit-meta { display: flex; gap: 8px; font-size: 10px; color: var(--fg-4); }
+.gitb-commit-meta { display: flex; gap: 8px; font-size: var(--d-text-xs); color: var(--fg-4); }
 
 /* ── Edit card: each path opens the browser ─────────────────────────────── */
 /* A path is a button, one unbreakable box: WebKit's ellipsis on the wrapper

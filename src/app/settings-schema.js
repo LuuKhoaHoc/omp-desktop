@@ -21,11 +21,12 @@
 // matter.
 (function () {
   const THEMES = Object.freeze([
+    { id: "night", tone: "dark", accent: "#E3A857" },
     { id: "aurora", tone: "dark", accent: "#8AF0C8" },
     { id: "phosphor", tone: "dark", accent: "#C4FF3F" },
     { id: "daylight", tone: "light", accent: "#1F8A5B" },
   ]);
-  const ACCENTS = Object.freeze(["#8AF0C8", "#6EE7FF", "#FF7AC6", "#FFC56E", "#B59BFF", "#C4FF3F"]);
+  const ACCENTS = Object.freeze(["#E3A857", "#8AF0C8", "#6EE7FF", "#FF7AC6", "#FFC56E", "#B59BFF", "#C4FF3F"]);
   /** The accent a theme ships with; picking the theme resets to it. */
   const themeAccent = (theme) => (THEMES.find(t => t.id === theme) ?? THEMES[0]).accent;
 
@@ -44,19 +45,23 @@
   const custom = (type, label, desc, kw, extra) => withExtra({ kind: "custom", id: `custom:${type}`, type, label, desc, kw }, extra);
 
   const SECTIONS = [
-    { id: "appearance", icon: "sparkle", title: "Appearance", blurb: "Colour theme, accent, start screen, density and text size of the whole window.", groups: [
+    { id: "appearance", icon: "sparkle", title: "Appearance", blurb: "Colour theme, accent, start screen, fonts, density and text size of the whole window.", groups: [
       { name: "Theme", rows: [
-        tweak("theme", "themes", "Theme", "Picking a theme also resets the accent to the theme's own.", "dark light colour color aurora phosphor daylight"),
+        tweak("theme", "themes", "Theme", "Picking a theme also resets the accent to the theme's own.", "dark light colour color night shift aurora phosphor daylight"),
         tweak("accent", "swatches", "Accent", "Focus rings, the active tab, links and the assistant's marks.", "color colour highlight"),
         tweak("startScreen", "screens", "Start screen", "The animated screen behind the logo while no tab is open. It follows the theme and accent.", "welcome backdrop empty animation matrix latent embedding next token sampling agent loop orbit forward pass neural attention transformer self-attention",
           { get options() { return screenOptions(); } }),
+      ] },
+      { name: "Font", rows: [
+        custom("fonts", "Fonts", "Pick any font installed on this machine for the interface, the chat and code. Fonts missing Vietnamese letters are flagged.", "font family typeface typography interface chat code monospace vietnamese",
+          { keys: ["fontUi", "fontChat", "fontMono"] }),
       ] },
       { name: "Text", rows: [
         tweak("density", "seg", "Density", "Row height, padding and the base text size.", "spacing compact",
           { options: opts(["cozy", "compact", "dense"]) }),
         tweak("fontSize", "slider", "Font size", "Scales all text and icons, the terminal's font included.", "zoom scale text",
           { min: 75, max: 150, step: 5, unit: "%" }),
-        tweak("monoChat", "toggle", "Monospace chat", "Show messages in the monospace font instead of the UI font.", "font"),
+        tweak("monoChat", "toggle", "Monospace chat", "Show messages in the code font instead of the chat font.", "font"),
       ] },
     ] },
     { id: "layout", icon: "grid", title: "Layout", blurb: "What sits beside the chat and how wide each column is.", groups: [

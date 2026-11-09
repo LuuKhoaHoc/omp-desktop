@@ -230,7 +230,7 @@
   display: flex; flex-wrap: wrap; gap: 4px;
   padding-left: calc(1rem + 8px);
 }
-.kcard-tags .chip { padding: 1px 6px; font-size: 10px; }
+.kcard-tags .chip { padding: 1px 6px; font-size: var(--d-text-xs); }
 .kcard-why {
   margin-top: 4px;
   padding: 6px 8px 6px calc(1rem + 8px);

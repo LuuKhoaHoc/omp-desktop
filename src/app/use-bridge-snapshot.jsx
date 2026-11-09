@@ -59,7 +59,14 @@ function useThemeEffect(t) {
     // an accent equal to the theme's own keeps the theme's hand-tuned set.
     window.OMP_ACCENT.applyThemeTokens(root, t.theme, t.accent);
     if (t.fontSize) root.style.fontSize = `${t.fontSize}%`;
-  }, [t.theme, t.density, t.accent, t.monoChat, t.fontSize]);
+    // Font roles (Settings → Appearance → Font): a family name wins over the
+    // theme's stack, which stays as the fallback. "" clears the override.
+    const fam = (name, fallback) => (name ? `"${String(name).replace(/["\\]/g, "")}", ${fallback}` : "");
+    root.style.setProperty("--font-sans", fam(t.fontUi, "system-ui, sans-serif"));
+    root.style.setProperty("--font-display", fam(t.fontUi, "system-ui, sans-serif"));
+    root.style.setProperty("--font-chat", fam(t.fontChat, "var(--font-sans)"));
+    root.style.setProperty("--font-mono", fam(t.fontMono, "ui-monospace, monospace"));
+  }, [t.theme, t.density, t.accent, t.monoChat, t.fontSize, t.fontUi, t.fontChat, t.fontMono]);
 }
 
 

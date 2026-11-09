@@ -341,19 +341,19 @@ fn only_lag_errors_are_retryable() {
     stale["headRefOid"] = json!("new");
     assert_eq!(
         wire(select_pr(&find(vec![stale], false), &local(), none()).unwrap_err()),
-        json!({"message":"PR head differs from the upstream branch; retry after GitHub updates","ghMissing":false,"retryable":true})
+        json!({"message":"PR head differs from the upstream branch; retry after GitHub updates","ghMissing":false,"notGitHub":false,"retryable":true})
     );
     let mut moved = feedback(vec![], vec![]);
     moved["data"]["node"]["headRefName"] = json!("other");
     assert_eq!(
         wire(parse_feedback(&moved, &local(), &selected()).unwrap_err()),
-        json!({"message":"PR head or branch changed while loading feedback","ghMissing":false,"retryable":true})
+        json!({"message":"PR head or branch changed while loading feedback","ghMissing":false,"notGitHub":false,"retryable":true})
     );
     let mut other_commit = feedback(vec![], vec![]);
     other_commit["data"]["node"]["commits"]["nodes"][0]["commit"]["oid"] = json!("zzz");
     assert_eq!(
         wire(parse_feedback(&other_commit, &local(), &selected()).unwrap_err()),
-        json!({"message":"GitHub returned feedback for a different commit","ghMissing":false,"retryable":true})
+        json!({"message":"GitHub returned feedback for a different commit","ghMissing":false,"notGitHub":false,"retryable":true})
     );
     let two = find(vec![pr(1, "alice/project"), pr(2, "alice/project")], false);
     assert_eq!(
@@ -605,6 +605,24 @@ fn rejects_truncated_malformed_or_changed_data() {
         ..local()
     };
     assert!(parse_feedback(&result, &moved, &selected()).is_err());
+}
+
+/// A non-GitHub upstream (a company GitLab) is the one failure marked
+/// `notGitHub`, so the webview hides that tab's card instead of an error;
+/// a malformed GitHub URL stays an ordinary error.
+#[test]
+fn only_a_non_github_host_is_marked_not_github() {
+    let gitlab = gix::url::parse("git@gitlab.example.com:team/app.git").unwrap();
+    let err = LookupError::from(github_repo(&gitlab).unwrap_err());
+    assert!(
+        err.not_github && !err.gh_missing && !err.retryable,
+        "{err:?}"
+    );
+    assert_eq!(serde_json::to_value(&err).unwrap()["notGitHub"], true);
+    let bad = gix::url::parse("https://github.com/alice/project/extra").unwrap();
+    let err = LookupError::from(github_repo(&bad).unwrap_err());
+    assert!(!err.not_github, "{err:?}");
+    assert_eq!(serde_json::to_value(&err).unwrap()["notGitHub"], false);
 }
 
 /// The webview hides the card for a missing gh and shows every other

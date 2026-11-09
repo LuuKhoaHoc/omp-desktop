@@ -1,0 +1,52 @@
+/* fork.css — styles for the fork's additions that apply in every theme:
+   the chat font role, Settings → Font pickers, and the Work / Insights
+   panels. Uses only theme tokens, so aurora / phosphor / daylight work. */
+
+/* Chat font role (Settings → Appearance → Font → Chat). */
+.ass-text, .user-text, .composer-input textarea { font-family: var(--font-chat); }
+.mono-chat .ass-text, .mono-chat .user-text { font-family: var(--font-mono); }
+
+/* ── Font pickers ──────────────────────────────────────────────────────── */
+.font-rows { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.font-role { display: grid; grid-template-columns: 1fr minmax(220px, 300px); gap: 16px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.font-role:first-child { border-top: 0; }
+.font-role-name { color: var(--fg); font-size: var(--d-text); }
+.font-role-desc { color: var(--fg-4); font-size: var(--d-text-xs); margin-top: 2px; }
+.font-pick { position: relative; }
+.font-pick-btn {
+  width: 100%; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--bg-input); color: var(--fg);
+  font-size: var(--d-text-sm); text-align: left;
+}
+.font-pick-btn:hover { border-color: var(--line-bright); }
+.font-pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.font-pick-warn { color: var(--amber); font-size: var(--d-text-xs); font-family: var(--font-sans); }
+.font-pick-pop {
+  position: absolute; z-index: 30; right: 0; top: calc(100% + 6px); width: 320px; max-height: 360px; overflow: auto;
+  background: var(--bg-elevated); border: 1px solid var(--line-bright); border-radius: 10px; box-shadow: var(--shadow-pop); padding: 6px;
+}
+.font-pick-q {
+  all: unset; box-sizing: border-box; display: block; width: 100%; height: 32px; padding: 0 10px; margin-bottom: 4px;
+  border-radius: 7px; background: var(--bg-surface); color: var(--fg); font-size: var(--d-text-sm); font-family: var(--font-sans);
+}
+.font-pick-row {
+  display: flex; width: 100%; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 7px;
+  color: var(--fg-2); font-size: var(--d-text-sm); text-align: left; background: none; border: 0;
+}
+.font-pick-row:hover, .font-pick-row.on { background: var(--bg-hover); color: var(--fg); }
+.font-pick-row > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.font-pick-tag { margin-left: auto; flex: none; color: var(--fg-4); font-size: var(--d-text-xs); font-family: var(--font-sans); }
+.font-pick-tag.warn { color: var(--amber); }
+.font-pick-empty { padding: 10px; color: var(--fg-4); font-size: var(--d-text-sm); }
+.font-preview { margin-top: 8px; padding: 12px 14px; border-radius: 10px; border: 1px dashed var(--line-bright); background: var(--bg-window); }
+.font-preview-chat { font-family: var(--font-chat); font-size: calc(var(--d-text) * 1.1); line-height: 1.6; color: var(--fg); }
+.font-preview-mono { font-family: var(--font-mono); font-size: var(--d-text-sm); color: var(--fg-3); margin-top: 6px; }
+
+/* ── Composer icon buttons (all themes) ────────────────────────────────── */
+.composer-send.icon-only, .btn.danger.composer-send { width: 32px; min-width: 32px; padding: 0; justify-content: center; }
+.composer-pill.icon-only { padding-left: 7px; padding-right: 7px; }
+.composer-bridge { padding: 0 8px; }
+.thinking-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.thinking-bars i { width: 3px; border-radius: 1px; background: var(--line-bright); }
+.thinking-bars i:nth-child(1) { height: 5px; } .thinking-bars i:nth-child(2) { height: 8px; } .thinking-bars i:nth-child(3) { height: 11px; }
+.thinking-bars i.f { background: var(--fg-2); }

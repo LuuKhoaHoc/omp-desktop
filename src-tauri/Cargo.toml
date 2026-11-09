@@ -48,6 +48,10 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 # Web Push delivery (`remote/push.rs`): blocking client on a worker thread. The
 # same rustls (ring, no aws-lc) build tauri-plugin-updater already uses.
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls-no-provider"] }
+# Fork: Settings → Appearance → Font lists installed families and flags the
+# ones missing Vietnamese letters (`work.rs` fonts). Pure Rust, no fontconfig.
+fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap"] }
+ttf-parser = "0.25"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [

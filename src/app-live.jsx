@@ -19,13 +19,13 @@
 
 const {
   Icon, ChatView, Composer, CommandBridge, WindowChrome, Toolbar, TabBar, SubagentPane, ProjectSidebar, EmptyWorkspace,
-  StatusBar, AmbientRail, ConversationTree, PlanKanban, HistoryModal, GitBrowser, FilePreview, ApprovalRulesPanel, UsageStatsPanel, PromptHistoryModal, UpdateModal, useTweaks,
+  StatusBar, AmbientRail, ConversationTree, WorkPanel, InsightsPanel, PlanKanban, HistoryModal, GitBrowser, FilePreview, ApprovalRulesPanel, UsageStatsPanel, PromptHistoryModal, UpdateModal, useTweaks,
   SettingsPage, ConfirmCloseDialog,
   useWidgets, WidgetCard, WidgetErrorCard, WidgetApprovalCard, WidgetBoundary,
   TWEAK_DEFAULTS, NULL_MODEL, EMPTY_PROJECT, DEFAULT_PROFILE_ID,
   INTENT_FRAMING, APPROVAL_PROMPT,
   useBridgeSnapshot, useThemeEffect, useSubagentManager, useUpdater, useConversationTree, useGoalMode, useTerminal, TerminalPanels, timeNow,
-  useKeymap, useKeymapDispatch, useBrowser, BrowserDock, MarkdownLinkContext: _AL_MdLinkCtx,
+  useKeymap, useKeymapDispatch, useBrowser, BrowserDock, MarkdownLinkContext: _AL_MdLinkCtx, ChatPageContext: _AL_PageCtx,
   usePaneWidths, ResizeHandle, useRemote, usePrAutomation, PrAutomationCard,
 } = window;
 const { routeSubmit: _routeSubmit } = window.OMP_SLASH;
@@ -610,6 +610,12 @@ function App() {
   // sends it as a normal prompt, which omp executes.
   const [draftInsert, setDraftInsert] = React.useState(null);
   const handleInsertDraft = (text) => setDraftInsert({ text, nonce: Date.now() });
+  // Fork: answers from interactive chat pages (design/chat/chat-page.jsx),
+  // sent only after the user's click there. Mid-turn they queue as a follow-up.
+  const pageActions = React.useMemo(() => ({
+    send: text => (streaming ? bridge?.followUp(text) : bridge?.send(text)),
+    insert: handleInsertDraft,
+  }), [bridge, streaming]);
 
   // Prompt-history picker (Ctrl+Up modal, issue #16) — same {text, nonce}
   // shape and rationale as draftInsert above, but *replaces* the draft (see
@@ -866,6 +872,8 @@ function App() {
     "desktop.chat.expandAll":  () => handleCollapseAll(false),
     "desktop.terminal.toggle": () => terminal.toggle(planKey),
     "desktop.browser.toggle":  () => toggleSide("browser"),
+    "desktop.panel.work":      () => toggleSide("work"),
+    "desktop.panel.insights":  () => toggleSide("insights"),
   };
 
   // Profile switch applies to the active tab only: its omp process is
@@ -911,7 +919,8 @@ function App() {
   const workspaceRef = React.useRef(null);
   const browserFull = side === "browser" && browser.fullView;
   const splitShown = showSplit && !browserFull;
-  const sideRail = side === "tree" ? "tree" : side !== "browser" && showRail ? "rail" : null;
+  // Fork: Work and Insights take the conversation tree's column (and width).
+  const sideRail = side === "tree" || side === "work" || side === "insights" ? "tree" : side !== "browser" && showRail ? "rail" : null;
   const panes = usePaneWidths({
     tweaks: t, setTweak, workspaceRef,
     open: [showSidebar && "sidebar", splitShown && "split", sideRail].filter(Boolean),
@@ -953,6 +962,7 @@ function App() {
   // Chat links: project files to the preview, localhost to the browser panel.
   return (
     <_AL_MdLinkCtx.Provider value={handleChatLinkClick}>
+    <_AL_PageCtx.Provider value={pageActions}>
       <div className="app-backdrop" />
       <div className="app">
         {/* `is-running`: the active tab streams; the always-visible loops
@@ -976,6 +986,8 @@ function App() {
               fullView: browser.fullView, onFullView: browser.setFullView,
             }}
             terminal={{ open: _TERM_entryOf(terminal.state, planKey).open, onToggle: () => terminal.toggle(planKey) }}
+            work={{ open: side === "work", onToggle: () => toggleSide("work") }}
+            insights={{ open: side === "insights", onToggle: () => toggleSide("insights") }}
             onGit={() => setGitOpen({ path: null })}
             approvals={{ cell: approvalCell, onOpen: () => setRulesOpen(true) }}
             onStats={() => setStatsOpen(true)}
@@ -1120,6 +1132,10 @@ function App() {
 
               {side === "browser" ? (
                 <BrowserDock ui={browser} stageRef={stageRef} room={panes.browserRoom} />
+              ) : side === "work" ? (
+                <WorkPanel />
+              ) : side === "insights" ? (
+                <InsightsPanel projectPath={activeProject.path ?? null} onAsk={handleInsertDraft} />
               ) : side === "tree" ? (
                 <ConversationTree
                   model={convTree.model} currentFile={convTree.currentFile} error={convTree.error}
@@ -1145,7 +1161,7 @@ function App() {
                 >
                   {/* Hidden without the GitHub CLI; the hook keeps checking on
                       focus, so installing gh brings it back. */}
-                  {(t.showChanges ?? true) && !prAutomation.ghMissing && <PrAutomationCard key={planKey} automation={prAutomation} bridge={bridge}
+                  {(t.showChanges ?? true) && !prAutomation.ghMissing && !prAutomation.notGitHub && <PrAutomationCard key={planKey} automation={prAutomation} bridge={bridge}
                     available={!!activeProject.path && !!bridge?.isConnected} />}
                   {widgets.fatal && <WidgetErrorCard title="widgets.json" error={widgets.fatal} />}
                   {widgets.configErrors.map((e, i) => <WidgetErrorCard key={i} title="widgets.json" error={e} />)}
@@ -1262,6 +1278,7 @@ function App() {
       {closeConfirm && (
         <ConfirmCloseDialog confirm={closeConfirm} onAnswer={handleCloseAnswer} />
       )}
+    </_AL_PageCtx.Provider>
     </_AL_MdLinkCtx.Provider>
   );
 }

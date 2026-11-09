@@ -273,7 +273,7 @@
   border-radius: 4px;
   background: color-mix(in oklab, var(--accent) 10%, var(--bg-elevated));
 }
-.ask-row-label .chip { font-size: 10px; padding: 0 6px; }
+.ask-row-label .chip { font-size: var(--d-text-xs); padding: 0 6px; }
 
 /* An option's preview (markdown), height-capped under its row. */
 .ask-row-preview {

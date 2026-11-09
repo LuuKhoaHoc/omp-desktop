@@ -51,7 +51,7 @@
 .tree-tips { display: flex; gap: 6px; margin-top: 6px; overflow: hidden; }
 .tree-tip, .tree-cont {
   flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-family: var(--font-mono); font-size: 10px; line-height: 16px; padding: 0 7px;
+  font-family: var(--font-mono); font-size: var(--d-text-xs); line-height: 16px; padding: 0 7px;
   border-radius: 999px; border: 1px solid var(--line-bright); color: var(--fg-3); background: transparent;
 }
 .tree-tip.here { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, var(--line)); flex: none; }
@@ -70,7 +70,7 @@
   flex: none; width: 108px; display: flex; flex-direction: column;
   justify-content: center; align-items: flex-end; gap: 4px; font-family: var(--font-mono);
 }
-.cache-label { font-size: 10px; color: var(--fg-4); }
+.cache-label { font-size: var(--d-text-xs); color: var(--fg-4); }
 .cache-meter.warm .cache-label { color: var(--lime); }
 .cache-meter.expiring .cache-label { color: var(--amber); }
 .cache-meter.partial .cache-label { color: var(--cyan); }
@@ -89,7 +89,7 @@
 .tree-compaction {
   display: flex; justify-content: space-between; gap: 10px; margin: 6px 10px; padding: 5px 8px;
   border-top: 1.5px solid var(--line-bright); border-bottom: 1.5px solid var(--line-bright);
-  font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); background: var(--bg-surface);
+  font-family: var(--font-mono); font-size: var(--d-text-xs); color: var(--fg-3); background: var(--bg-surface);
 }
 
 /* ── Detail footer ─────────────────────────────────────────────────────── */
@@ -97,11 +97,11 @@
 .tree-detail-title { color: var(--fg); font-size: var(--d-text-sm); }
 .tree-compare { display: flex; align-items: center; gap: 10px; margin: 10px 0 12px; }
 .cmp { flex: 1; min-width: 0; border: 1px solid var(--line-bright); border-radius: var(--r-2); padding: 8px 10px; }
-.cmp-k { font-family: var(--font-mono); font-size: 10px; color: var(--fg-4); }
+.cmp-k { font-family: var(--font-mono); font-size: var(--d-text-xs); color: var(--fg-4); }
 .cmp-v { font-size: 20px; font-weight: 600; margin-top: 2px; }
 .cmp-d { font-size: var(--d-text-xs); color: var(--fg-3); }
 .cmp.later .cmp-v { color: var(--rose); }
-.cmp-arrow { font-family: var(--font-mono); font-size: 10px; color: var(--amber); white-space: nowrap; }
+.cmp-arrow { font-family: var(--font-mono); font-size: var(--d-text-xs); color: var(--amber); white-space: nowrap; }
 .tree-detail.s-warm .cmp.now { border-color: color-mix(in oklab, var(--lime) 50%, var(--line)); }
 .tree-detail.s-warm .cmp.now .cmp-v { color: var(--lime); }
 .tree-detail.s-expiring .cmp.now { border-color: color-mix(in oklab, var(--amber) 55%, var(--line)); }

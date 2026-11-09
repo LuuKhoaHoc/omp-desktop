@@ -112,9 +112,10 @@ struct ReviewThread {
     updated_at: String,
 }
 
-/// A failed lookup, as the webview receives it. `ghMissing` marks the one
-/// failure for which the Changes card is hidden instead of showing an error:
-/// there is no GitHub CLI to ask. `retryable` marks transient lag (GitHub
+/// A failed lookup, as the webview receives it. `ghMissing` and `notGitHub`
+/// mark the failures for which the Changes card is hidden instead of showing
+/// an error: there is no GitHub CLI to ask (machine-wide), or this tab's
+/// upstream is not on GitHub.com (fork). `retryable` marks transient lag (GitHub
 /// not yet showing a push, the branch moving mid-read), which the webview
 /// retries with a backoff instead of pausing Auto-fix.
 #[derive(Debug, Serialize)]
@@ -122,6 +123,8 @@ struct ReviewThread {
 pub struct LookupError {
     message: String,
     gh_missing: bool,
+    #[serde(rename = "notGitHub")]
+    not_github: bool,
     retryable: bool,
 }
 
@@ -131,6 +134,7 @@ impl LookupError {
         Self {
             message: message.to_owned(),
             gh_missing: false,
+            not_github: false,
             retryable: true,
         }
     }
@@ -139,6 +143,7 @@ impl LookupError {
 impl From<String> for LookupError {
     fn from(message: String) -> Self {
         Self {
+            not_github: message == git::NOT_GITHUB,
             message,
             gh_missing: false,
             retryable: false,
@@ -172,6 +177,7 @@ fn snapshot_in(
     let gh = gh::Gh::locate_in(dirs).map_err(|message| LookupError {
         message,
         gh_missing: true,
+        not_github: false,
         retryable: false,
     })?;
     let local = local_branch(folder)?;

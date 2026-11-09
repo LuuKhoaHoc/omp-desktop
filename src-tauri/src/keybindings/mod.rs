@@ -76,6 +76,8 @@ pub const ACTION_IDS: &[&str] = &[
     "desktop.tab.moveLeft",
     "desktop.tab.moveRight",
     "desktop.panel.todo",
+    "desktop.panel.work",
+    "desktop.panel.insights",
     "desktop.panel.changes",
     "desktop.panel.rules",
     "desktop.panel.stats",

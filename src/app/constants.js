@@ -27,12 +27,15 @@
   // empty workspace's animated screen (OMP_BACKDROPS.SCREENS). Rows,
   // labels and bounds: app/settings-schema.js.
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-    "theme": "aurora",
+    "theme": "night",
     "startScreen": "latent",
-    "density": "compact",
+    "density": "cozy",
     "layout": "rail",
-    "accent": "#8AF0C8",
+    "accent": "#E3A857",
     "monoChat": false,
+    "fontUi": "",
+    "fontChat": "",
+    "fontMono": "",
     "showContext": true,
     "showRadar": true,
     "showSubagents": true,
