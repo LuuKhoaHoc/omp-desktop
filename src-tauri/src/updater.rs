@@ -41,7 +41,10 @@ pub const PROGRESS_EVENT: &str = "update://progress";
 
 /// Where a notify-only install sends the user, and what "release notes"
 /// links to. `/tag/v{version}` matches the release workflow's tag format.
-const RELEASES_URL: &str = "https://github.com/apoc/omp-desktop/releases";
+// Fork: the feed and notes point at the fork, so it never "updates" back to
+// upstream. shortcut: tauri.conf.json still holds upstream's minisign pubkey,
+// so no fork release can install until a fork key replaces it.
+const RELEASES_URL: &str = "https://github.com/LuuKhoaHoc/omp-desktop/releases";
 
 /// Upper bound for the feed request. The check runs in the background on
 /// a timer; a stalled connection must fail rather than pin the command.
@@ -379,7 +382,7 @@ mod tests {
     fn release_url_points_at_the_workflow_tag() {
         assert_eq!(
             release_url("0.4.0"),
-            "https://github.com/apoc/omp-desktop/releases/tag/v0.4.0"
+            "https://github.com/LuuKhoaHoc/omp-desktop/releases/tag/v0.4.0"
         );
     }
 
