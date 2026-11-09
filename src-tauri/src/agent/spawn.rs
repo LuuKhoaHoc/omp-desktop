@@ -241,7 +241,8 @@ When the user must choose, fill in or rank something, or a small interactive vis
 than prose, reply with one ```html page block (start it with <title>). A <form> submit, a click on \
 [data-omp-send=\"text\"] or omp.submit(json) in the page sends the answer back after the user clicks \
 Send; you receive it as `My answer in the page \"<title>\":` plus a json block. After sending a page, \
-end your turn and wait. Never ask for secrets in a page. Details: the omp-desktop-chat-pages skill."
+end your turn and wait. Never ask for secrets in a page. A ```mermaid block draws as a diagram, \
+so prefer it for workflows, sequences and state machines. Details: the omp-desktop-chat-pages skill."
     };
 }
 const DESKTOP_PROMPT_ARG: &str = concat!("--append-system-prompt=", desktop_prompt!());
