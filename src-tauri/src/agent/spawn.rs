@@ -230,6 +230,22 @@ pub fn profile_flag(profile: Option<&str>) -> Option<String> {
 /// `config` is the per-session settings overlay (the browser panel's `cdpUrl`,
 /// see `crate::browser`), passed as one `--config=<path>` token and appended
 /// last, after `--approval-mode`.
+/// What the desktop adds to omp's system prompt (fork): the capabilities only
+/// this client renders, so the agent uses them unprompted. Constant, so the
+/// prompt cache is unaffected; the TUI never gets it.
+macro_rules! desktop_prompt {
+    () => {
+        "You are running inside OMP Desktop, whose chat renders an \
+assistant ```html page code block as a live, sandboxed, themed page (no network; inline any JS/CSS). \
+When the user must choose, fill in or rank something, or a small interactive visual explains better \
+than prose, reply with one ```html page block (start it with <title>). A <form> submit, a click on \
+[data-omp-send=\"text\"] or omp.submit(json) in the page sends the answer back after the user clicks \
+Send; you receive it as `My answer in the page \"<title>\":` plus a json block. After sending a page, \
+end your turn and wait. Never ask for secrets in a page. Details: the omp-desktop-chat-pages skill."
+    };
+}
+const DESKTOP_PROMPT_ARG: &str = concat!("--append-system-prompt=", desktop_prompt!());
+
 fn omp_args(
     profile: Option<&str>,
     resume: Option<&str>,
@@ -252,6 +268,7 @@ fn omp_args(
         }
     }
     args.push(mode.flag().to_string());
+    args.push(DESKTOP_PROMPT_ARG.to_string());
     if let Some(path) = config {
         args.push(format!("--config={}", path.display()));
     }
@@ -366,7 +383,7 @@ pub(super) fn spawn_omp(
 mod tests {
     use super::{
         fmt_version, omp_args, parse_version_line, resolve_cwd, sanitize_child_env,
-        version_refusal, ApprovalMode, Command, MIN_OMP_VERSION,
+        version_refusal, ApprovalMode, Command, DESKTOP_PROMPT_ARG, MIN_OMP_VERSION,
     };
     use std::path::Path;
 
@@ -456,7 +473,12 @@ mod tests {
     fn omp_args_without_resume() {
         assert_eq!(
             omp_args(None, None, None, WRITE, None),
-            vec!["--mode", "rpc-ui", "--approval-mode=write"]
+            vec![
+                "--mode",
+                "rpc-ui",
+                "--approval-mode=write",
+                DESKTOP_PROMPT_ARG
+            ]
         );
     }
 
@@ -464,7 +486,12 @@ mod tests {
     fn omp_args_with_empty_resume_is_omitted() {
         assert_eq!(
             omp_args(None, Some(""), None, WRITE, None),
-            vec!["--mode", "rpc-ui", "--approval-mode=write"]
+            vec![
+                "--mode",
+                "rpc-ui",
+                "--approval-mode=write",
+                DESKTOP_PROMPT_ARG
+            ]
         );
     }
 
@@ -478,7 +505,8 @@ mod tests {
                 "--mode",
                 "rpc-ui",
                 "--resume=/tmp/sess.jsonl",
-                "--approval-mode=write"
+                "--approval-mode=write",
+                DESKTOP_PROMPT_ARG
             ]
         );
     }
@@ -493,7 +521,8 @@ mod tests {
                 "--mode",
                 "rpc-ui",
                 "--resume=--auto-approve",
-                "--approval-mode=write"
+                "--approval-mode=write",
+                DESKTOP_PROMPT_ARG
             ]
         );
     }
@@ -506,7 +535,8 @@ mod tests {
                 "--mode",
                 "rpc-ui",
                 "--cwd=/home/dev/project",
-                "--approval-mode=write"
+                "--approval-mode=write",
+                DESKTOP_PROMPT_ARG
             ]
         );
     }
@@ -515,7 +545,12 @@ mod tests {
     fn omp_args_with_empty_cwd_is_omitted() {
         assert_eq!(
             omp_args(None, None, Some(""), WRITE, None),
-            vec!["--mode", "rpc-ui", "--approval-mode=write"]
+            vec![
+                "--mode",
+                "rpc-ui",
+                "--approval-mode=write",
+                DESKTOP_PROMPT_ARG
+            ]
         );
     }
 
@@ -532,6 +567,7 @@ mod tests {
                 "--resume=abc123",
                 "--cwd=/proj",
                 "--approval-mode=write",
+                DESKTOP_PROMPT_ARG,
             ]
         );
     }
@@ -543,7 +579,12 @@ mod tests {
         // `~/.omp/profiles//agent` or make it error out.
         assert_eq!(
             omp_args(Some(""), None, None, WRITE, None),
-            vec!["--mode", "rpc-ui", "--approval-mode=write"]
+            vec![
+                "--mode",
+                "rpc-ui",
+                "--approval-mode=write",
+                DESKTOP_PROMPT_ARG
+            ]
         );
     }
 
@@ -556,7 +597,7 @@ mod tests {
         ] {
             assert_eq!(
                 omp_args(None, None, Some("/proj"), mode, None),
-                vec!["--mode", "rpc-ui", "--cwd=/proj", flag]
+                vec!["--mode", "rpc-ui", "--cwd=/proj", flag, DESKTOP_PROMPT_ARG]
             );
         }
     }
@@ -569,6 +610,7 @@ mod tests {
                 "--mode",
                 "rpc-ui",
                 "--approval-mode=write",
+                DESKTOP_PROMPT_ARG,
                 "--config=/tmp/o.yml"
             ]
         );
@@ -588,6 +630,7 @@ mod tests {
                 "--resume=abc",
                 "--cwd=/proj",
                 "--approval-mode=yolo",
+                DESKTOP_PROMPT_ARG,
                 "--config=/tmp/o.yml",
             ]
         );

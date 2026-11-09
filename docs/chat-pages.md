@@ -15,6 +15,11 @@ variables (`--omp-bg`, `--omp-surface`, `--omp-fg`, `--omp-fg-2`,
 quiet defaults for buttons, inputs and tables that its own CSS overrides.
 Its height follows its content (up to 70% of the window).
 
+The agent learns about this without a skill call: every omp the desktop
+starts gets a short note appended to its system prompt
+(`--append-system-prompt`, `agent/spawn.rs` `DESKTOP_PROMPT_ARG`); the
+`omp-desktop-chat-pages` skill holds the longer guide.
+
 ## Answering the agent
 
 A page sends an answer by any of:
