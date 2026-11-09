@@ -23,7 +23,8 @@ function _mdPageParts(text) {
   if (!P || !window.marked) return null;
   let tokens;
   try { tokens = window.marked.lexer(text); } catch (_) { return null; }
-  if (!tokens.some(t => t.type === 'code' && P.pageInfo(t.lang))) return null;
+  const isMmd = t => t.type === 'code' && /^mermaid\b/i.test(t.lang || '');
+  if (!tokens.some(t => isMmd(t) || (t.type === 'code' && P.pageInfo(t.lang)))) return null;
   const parts = [];
   let run = [];
   const flush = () => {
@@ -34,11 +35,12 @@ function _mdPageParts(text) {
   };
   for (const t of tokens) {
     const info = t.type === 'code' ? P.pageInfo(t.lang) : null;
-    if (!info) { run.push(t); continue; }
+    if (!info && !isMmd(t)) { run.push(t); continue; }
     flush();
     const one = [t];
     one.links = tokens.links;
-    parts.push({ page: { source: t.text, ...info, codeHtml: window.marked.parser(one) } });
+    const codeHtml = window.marked.parser(one);
+    parts.push(info ? { page: { source: t.text, ...info, codeHtml } } : { mermaid: t.text, codeHtml });
   }
   flush();
   return parts;
@@ -66,9 +68,16 @@ const MarkdownContent = ({ text, streaming, pages }) => {
     const { ChatPage } = window;
     return (
       <div className={`md-content selectable${streaming ? ' md-streaming' : ''}`} onClick={onClick}>
-        {parts.map((p, i) => p.page
-          ? <ChatPage key={i} {...p.page} streaming={streaming && i === parts.length - 1} />
-          : <div key={i} className="md-run" dangerouslySetInnerHTML={{ __html: p.html }} />)}
+        {parts.map((p, i) => {
+          const live = streaming && i === parts.length - 1;
+          if (p.page) return <ChatPage key={i} {...p.page} streaming={live} />;
+          // A ```mermaid block draws with the Insights card (design/insights-panel.jsx) once it is complete.
+          if (p.mermaid != null && !live && window._IP_Diagram) {
+            const { _IP_Diagram } = window;
+            return <div key={i} className="md-mermaid"><_IP_Diagram file="Diagram.mmd" source={p.mermaid} /></div>;
+          }
+          return <div key={i} className="md-run" dangerouslySetInnerHTML={{ __html: p.html ?? p.codeHtml }} />;
+        })}
       </div>
     );
   }

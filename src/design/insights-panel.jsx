@@ -376,4 +376,4 @@ function InsightsPanel({ projectPath, onAsk }) {
   );
 }
 
-Object.assign(window, { InsightsPanel, _ipDiagramTitle, _ipSkillPrompt });
+Object.assign(window, { InsightsPanel, _IP_Diagram, _ipDiagramTitle, _ipSkillPrompt });
