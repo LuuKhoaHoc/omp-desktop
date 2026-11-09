@@ -25,7 +25,7 @@ const {
   TWEAK_DEFAULTS, NULL_MODEL, EMPTY_PROJECT, DEFAULT_PROFILE_ID,
   INTENT_FRAMING, APPROVAL_PROMPT,
   useBridgeSnapshot, useThemeEffect, useSubagentManager, useUpdater, useConversationTree, useGoalMode, useTerminal, TerminalPanels, timeNow,
-  useKeymap, useKeymapDispatch, useBrowser, BrowserDock, MarkdownLinkContext: _AL_MdLinkCtx,
+  useKeymap, useKeymapDispatch, useBrowser, BrowserDock, MarkdownLinkContext: _AL_MdLinkCtx, ChatPageContext: _AL_PageCtx,
   usePaneWidths, ResizeHandle, useRemote, usePrAutomation, PrAutomationCard,
 } = window;
 const { routeSubmit: _routeSubmit } = window.OMP_SLASH;
@@ -610,6 +610,12 @@ function App() {
   // sends it as a normal prompt, which omp executes.
   const [draftInsert, setDraftInsert] = React.useState(null);
   const handleInsertDraft = (text) => setDraftInsert({ text, nonce: Date.now() });
+  // Fork: answers from interactive chat pages (design/chat/chat-page.jsx),
+  // sent only after the user's click there. Mid-turn they queue as a follow-up.
+  const pageActions = React.useMemo(() => ({
+    send: text => (streaming ? bridge?.followUp(text) : bridge?.send(text)),
+    insert: handleInsertDraft,
+  }), [bridge, streaming]);
 
   // Prompt-history picker (Ctrl+Up modal, issue #16) — same {text, nonce}
   // shape and rationale as draftInsert above, but *replaces* the draft (see
@@ -956,6 +962,7 @@ function App() {
   // Chat links: project files to the preview, localhost to the browser panel.
   return (
     <_AL_MdLinkCtx.Provider value={handleChatLinkClick}>
+    <_AL_PageCtx.Provider value={pageActions}>
       <div className="app-backdrop" />
       <div className="app">
         {/* `is-running`: the active tab streams; the always-visible loops
@@ -1154,7 +1161,7 @@ function App() {
                 >
                   {/* Hidden without the GitHub CLI; the hook keeps checking on
                       focus, so installing gh brings it back. */}
-                  {(t.showChanges ?? true) && !prAutomation.ghMissing && <PrAutomationCard key={planKey} automation={prAutomation} bridge={bridge}
+                  {(t.showChanges ?? true) && !prAutomation.ghMissing && !prAutomation.notGitHub && <PrAutomationCard key={planKey} automation={prAutomation} bridge={bridge}
                     available={!!activeProject.path && !!bridge?.isConnected} />}
                   {widgets.fatal && <WidgetErrorCard title="widgets.json" error={widgets.fatal} />}
                   {widgets.configErrors.map((e, i) => <WidgetErrorCard key={i} title="widgets.json" error={e} />)}
@@ -1271,6 +1278,7 @@ function App() {
       {closeConfirm && (
         <ConfirmCloseDialog confirm={closeConfirm} onAnswer={handleCloseAnswer} />
       )}
+    </_AL_PageCtx.Provider>
     </_AL_MdLinkCtx.Provider>
   );
 }

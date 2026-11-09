@@ -63,11 +63,32 @@ fn is_app_document(url: &Url) -> bool {
     matches!(url.path(), "" | "/" | "/index.html") && url.query().is_none()
 }
 
+/// An interactive chat page (fork, `chat_pages`): `omp-page://localhost/<id>`,
+/// or `http://omp-page.localhost/<id>` on Windows/Android. The hook cannot
+/// tell a chat card's iframe from the top level, so it lets the scheme
+/// through; only an unguessable id the webview got from `page_register`
+/// serves anything, and chat links never render this scheme.
+fn is_chat_page(url: &Url) -> bool {
+    let local = match url.scheme() {
+        crate::chat_pages::SCHEME => url.host_str() == Some("localhost"),
+        "http" => {
+            cfg!(any(windows, target_os = "android"))
+                && url.host_str() == Some("omp-page.localhost")
+                && url.port().is_none()
+        }
+        _ => false,
+    };
+    local && url.path().len() > 1
+}
+
 /// Classifies `url` for the webview `on_navigation` hook and for
 /// `open_url_external`. `dev_url` is `Some` only under `tauri dev`, where
 /// the CLI's built-in static server replaces the app's `tauri://localhost`
 /// asset origin; it is always `None` in a built app.
 pub fn classify(url: &Url, dev_url: Option<&Url>) -> Navigation {
+    if is_chat_page(url) {
+        return Navigation::Stay;
+    }
     if is_app_origin(url, dev_url) {
         return if is_app_document(url) {
             Navigation::Stay
@@ -146,6 +167,19 @@ mod tests {
 
     fn classify_str(url: &str) -> Navigation {
         classify(&Url::parse(url).expect("test URL parses"), None)
+    }
+
+    #[test]
+    fn chat_pages_load_and_other_page_hosts_do_not() {
+        assert_eq!(classify_str("omp-page://localhost/abc"), Navigation::Stay);
+        assert_eq!(classify_str("omp-page://localhost/"), Navigation::Block);
+        assert_eq!(classify_str("omp-page://evil/abc"), Navigation::Block);
+        let windows_form = classify_str("http://omp-page.localhost/abc");
+        if cfg!(windows) {
+            assert_eq!(windows_form, Navigation::Stay);
+        } else {
+            assert_eq!(windows_form, Navigation::OpenExternal);
+        }
     }
 
     #[test]

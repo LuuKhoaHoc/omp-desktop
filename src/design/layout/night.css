@@ -7,8 +7,13 @@
    styles (tool tags, glyph borders). */
 
 /* ── Base type ─────────────────────────────────────────────────────────── */
+/* Larger steps than upstream's (10.5–13.5px read thin in Inter on Linux),
+   and a 450 body weight so hairline strokes survive grey-on-graphite. */
+.theme-night.density-cozy    { --d-text: 0.9063rem; --d-text-sm: 0.8125rem; --d-text-xs: 0.75rem;   --d-text-lg: 1rem; }
+.theme-night.density-compact { --d-text: 0.875rem;  --d-text-sm: 0.7813rem; --d-text-xs: 0.7188rem; --d-text-lg: 0.9375rem; }
+.theme-night.density-dense   { --d-text: 0.8125rem; --d-text-sm: 0.75rem;   --d-text-xs: 0.6875rem; --d-text-lg: 0.875rem; }
 .theme-night body,
-body.theme-night { font-feature-settings: normal; letter-spacing: 0; }
+body.theme-night { font-feature-settings: normal; letter-spacing: 0; font-weight: 450; }
 .theme-night .mono { font-feature-settings: normal; }
 .theme-night ::selection { background: rgba(227, 168, 87, 0.28); }
 .theme-night :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

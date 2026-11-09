@@ -64,6 +64,20 @@ await check("move: swaps column labels, keeps others; Closed closes", () => {
   assert.ok(req.args.includes("labels=bug,STATUS::TODO"));
 });
 
+await check("gitlab group scope: lists the group, edits by project_id:iid, key names the repo", () => {
+  const g = { ...gl, scope: "group", project: "co/erp", who: "mine" };
+  const [req] = W.PLATFORMS.gitlab.list(g);
+  assert.ok(req.args[3].startsWith("groups/co%2Ferp/issues?"));
+  assert.ok(req.args[3].includes("&scope=assigned_to_me"));
+  const t = W.PLATFORMS.gitlab.parse(g, { ...glIssue, project_id: 87, iid: 36, references: { full: "co/erp/kho#36" } });
+  assert.equal(t.id, "87:36");
+  assert.equal(t.key, "kho#36");
+  assert.equal(W.PLATFORMS.gitlab.get(g, t.id).args[3], "projects/87/issues/36");
+  assert.equal(W.PLATFORMS.gitlab.comment(g, t, "hi").args.find(a => a.startsWith("projects/")), "projects/87/issues/36/notes");
+  assert.ok(W.PLATFORMS.gitlab.move(g, t, "STATUS::TODO").args.includes("projects/87/issues/36"));
+  assert.ok(!W.PLATFORMS.gitlab.list(gl)[0].args[3].includes("scope="));
+});
+
 await check("github cli: labels go as labels[] fields; PRs filtered from the list", async () => {
   const gh = { name: "gh", platform: "github", via: "cli", project: "me/repo" };
   const t = W.PLATFORMS.github.parse(gh, { number: 3, title: "x", body: "", state: "open", labels: [{ name: "a" }], assignees: [], html_url: "h", updated_at: "t" });
@@ -118,9 +132,9 @@ await check("validate explains what is missing", () => {
   assert.deepEqual(W.validate(gl), []);
   assert.ok(W.validate({ ...gl, via: "token", tokenEnv: "lower" }).some(m => /Token variable/.test(m)));
   assert.ok(W.validate({ ...gl, via: "mcp" }).some(m => /MCP/.test(m)));
-  assert.ok(W.validate({ platform: "github", name: "g", via: "cli", project: "nope" }).some(m => /owner\/name/.test(m)));
+  assert.deepEqual(W.validate({ platform: "github", name: "g", via: "cli" }), []);
   assert.ok(W.validate({ ...gl, host: "https://x" }).some(m => /bare name/.test(m)));
-  assert.ok(W.validate({ platform: "linear", name: "l", via: "token", tokenEnv: "K" }).some(m => /Team key/.test(m)));
+  assert.deepEqual(W.validate({ platform: "linear", name: "l", via: "token", tokenEnv: "K" }), []); // team key: the view's
 });
 
 await check("transports: MCP listed but disabled; Linear has no CLI", () => {

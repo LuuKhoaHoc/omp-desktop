@@ -156,7 +156,7 @@ pub fn fonts() -> Vec<FontFamily> {
 }
 
 const INSIGHT_FILE_LIMIT: u64 = 2 * 1024 * 1024;
-const INSIGHT_CHART_LIMIT: usize = 60;
+const INSIGHT_DIAGRAM_LIMIT: usize = 60;
 
 fn read_json(path: &std::path::Path) -> Option<serde_json::Value> {
     let meta = std::fs::metadata(path).ok()?;
@@ -167,10 +167,61 @@ fn read_json(path: &std::path::Path) -> Option<serde_json::Value> {
     Some(serde_json::from_str(&text).unwrap_or_else(|e| serde_json::json!({ "error": format!("{}: {e}", path.display()) })))
 }
 
+/// The kind of a diagram file, by extension: the format each diagram skill
+/// writes (Mermaid, an SVG or PNG export, an HTML page, an Excalidraw scene).
+fn diagram_kind(path: &std::path::Path) -> Option<&'static str> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    Some(match ext.as_str() {
+        "mmd" | "mermaid" => "mermaid",
+        "svg" => "svg",
+        "png" => "png",
+        "html" | "htm" => "html",
+        "excalidraw" => "excalidraw",
+        _ => return None,
+    })
+}
+
+/// `diagrams/*`: every file of a known kind, sorted, at most 60, 2 MB each.
+/// Text kinds come as `source`, a PNG as base64 `data`; an unreadable or
+/// oversized file is an `error` entry, so the panel can say why it is missing.
+fn diagrams(dir: &std::path::Path) -> Vec<serde_json::Value> {
+    use base64::Engine;
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut files: Vec<_> = rd
+        .flatten()
+        .map(|e| e.path())
+        .filter_map(|p| Some((diagram_kind(&p)?, p)))
+        .collect();
+    files.sort_by(|a, b| a.1.cmp(&b.1));
+    files
+        .into_iter()
+        .take(INSIGHT_DIAGRAM_LIMIT)
+        .filter_map(|(kind, p)| {
+            let meta = std::fs::metadata(&p).ok()?;
+            if !meta.is_file() {
+                return None;
+            }
+            let file = p.file_name()?.to_string_lossy().into_owned();
+            if meta.len() > INSIGHT_FILE_LIMIT {
+                return Some(serde_json::json!({ "file": file, "kind": kind, "error": "larger than 2 MB" }));
+            }
+            let entry = if kind == "png" {
+                std::fs::read(&p).map(|b| serde_json::json!({ "file": file, "kind": kind,
+                    "data": base64::engine::general_purpose::STANDARD.encode(b) }))
+            } else {
+                std::fs::read_to_string(&p).map(|source| serde_json::json!({ "file": file, "kind": kind, "source": source }))
+            };
+            Some(entry.unwrap_or_else(|e| serde_json::json!({ "file": file, "kind": kind, "error": e.to_string() })))
+        })
+        .collect()
+}
+
 /// The Insights panel's data: `<project>/.omp/insights/` → `doc-analysis.json`,
-/// `testcases.json`, `charts/*.json` (sorted, at most 60, 2 MB each). Fixed
-/// names only, so the webview cannot read elsewhere. A missing folder is not
-/// an error: `exists: false` lets the panel show how to fill it.
+/// `testcases.json` and `diagrams/*` (see `diagrams`). Fixed names only, so
+/// the webview cannot read elsewhere. A missing folder is not an error:
+/// `exists: false` lets the panel show how to fill it.
 pub fn insights(project: &str) -> Result<serde_json::Value, String> {
     let root = std::path::Path::new(project);
     if !root.is_absolute() || !root.is_dir() {
@@ -180,27 +231,12 @@ pub fn insights(project: &str) -> Result<serde_json::Value, String> {
     if !dir.is_dir() {
         return Ok(serde_json::json!({ "exists": false, "dir": dir }));
     }
-    let mut charts = Vec::new();
-    if let Ok(rd) = std::fs::read_dir(dir.join("charts")) {
-        let mut files: Vec<_> = rd
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|x| x == "json"))
-            .collect();
-        files.sort();
-        for p in files.into_iter().take(INSIGHT_CHART_LIMIT) {
-            if let Some(v) = read_json(&p) {
-                let file = p.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-                charts.push(serde_json::json!({ "file": file, "chart": v }));
-            }
-        }
-    }
     Ok(serde_json::json!({
         "exists": true,
         "dir": dir,
+        "diagrams": diagrams(&dir.join("diagrams")),
         "doc": read_json(&dir.join("doc-analysis.json")),
         "testcases": read_json(&dir.join("testcases.json")),
-        "charts": charts,
     }))
 }
 
@@ -233,18 +269,29 @@ mod tests {
     #[test]
     fn insights_reads_fixed_files_only() {
         let tmp = std::env::temp_dir().join(format!("omp-insights-{}", std::process::id()));
-        let dir = tmp.join(".omp/insights/charts");
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("b.json"), r#"{"type":"bar"}"#).unwrap();
-        std::fs::write(dir.join("a.json"), "not json").unwrap();
-        std::fs::write(dir.join("skip.txt"), "x").unwrap();
+        std::fs::create_dir_all(tmp.join(".omp/insights")).unwrap();
         std::fs::write(tmp.join(".omp/insights/testcases.json"), r#"{"cases":[]}"#).unwrap();
+        let dg = tmp.join(".omp/insights/diagrams");
+        std::fs::create_dir_all(&dg).unwrap();
+        std::fs::write(dg.join("b.mermaid"), "sequenceDiagram\n A->>B: hi").unwrap();
+        std::fs::write(dg.join("a.mmd"), "flowchart LR\n A-->B").unwrap();
+        std::fs::write(dg.join("c.txt"), "x").unwrap();
+        std::fs::write(dg.join("d.PNG"), [137u8, 80, 78, 71]).unwrap();
+        std::fs::write(dg.join("e.excalidraw"), r#"{"elements":[]}"#).unwrap();
+        std::fs::write(dg.join("f.svg"), vec![b' '; 2 * 1024 * 1024 + 1]).unwrap();
         let v = insights(tmp.to_str().unwrap()).unwrap();
+        let d = v["diagrams"].as_array().unwrap();
+        let kinds: Vec<_> = d.iter().map(|e| e["kind"].as_str().unwrap()).collect();
+        assert_eq!(kinds, ["mermaid", "mermaid", "png", "excalidraw", "svg"]);
+        assert_eq!(d[0]["file"], "a.mmd");
+        assert_eq!(d[0]["source"], "flowchart LR\n A-->B");
+        assert_eq!(d[1]["file"], "b.mermaid");
+        assert_eq!(d[2]["data"], "iVBORw==");
+        assert_eq!(d[3]["source"], r#"{"elements":[]}"#);
+        assert_eq!(d[4]["error"], "larger than 2 MB");
+        assert!(d[4]["source"].is_null());
         assert_eq!(v["exists"], true);
-        assert_eq!(v["charts"].as_array().unwrap().len(), 2);
-        assert_eq!(v["charts"][0]["file"], "a.json");
-        assert!(v["charts"][0]["chart"]["error"].is_string());
-        assert_eq!(v["charts"][1]["chart"]["type"], "bar");
+        assert!(v["charts"].is_null());
         assert!(v["doc"].is_null());
         assert_eq!(v["testcases"]["cases"], serde_json::json!([]));
         assert_eq!(insights("relative/path").unwrap_err(), "project folder not found");

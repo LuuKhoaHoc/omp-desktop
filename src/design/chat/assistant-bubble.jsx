@@ -130,7 +130,7 @@ function AssistantBubble({ msg, idx, highlighted, annotable, annotations, onAnno
               );
             }
             return (
-              <_ChatMd key={i} text={b.text}
+              <_ChatMd key={i} text={b.text} pages
                 streaming={msg.streaming && i === msg.blocks.length - 1} />
             );
           }

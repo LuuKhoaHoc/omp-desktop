@@ -52,6 +52,11 @@ pub(super) fn local_branch(folder: &Path) -> Result<LocalBranch, String> {
     })
 }
 
+/// The one error the webview reads as "this project is not on GitHub" (fork):
+/// the Changes card hides itself for that tab instead of showing it.
+pub(super) const NOT_GITHUB: &str =
+    "Auto-fix supports GitHub.com HTTPS or SSH remotes only; GitHub Enterprise and other hosts are unsupported";
+
 pub(super) fn github_repo(url: &gix::Url) -> Result<(String, String), String> {
     if !url
         .host()
@@ -61,7 +66,7 @@ pub(super) fn github_repo(url: &gix::Url) -> Result<(String, String), String> {
             .port
             .is_some_and(|p| Some(p) != url.scheme.default_port())
     {
-        return Err("Auto-fix supports GitHub.com HTTPS or SSH remotes only; GitHub Enterprise and other hosts are unsupported".into());
+        return Err(NOT_GITHUB.into());
     }
     let path = std::str::from_utf8(url.path.as_ref())
         .map_err(|_| "GitHub remote path is not UTF-8".to_string())?;

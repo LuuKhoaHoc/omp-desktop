@@ -11,6 +11,7 @@ mod agent;
 mod approval;
 mod approval_mode;
 mod browser;
+mod chat_pages;
 mod child_path;
 mod child_run;
 mod config_file;
@@ -957,6 +958,12 @@ async fn insights_read(project: String) -> Result<serde_json::Value, String> {
     off_ipc(move || work::insights(&project)).await?
 }
 
+/// Stores an interactive chat page and returns its id (`chat_pages`).
+#[tauri::command]
+fn page_register(html: String, store: tauri::State<'_, chat_pages::PageStore>) -> Result<String, String> {
+    store.register(html)
+}
+
 /// Installed font families for the font picker (`work::fonts`).
 #[tauri::command]
 async fn list_fonts() -> Result<Vec<work::FontFamily>, String> {
@@ -1547,6 +1554,10 @@ fn with_plugins_and_state(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder
         .plugin(navigation_guard::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .register_uri_scheme_protocol(chat_pages::SCHEME, |ctx, request| {
+            chat_pages::handle(&ctx.app_handle().state::<chat_pages::PageStore>(), &request)
+        })
+        .manage(chat_pages::PageStore::default())
         .on_page_load(|webview, payload| {
             remote::bridge::on_page_load(
                 webview,
@@ -1582,6 +1593,7 @@ pub fn run() {
             work_cli,
             work_http,
             insights_read,
+            page_register,
             list_fonts,
             send_command,
             start_session,

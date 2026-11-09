@@ -1,5 +1,5 @@
 /* ═════════════════════════════════════════════════════════════════════
-   design/insights-panel.jsx — the Insights panel (fork): charts, test
+   design/insights-panel.jsx — the Insights panel (fork): diagrams, test
    cases and a document analysis that the agent writes into the project,
    drawn beside the chat. Data: `<project>/.omp/insights/` read by Rust
    (`insights_read`, src-tauri/src/work.rs), re-read every few seconds
@@ -11,149 +11,16 @@
      testcases.json     { cases: [{ id, title, requirement?, priority?, type?,
                           preconditions?, steps: [string | { action, expected }],
                           expected?, status?: "untested"|"pass"|"fail"|"blocked" }] }
-     charts/*.json      { type: "bar"|"line"|"pie"|"stacked", title, unit?,
-                          labels: [..], series: [{ name, data: [numbers] }] }
-   Charts are drawn as inline SVG here (no chart library, CSP-safe).
+     diagrams/*         what the diagram skills write: .mmd/.mermaid
+                          (Mermaid), .svg, .png, .html, .excalidraw
+   Mermaid uses the vendored src/mermaid.min.js, loaded on first use, strict
+   security level. SVG, PNG and Excalidraw (app/excalidraw-svg.js) render as
+   <img> data URLs, so nothing in them runs; HTML pages go in a sandboxed
+   iframe with no scripts. "New diagram" drafts a prompt naming the skill.
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon: _IP_Icon } = window;
 const _IP_POLL_MS = 4000;
-// Series colours: tokens first so every theme stays coherent.
-const _IP_COLORS = ["var(--accent)", "var(--cyan)", "var(--lime)", "var(--lilac)", "var(--rose)", "var(--amber)"];
-
-function _ipNum(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
-function _ipFmt(n) {
-  const a = Math.abs(n);
-  if (a >= 1e9) return `${+(n / 1e9).toFixed(1)}B`;
-  if (a >= 1e6) return `${+(n / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `${+(n / 1e3).toFixed(1)}k`;
-  return `${+n.toFixed(2)}`;
-}
-// A "nice" axis top: 1, 2, 2.5, 5 × 10^k at or above `max`.
-function _ipNiceMax(max) {
-  if (max <= 0) return 1;
-  const p = 10 ** Math.floor(Math.log10(max));
-  return [1, 2, 2.5, 5, 10].map(m => m * p).find(v => v >= max);
-}
-
-// A line chart's axis: four "nice" steps around [min, max], zero kept when
-// the data reaches it.
-function _ipRange(min, max) {
-  if (min === max) { min -= 1; max += 1; }
-  const step = _ipNiceMax((max - min) / 4);
-  const lo = Math.floor(min / step) * step;
-  return [min >= 0 && lo < 0 ? 0 : lo, lo + step * Math.max(4, Math.ceil((max - lo) / step))];
-}
-
-function _IP_Legend({ series }) {
-  if (series.length < 2) return null;
-  return (
-    <div className="ip-legend">
-      {series.map((s, i) => <span key={i}><i style={{ background: _IP_COLORS[i % _IP_COLORS.length] }} />{s.name}</span>)}
-    </div>
-  );
-}
-
-function _IP_Cartesian({ chart }) {
-  const labels = chart.labels ?? [];
-  const series = (chart.series ?? []).map(s => ({ name: s.name ?? "", data: (s.data ?? []).map(_ipNum) }));
-  const stacked = chart.type === "stacked";
-  const W = 520, H = 220, L = 44, R = 8, T = 10, B = 30;
-  const n = Math.max(1, labels.length);
-  const totals = labels.map((_, i) => series.reduce((a, s) => a + Math.max(0, s.data[i] ?? 0), 0));
-  const all = series.flatMap(s => s.data);
-  // Bars start at zero; a line zooms to its data so close series separate.
-  const [lo, max] = chart.type === "line" && all.length
-    ? _ipRange(Math.min(...all), Math.max(...all))
-    : [0, _ipNiceMax(stacked ? Math.max(0, ...totals) : Math.max(0, ...all))];
-  const y = v => T + (H - T - B) * (1 - (v - lo) / (max - lo || 1));
-  const band = (W - L - R) / n;
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => lo + f * (max - lo));
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="ip-svg" role="img" aria-label={chart.title}>
-      {ticks.map(v => (
-        <g key={v}>
-          <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="ip-gridline" />
-          <text x={L - 6} y={y(v) + 3} className="ip-tick" textAnchor="end">{_ipFmt(v)}</text>
-        </g>
-      ))}
-      {labels.map((lab, i) => (
-        <text key={i} x={L + band * (i + 0.5)} y={H - 10} className="ip-tick" textAnchor="middle">
-          {String(lab).length > 10 ? `${String(lab).slice(0, 9)}…` : lab}
-        </text>
-      ))}
-      {chart.type === "line"
-        ? series.map((s, si) => {
-            const pts = s.data.map((v, i) => `${L + band * (i + 0.5)},${y(v)}`).join(" ");
-            const c = _IP_COLORS[si % _IP_COLORS.length];
-            return (
-              <g key={si}>
-                <polyline points={pts} fill="none" stroke={c} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-                {s.data.map((v, i) => <circle key={i} cx={L + band * (i + 0.5)} cy={y(v)} r="3" fill="var(--bg-surface)" stroke={c} strokeWidth="1.5"><title>{`${s.name} ${labels[i]}: ${v}`}</title></circle>)}
-              </g>
-            );
-          })
-        : labels.map((lab, i) => {
-            const inner = band * 0.7, x0 = L + band * i + (band - inner) / 2;
-            if (stacked) {
-              let acc = 0;
-              return series.map((s, si) => {
-                const v = Math.max(0, s.data[i] ?? 0); const top = acc + v;
-                const r = <rect key={`${i}-${si}`} x={x0} width={inner} y={y(top)} height={Math.max(0, y(acc) - y(top))} rx="2" fill={_IP_COLORS[si % _IP_COLORS.length]}><title>{`${s.name} ${lab}: ${v}`}</title></rect>;
-                acc = top; return r;
-              });
-            }
-            const w = inner / Math.max(1, series.length);
-            return series.map((s, si) => {
-              const v = s.data[i] ?? 0;
-              return <rect key={`${i}-${si}`} x={x0 + w * si} width={Math.max(1, w - 2)} y={y(Math.max(0, v))} height={Math.abs(y(0) - y(v))} rx="2" fill={_IP_COLORS[si % _IP_COLORS.length]}><title>{`${s.name} ${lab}: ${v}`}</title></rect>;
-            });
-          })}
-    </svg>
-  );
-}
-
-function _IP_Pie({ chart }) {
-  const labels = chart.labels ?? [];
-  const data = (chart.series?.[0]?.data ?? []).map(v => Math.max(0, _ipNum(v)));
-  const total = data.reduce((a, b) => a + b, 0) || 1;
-  let a0 = -Math.PI / 2;
-  const R = 70, r = 42, cx = 90, cy = 90;
-  const arc = (a1, a2) => {
-    const large = a2 - a1 > Math.PI ? 1 : 0;
-    const p = (rad, a) => `${cx + rad * Math.cos(a)},${cy + rad * Math.sin(a)}`;
-    return `M${p(R, a1)} A${R},${R} 0 ${large} 1 ${p(R, a2)} L${p(r, a2)} A${r},${r} 0 ${large} 0 ${p(r, a1)} Z`;
-  };
-  return (
-    <div className="ip-pie">
-      <svg viewBox="0 0 180 180" className="ip-svg pie" role="img" aria-label={chart.title}>
-        {data.map((v, i) => {
-          const a1 = a0, a2 = a0 + (v / total) * Math.PI * 2 - 1e-6; a0 = a2;
-          return <path key={i} d={arc(a1, a2)} fill={_IP_COLORS[i % _IP_COLORS.length]}><title>{`${labels[i]}: ${v}`}</title></path>;
-        })}
-        <text x={cx} y={cy + 5} textAnchor="middle" className="ip-pie-total">{_ipFmt(total)}</text>
-      </svg>
-      <ul className="ip-pie-keys">
-        {data.map((v, i) => (
-          <li key={i}><i style={{ background: _IP_COLORS[i % _IP_COLORS.length] }} />{labels[i]}<span className="mono">{Math.round((v / total) * 100)}%</span></li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function _IP_Chart({ file, chart }) {
-  if (chart?.error) return <div className="ip-card"><div className="ip-card-title">{file}</div><div className="wp-note err">{chart.error}</div></div>;
-  const type = chart?.type ?? "bar";
-  return (
-    <figure className="ip-card">
-      <figcaption className="ip-card-title">{chart.title ?? file}{chart.unit && <span className="ip-unit">{chart.unit}</span>}</figcaption>
-      {type === "pie" ? <_IP_Pie chart={chart} /> : <_IP_Cartesian chart={chart} />}
-      {type !== "pie" && <_IP_Legend series={chart.series ?? []} />}
-    </figure>
-  );
-}
-
 const _IP_STATUS = ["untested", "pass", "fail", "blocked"];
 
 function _IP_Cases({ data }) {
@@ -248,10 +115,215 @@ function _IP_Doc({ doc }) {
   );
 }
 
+// ── Diagrams (Mermaid) ─────────────────────────────────────────────────────
+let _ipMermaid = null;
+/** Loads the vendored Mermaid once, themed from the current CSS tokens. */
+function _ipLoadMermaid() {
+  if (!_ipMermaid) {
+    _ipMermaid = new Promise((resolve, reject) => {
+      if (window.mermaid) return resolve(window.mermaid);
+      const s = document.createElement("script");
+      s.src = "mermaid.min.js";
+      s.onload = () => resolve(window.mermaid);
+      s.onerror = () => { _ipMermaid = null; reject(new Error("Could not load mermaid.min.js")); };
+      document.head.appendChild(s);
+    }).then(m => {
+      const css = getComputedStyle(document.documentElement);
+      const v = name => css.getPropertyValue(name).trim();
+      m.initialize({
+        startOnLoad: false, securityLevel: "strict", theme: "base",
+        fontFamily: v("--font-sans") || "sans-serif",
+        themeVariables: {
+          darkMode: true, background: "transparent",
+          primaryColor: v("--bg-elevated"), primaryTextColor: v("--fg"), primaryBorderColor: v("--accent"),
+          secondaryColor: v("--bg-surface"), tertiaryColor: v("--bg-window"),
+          lineColor: v("--fg-3"), textColor: v("--fg-2"), mainBkg: v("--bg-elevated"), nodeBorder: v("--line-bright"),
+          clusterBkg: v("--bg-window"), clusterBorder: v("--line"), edgeLabelBackground: v("--bg-window"), labelBackground: v("--bg-window"),
+          noteBkgColor: v("--bg-surface"), noteTextColor: v("--fg-2"), noteBorderColor: v("--line-bright"),
+          actorBkg: v("--bg-elevated"), actorBorder: v("--accent"), actorTextColor: v("--fg"), signalColor: v("--fg-2"), signalTextColor: v("--fg-2"),
+        },
+      });
+      return m;
+    });
+  }
+  return _ipMermaid;
+}
+// Mermaid renders through shared global state: one diagram at a time.
+let _ipQueue = Promise.resolve();
+let _ipSeq = 0;
+function _ipRender(source) {
+  const id = `ip-mmd-${++_ipSeq}`;
+  // A failed render leaves Mermaid's scratch node (`d<id>`) in <body>.
+  const run = _ipQueue.then(async () => (await _ipLoadMermaid()).render(id, source))
+    .catch(e => { document.getElementById(`d${id}`)?.remove(); throw e; });
+  _ipQueue = run.catch(() => {});
+  return run;
+}
+/** The card title: `%% title: X` (Mermaid), `<title>` (SVG/HTML), else the
+ *  file name without its extension. */
+function _ipDiagramTitle(source, file) {
+  const m = /^\s*%%\s*title\s*:\s*(.+)$/im.exec(source ?? "") ?? /<title[^>]*>([^<]{1,200})<\/title>/i.exec(source ?? "");
+  return m ? m[1].trim() : String(file).replace(/\.[a-z]+$/i, "");
+}
+
+// The diagram skills the agent can use, and the file each one leaves here.
+const _IP_SKILLS = [
+  { id: "mermaidjs-v11", label: "Mermaid", hint: "flow, sequence, state, ER, gantt", ext: "mmd", how: "Write the Mermaid source itself (no rendering), first line `%% title: <name>`." },
+  { id: "diagram-design", label: "Diagram design", hint: "30+ kinds: swimlane, journey, timeline, matrix…", ext: "svg", how: "Save the finished diagram as standalone SVG (or HTML if it needs CSS), with a <title>." },
+  { id: "architecture-diagram", label: "Architecture", hint: "system / infra, dark SVG", ext: "html", how: "Save the standalone HTML file, with a <title>." },
+  { id: "tech-graph", label: "Tech graph", hint: "publish-grade SVG + PNG", ext: "svg", how: "Save the SVG (a PNG beside it is fine), with a <title>." },
+  { id: "excalidraw", label: "Excalidraw", hint: "whiteboard sketch", ext: "excalidraw", how: "Save the .excalidraw scene JSON." },
+  { id: "preview", label: "Visual explanation", hint: "HTML walkthrough / slides", ext: "html", how: "Save the self-contained HTML page (no CDN scripts: it is shown without JavaScript), with a <title>." },
+];
+function _ipSkillPrompt(skill) {
+  return `Use the \`${skill.id}\` skill (load it; if it is not loaded, read its SKILL.md under ~/.agents/skills or ~/.hermes/skills) to draw: <what to draw, or attach the spec>.\n`
+    + `Save the result into this project's .omp/insights/diagrams/<kebab-name>.${skill.ext}, one diagram per file. ${skill.how} `
+    + "The Insights panel shows that folder.";
+}
+
+function _ipCopy(text) { navigator.clipboard?.writeText(text).catch(() => {}); }
+const _IP_ZOOMS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+
+/** What a card shows: `{ mermaid }` (inline SVG string), `{ img }` (data URL),
+ *  `{ html }` (sandboxed page), or `{ err }`. */
+function _ipUseDiagram({ kind, source, data, error }) {
+  const [out, setOut] = React.useState(error ? { err: error } : null);
+  React.useEffect(() => {
+    if (error) return setOut({ err: error });
+    let live = true;
+    try {
+      if (kind === "mermaid") {
+        setOut(null);
+        _ipRender(source).then(r => live && setOut({ mermaid: r.svg }), e => live && setOut({ err: String(e?.message ?? e) }));
+      } else if (kind === "png") setOut({ img: `data:image/png;base64,${data}` });
+      else if (kind === "svg") setOut({ img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}` });
+      else if (kind === "excalidraw") setOut({ img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(window.OMP_EXCALIDRAW.toSvg(JSON.parse(source)).svg)}` });
+      else if (kind === "html") setOut({ html: source });
+      else setOut({ err: `unknown kind ${kind}` });
+    } catch (e) { setOut({ err: String(e?.message ?? e) }); }
+    return () => { live = false; };
+  }, [kind, source, data, error]);
+  return out;
+}
+
+function _IP_Diagram({ file, kind = "mermaid", source, data, error }) {
+  const out = _ipUseDiagram({ kind, source, data, error });
+  const [zoom, setZoom] = React.useState(null); // null = fit width
+  const [max, setMax] = React.useState(false);
+  const [showSrc, setShowSrc] = React.useState(false);
+  const view = React.useRef(null);
+  const drag = React.useRef(null);
+  // Zoom sets the drawing's width from its natural size; fit caps it at the card.
+  React.useLayoutEffect(() => {
+    const el = view.current?.querySelector("svg, img");
+    if (!el) return;
+    const natural = el.tagName === "IMG" ? el.naturalWidth : (el.viewBox?.baseVal?.width || el.getBBox?.().width || 0);
+    el.style.maxWidth = zoom == null ? "100%" : "none";
+    el.style.width = zoom == null || !natural ? "" : `${Math.round(natural * zoom)}px`;
+    el.style.height = "auto";
+  });
+  React.useEffect(() => {
+    if (!max) return;
+    const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); setMax(false); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [max]);
+  const step = dir => setZoom(z => {
+    const cur = z ?? 1, i = _IP_ZOOMS.findIndex(v => v >= cur - 1e-6);
+    return _IP_ZOOMS[Math.max(0, Math.min(_IP_ZOOMS.length - 1, (i < 0 ? _IP_ZOOMS.length - 1 : i) + dir))];
+  });
+  const onWheel = e => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); step(e.deltaY < 0 ? 1 : -1); } };
+  const onDown = e => {
+    if (e.button !== 0 || !view.current) return;
+    drag.current = { x: e.clientX, y: e.clientY, l: view.current.scrollLeft, t: view.current.scrollTop };
+  };
+  const onMove = e => {
+    const d = drag.current;
+    if (!d || !view.current) return;
+    view.current.scrollLeft = d.l - (e.clientX - d.x);
+    view.current.scrollTop = d.t - (e.clientY - d.y);
+  };
+  const title = _ipDiagramTitle(source, file);
+  const text = kind !== "png" && source != null;
+  const zoomable = out && (out.mermaid || out.img);
+  const body = showSrc && text ? <pre className="ip-src mono">{source}</pre>
+    : !out ? <span className="wp-loading">rendering…</span>
+    : out.err ? (text ? <pre className="ip-src mono">{source}</pre> : null)
+    : out.html != null ? <iframe className="ip-frame" sandbox="" title={title} srcDoc={out.html} />
+    : (
+      <div ref={view} className={`ip-view${zoom == null ? " fit" : ""}`} onWheel={onWheel}
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }} onPointerLeave={() => { drag.current = null; }}>
+        {out.mermaid ? <div className="ip-mmd" dangerouslySetInnerHTML={{ __html: out.mermaid }} /> : <img src={out.img} alt={title} draggable={false} />}
+      </div>
+    );
+  return (
+    <figure className={`ip-card ip-diagram${max ? " max" : ""}`}>
+      <figcaption className="ip-card-title">
+        <span className="ip-diagram-name" title={file}>{title}</span>
+        <span className="ip-kind">{kind}</span>
+        <span style={{ flex: 1 }} />
+        {zoomable && !showSrc && (
+          <span className="ip-zoom" role="group" aria-label="Zoom">
+            <button className="btn ghost small" aria-label="Zoom out" onClick={() => step(-1)}>−</button>
+            <button className="btn ghost small mono" title="Fit width" onClick={() => setZoom(z => (z == null ? 1 : null))}>{zoom == null ? "Fit" : `${Math.round(zoom * 100)}%`}</button>
+            <button className="btn ghost small" aria-label="Zoom in" onClick={() => step(1)}>+</button>
+          </span>
+        )}
+        {text && <button className="btn ghost small" aria-pressed={showSrc} onClick={() => setShowSrc(v => !v)}>{showSrc ? "Diagram" : "Source"}</button>}
+        {text && <button className="btn ghost small" title="Copy source" onClick={() => _ipCopy(source)}>Copy</button>}
+        {out?.mermaid && <button className="btn ghost small" title="Copy as SVG" onClick={() => _ipCopy(out.mermaid)}>SVG</button>}
+        <button className="btn ghost small" aria-pressed={max} title={max ? "Close (Esc)" : "Expand"} onClick={() => setMax(v => !v)}>{max ? "Close" : "Expand"}</button>
+      </figcaption>
+      {out?.err && <div className="wp-note err"><_IP_Icon name="warn" size={12} /> {file}: {out.err}</div>}
+      {body}
+    </figure>
+  );
+}
+
+/** "New diagram" menu: drafts a prompt for the picked skill into the composer. */
+function _IP_NewDiagram({ onAsk }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="ip-new">
+      <button className="btn primary small" aria-expanded={open} onClick={() => setOpen(v => !v)}>
+        <_IP_Icon name="plus" size={12} /> New diagram
+      </button>
+      {open && (
+        <div className="ip-new-menu" role="menu">
+          {_IP_SKILLS.map(s => (
+            <button key={s.id} role="menuitem" onClick={() => { setOpen(false); onAsk(_ipSkillPrompt(s)); }}>
+              <span>{s.label} <span className="ip-kind">.{s.ext}</span></span>
+              <span className="ip-new-hint">{s.hint} · <span className="mono">{s.id}</span></span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function _IP_Diagrams({ diagrams, onAsk }) {
+  const [q, setQ] = React.useState("");
+  const needle = q.trim().toLowerCase();
+  const shown = needle ? diagrams.filter(d => `${_ipDiagramTitle(d.source, d.file)} ${d.file} ${d.kind}`.toLowerCase().includes(needle)) : diagrams;
+  return (
+    <div className="ip-diagrams">
+      <div className="ip-filter">
+        {diagrams.length > 3 && <input type="search" placeholder={`Filter ${diagrams.length} diagrams`} value={q} onChange={e => setQ(e.target.value)} />}
+        <span style={{ flex: 1 }} />
+        {onAsk && <_IP_NewDiagram onAsk={onAsk} />}
+      </div>
+      {shown.map(d => <_IP_Diagram key={d.file} {...d} />)}
+      {!diagrams.length && <div className="wp-empty-line pad">No diagrams yet. Pick a skill under "New diagram"; files land in .omp/insights/diagrams/.</div>}
+      {diagrams.length > 0 && !shown.length && <div className="wp-empty-line pad">No diagram matches "{q}".</div>}
+    </div>
+  );
+}
+
 function InsightsPanel({ projectPath, onAsk }) {
   const [data, setData] = React.useState(null);
   const [err, setErr] = React.useState(null);
-  const [tab, setTab] = React.useState("charts");
+  const [tab, setTab] = React.useState("diagrams");
   React.useEffect(() => {
     if (!projectPath) { setData(null); return; }
     const inv = window.__TAURI__?.core?.invoke;
@@ -265,14 +337,14 @@ function InsightsPanel({ projectPath, onAsk }) {
     return () => { live = false; clearInterval(id); };
   }, [projectPath]);
 
-  const charts = data?.charts ?? [];
+  const diagrams = data?.diagrams ?? [];
   const cases = data?.testcases?.cases ?? [];
   const tabs = [
-    { id: "charts", label: "Charts", n: charts.length },
+    { id: "diagrams", label: "Diagrams", n: diagrams.length },
     { id: "cases", label: "Test cases", n: cases.length },
     { id: "doc", label: "Document", n: data?.doc ? 1 : 0 },
   ];
-  const prompt = "Read the document I attach, then write .omp/insights/doc-analysis.json, testcases.json and charts/*.json in the formats the Insights panel expects (see docs/insights.md in omp-desktop).";
+  const prompt = "Read the document I attach, then draw its flows as Mermaid diagrams in .omp/insights/diagrams/*.mmd (one diagram per file: flowchart for business flows, sequenceDiagram for FE/BE/API calls, stateDiagram-v2 for statuses, erDiagram for data; first line `%% title: <name>`), and write .omp/insights/doc-analysis.json and testcases.json in the formats the Insights panel expects (see docs/insights.md in omp-desktop).";
   return (
     <div className="wp-panel ip-panel">
       <div className="wp-head">
@@ -291,13 +363,12 @@ function InsightsPanel({ projectPath, onAsk }) {
         {projectPath && data && !data.exists && (
           <div className="wp-empty">
             <div className="wp-empty-title">No insights yet</div>
-            <p>Ask the agent to analyse a document: it writes charts, test cases and a summary into <code className="mono">.omp/insights/</code>, and they appear here as it works.</p>
+            <p>Ask the agent to analyse a document: it writes diagrams, test cases and a summary into <code className="mono">.omp/insights/</code>, and they appear here as it works.</p>
             {onAsk && <button className="btn primary" onClick={() => onAsk(prompt)}><_IP_Icon name="sparkle" size={12} /> Draft the request</button>}
+            {onAsk && <div className="ip-empty-new"><_IP_NewDiagram onAsk={onAsk} /></div>}
           </div>
         )}
-        {data?.exists && tab === "charts" && (charts.length
-          ? <div className="ip-grid">{charts.map(c => <_IP_Chart key={c.file} file={c.file} chart={c.chart} />)}</div>
-          : <div className="wp-empty-line pad">No charts yet (charts/*.json).</div>)}
+        {data?.exists && tab === "diagrams" && <_IP_Diagrams diagrams={diagrams} onAsk={onAsk} />}
         {data?.exists && tab === "cases" && <_IP_Cases data={data.testcases} />}
         {data?.exists && tab === "doc" && <_IP_Doc doc={data.doc} />}
       </div>
@@ -305,4 +376,4 @@ function InsightsPanel({ projectPath, onAsk }) {
   );
 }
 
-Object.assign(window, { InsightsPanel, _ipNiceMax, _ipRange });
+Object.assign(window, { InsightsPanel, _ipDiagramTitle, _ipSkillPrompt });

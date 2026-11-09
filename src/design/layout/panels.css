@@ -64,7 +64,7 @@
   padding: 0 6px 6px;
 }
 .panel-sect-hd {
-  font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  font-size: var(--d-text-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--fg-4);
   padding: 10px 10px 4px;
 }

@@ -6,10 +6,14 @@
    (`run(req)` → raw text): in the app it is Rust (`work_cli` / `work_http`,
    src-tauri/src/work.rs); in tests a fake.
 
-   A connection (stored in localStorage by design/work-panel.jsx, no
-   secrets) is:
-     { id, name, platform: "gitlab"|"github"|"linear", via: "cli"|"token",
-       host?, project?, team?, tokenEnv?, columns? }
+   Adapters take a view resolved onto its connection (app/work-views.js):
+     { platform: "gitlab"|"github"|"linear", via: "cli"|"token", host?,
+       tokenEnv?, project?, team?, columns?, scope?, who?, members? }
+   GitLab `scope: "group"` reads `project` as a group path and lists the
+   issues of every project under it (one tracker spread over many repos);
+   a ticket's id is then "<project_id>:<iid>". GitLab `who`: "mine"
+   (assigned to me), "team" (assigned to any of `members`, one request per
+   username: the API ANDs a username list) or "all".
    `columns`: labels that act as board columns (GitLab / GitHub), e.g.
    "STATUS::TODO, STATUS::DOING". Empty: the board is Open / Closed.
    Linear's columns are its workflow states.
@@ -37,8 +41,14 @@
     label: "GitLab",
     hint: "gitlab.com or self-hosted. CLI: glab (signed in). Token: a personal access token with api scope.",
     fields: ["host", "project"],
-    path(conn, rest = "") {
-      return `projects/${encodeURIComponent(conn.project)}/issues${rest}`;
+    group: conn => conn.scope === "group",
+    listPath(conn, filter = "") {
+      return `${gitlab.group(conn) ? "groups" : "projects"}/${encodeURIComponent(conn.project)}/issues?state=all&per_page=100&order_by=updated_at${filter}`;
+    },
+    // One issue: by the group-mode "<project_id>:<iid>" id, or in the project.
+    path(conn, id, rest = "") {
+      const [pid, iid] = gitlab.group(conn) ? String(id).split(":") : [encodeURIComponent(conn.project), id];
+      return `projects/${pid}/issues/${iid}${rest}`;
     },
     req(conn, method, path, fields) {
       if (conn.via === "cli") {
@@ -56,24 +66,33 @@
     parse(conn, it) {
       const labels = it.labels ?? [];
       const state = it.state === "closed" ? "closed" : "open";
+      const group = gitlab.group(conn);
+      // Group mode: tag the repo, e.g. "kho#36" for ".../erp/kho#36".
+      const key = group && it.references?.full ? it.references.full.split("/").pop() : `#${it.iid}`;
       return {
-        id: String(it.iid), key: `#${it.iid}`, title: it.title ?? "", body: it.description ?? "",
+        id: group ? `${it.project_id}:${it.iid}` : String(it.iid), key, title: it.title ?? "", body: it.description ?? "",
         state, stateName: state, column: columnFor(conn, state, labels), labels,
         assignees: (it.assignees ?? []).map(a => a.username), url: it.web_url, updatedAt: it.updated_at, raw: it,
       };
     },
-    list: conn => [gitlab.req(conn, "GET", gitlab.path(conn, "?state=all&per_page=100&order_by=updated_at"))],
-    get: (conn, id) => gitlab.req(conn, "GET", gitlab.path(conn, `/${id}`)),
+    list(conn) {
+      if (conn.who === "mine") return [gitlab.req(conn, "GET", gitlab.listPath(conn, "&scope=assigned_to_me"))];
+      if (conn.who === "team") return members(conn).map(u => gitlab.req(conn, "GET", gitlab.listPath(conn, `&scope=all&assignee_username=${encodeURIComponent(u)}`)));
+      return [gitlab.req(conn, "GET", gitlab.listPath(conn))];
+    },
+    whoami: conn => gitlab.req(conn, "GET", "user"),
+    me: v => v.username,
+    get: (conn, id) => gitlab.req(conn, "GET", gitlab.path(conn, id)),
     save(conn, t, edit) {
       const f = {};
       if (edit.title != null && edit.title !== t.title) f.title = edit.title;
       if (edit.body != null && edit.body !== t.body) f.description = edit.body;
       if (edit.labels) f.labels = edit.labels.join(",");
       if (edit.state && edit.state !== t.state) f.state_event = edit.state === "closed" ? "close" : "reopen";
-      return Object.keys(f).length ? gitlab.req(conn, "PUT", gitlab.path(conn, `/${t.id}`), f) : null;
+      return Object.keys(f).length ? gitlab.req(conn, "PUT", gitlab.path(conn, t.id), f) : null;
     },
     move(conn, t, column) { return gitlab.save(conn, t, moveEdit(conn, t, column)); },
-    comment: (conn, t, body) => gitlab.req(conn, "POST", gitlab.path(conn, `/${t.id}/notes`), { body }),
+    comment: (conn, t, body) => gitlab.req(conn, "POST", gitlab.path(conn, t.id, "/notes"), { body }),
   };
 
   // ── GitHub ──────────────────────────────────────────────────────────────
@@ -107,6 +126,8 @@
       };
     },
     list: conn => [github.req(conn, "GET", github.path(conn, "?state=all&per_page=100&sort=updated"))],
+    whoami: conn => github.req(conn, "GET", "user"),
+    me: v => v.login,
     get: (conn, id) => github.req(conn, "GET", github.path(conn, `/${id}`)),
     save(conn, t, edit) {
       const f = {};
@@ -154,6 +175,8 @@
       linear.gql(conn, `query($team: String!) { issues(first: 100, orderBy: updatedAt, filter: { team: { key: { eq: $team } } }) { nodes { ${LINEAR_FIELDS} } }
         workflowStates(filter: { team: { key: { eq: $team } } }) { nodes { id name type position } } }`, { team: conn.team }),
     ],
+    whoami: conn => linear.gql(conn, "{ viewer { name } }", {}),
+    me: v => v.data?.viewer?.name,
     get: (conn, id) => linear.gql(conn, `query($id: String!) { issue(id: $id) { ${LINEAR_FIELDS} } }`, { id }),
     save(conn, t, edit) {
       const input = {};
@@ -182,7 +205,13 @@
       { id: "token", label: "API token" }, { id: "mcp", label: "MCP (soon)", disabled: true }];
   }
 
-  /** Problems with a connection, in words, before anything runs. */
+  /** Usernames of a view's team: comma/space separated, "@" optional. */
+  function members(v) {
+    return [...new Set(String(v.members ?? "").split(/[\s,]+/).map(s => s.replace(/^@/, "")).filter(Boolean))];
+  }
+
+  /** Problems with a connection, in words, before anything runs. What it
+   *  tracks (project, team key, columns) is the view's: work-views.js. */
   function validate(conn) {
     const p = PLATFORMS[conn.platform];
     const out = [];
@@ -190,9 +219,6 @@
     if (!conn.name?.trim()) out.push("Give the connection a name.");
     if (conn.via === "mcp") out.push("MCP is not available yet: use the CLI or a token.");
     if (conn.via === "token" && !/^[A-Z_][A-Z0-9_]*$/.test(conn.tokenEnv ?? "")) out.push("Token variable must look like GITLAB_TOKEN (the token itself stays in your environment).");
-    if (p.fields.includes("project") && !conn.project?.trim()) out.push(conn.platform === "github" ? "Repository: owner/name." : "Project: group/name or its numeric id.");
-    if (conn.platform === "github" && conn.project && !/^[\w.-]+\/[\w.-]+$/.test(conn.project)) out.push("Repository must be owner/name.");
-    if (p.fields.includes("team") && !conn.team?.trim()) out.push("Team key, e.g. ENG.");
     if (conn.host && !/^[a-z0-9.-]+(:\d+)?$/i.test(conn.host)) out.push("Host is a bare name like gitlab.example.com.");
     return out;
   }
@@ -216,15 +242,22 @@
     return {
       ctx,
       async list() {
-        const [req] = p.list(conn);
-        const v = parseJson(await run(req));
+        const replies = await Promise.all(p.list(conn).map(async req => parseJson(await run(req))));
         if (conn.platform === "linear") {
+          const v = replies[0];
           ctx.states = (v.data?.workflowStates?.nodes ?? []).slice().sort((a, b) => a.position - b.position);
           return (v.data?.issues?.nodes ?? []).map(it => p.parse(conn, it));
         }
         // GitHub lists pull requests as issues too: keep issues only.
-        return (Array.isArray(v) ? v : []).filter(it => !it.pull_request).map(it => p.parse(conn, it));
+        const seen = new Map();
+        for (const v of replies) for (const it of Array.isArray(v) ? v : []) if (!it.pull_request) { const t = p.parse(conn, it); seen.set(t.id, t); }
+        const out = [...seen.values()];
+        // Several requests (a team): newest first across them.
+        if (replies.length > 1) out.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+        return out;
       },
+      /** The signed-in user's name: the connection test. */
+      async whoami() { return p.me(parseJson(await run(p.whoami(conn)))) ?? "?"; },
       columns() { return conn.platform === "linear" ? ctx.states.map(s => s.name) : boardColumns(conn); },
       async get(id) { return one(await run(p.get(conn, id))); },
       /** Save edits. Refuses when the ticket changed on the server since it
@@ -250,7 +283,7 @@
     };
   }
 
-  const api = { PLATFORMS, OPEN, CLOSED, transports, validate, client, boardColumns, columnFor, moveEdit };
+  const api = { PLATFORMS, OPEN, CLOSED, transports, validate, members, client, boardColumns, columnFor, moveEdit, parseJson };
   if (typeof window !== "undefined") window.OMP_WORK = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

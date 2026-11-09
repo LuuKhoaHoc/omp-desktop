@@ -94,7 +94,7 @@ function Toolbar({ nav, rail, subagents, tree, browser, terminal, work, insights
         <span className="tb-sep" />
 
         {work && <ToolButton icon="tag" title={_tbTip("work: tickets", "desktop.panel.work")} pressed={work.open} onClick={work.onToggle} />}
-        {insights && <ToolButton icon="test" title={_tbTip("insights: charts and test cases", "desktop.panel.insights")} pressed={insights.open} onClick={insights.onToggle} />}
+        {insights && <ToolButton icon="test" title={_tbTip("insights: diagrams and test cases", "desktop.panel.insights")} pressed={insights.open} onClick={insights.onToggle} />}
         {(work || insights) && <span className="tb-sep" />}
         <ToolButton icon="diff2" title={_tbTip("git browser", "desktop.panel.changes")} onClick={onGit} />
         <ToolButton icon="cost" title={_tbTip("usage statistics", "desktop.panel.stats")} onClick={onStats} />

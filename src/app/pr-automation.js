@@ -276,6 +276,8 @@
           : false,
         discoveryError: e?.discoveryError ?? null,
         ghMissing,
+        // Fork: this tab's upstream is not on GitHub.com; the card hides.
+        notGitHub: !!e?.notGitHub,
       };
       if (!e?.enabled)
         return {
@@ -474,6 +476,7 @@
         e.discoveryError = null;
         e.retries = 0;
         ghMissing = false;
+        e.notGitHub = false;
         e.loading = false;
         if (!dispatchEligible) {
           notify();
@@ -551,7 +554,16 @@
           ghMissing = false;
           notify();
         }
-        if (error?.ghMissing && mine() && (dispatchStarted || current())) {
+        if (mine()) e.notGitHub = error?.notGitHub === true;
+        if (error?.notGitHub && mine() && (dispatchStarted || current())) {
+          // A state, like a missing gh but for this tab only: nothing here
+          // can run against GitHub, so an opt-in is revoked.
+          if (e.enabled) disable(e);
+          e.snapshot = null;
+          e.discoveryError = null;
+          e.retries = 0;
+          notify();
+        } else if (error?.ghMissing && mine() && (dispatchStarted || current())) {
           // A state, not an error: nothing can run until gh is installed,
           // so an opt-in is revoked and only a refresh (focus) asks again.
           if (e.enabled) disable(e);
@@ -609,7 +621,7 @@
       const c = ctx();
       if (!discoverable(c)) return;
       const e = entryFor(c.tabId);
-      if (!e.enabled && ghMissing) return;
+      if (!e.enabled && (ghMissing || e.notGitHub)) return;
       if (e.enabled) disable(e);
       else {
         const key = c.projectKey || null;

@@ -4,12 +4,15 @@
    from the toolbar like the browser and the conversation tree.
 
    Connections live in localStorage (`omp.work.connections`): platform,
-   transport, project/team, and for a token transport the NAME of the
-   environment variable holding it. No secret is stored or shown; Rust
-   reads the variable (src-tauri/src/work.rs). The platform logic is
-   app/work-adapters.js (window.OMP_WORK).
+   transport, host, and for a token transport the NAME of the environment
+   variable holding it. No secret is stored or shown; Rust reads the
+   variable (src-tauri/src/work.rs). Saved views (`omp.work.views`,
+   app/work-views.js) pick what to show from a connection: issues, merge
+   requests or pipelines (design/work-review.jsx), of a project or a group,
+   mine / my team's / all. Forms: design/work-forms.jsx. The platform
+   logic is app/work-adapters.js (window.OMP_WORK).
 
-   Views: list (dense rows) and board (columns = open / label columns /
+   Issue layouts: list (dense rows) and board (columns = open / label columns /
    closed, or Linear's workflow states). A card moves by drag and drop or
    from the keyboard (focus a card, Alt+←/→). The drawer edits title, body
    (markdown with preview), labels and state, and comments; a save checks
@@ -18,13 +21,21 @@
 
 const { Icon: _WP_Icon, MarkdownContent: _WP_Markdown } = window;
 const _WP_KEY = "omp.work.connections";
-const _WP_ACTIVE = "omp.work.active";
-const _WP_VIEW = "omp.work.view";
+const _WP_VIEWS = "omp.work.views";
+const _WP_ACTIVE = "omp.work.active"; // the active view's id
+const _WP_LAYOUT = "omp.work.view"; // board | list (key predates views)
 
-function _wpLoad() {
-  try { const v = JSON.parse(localStorage.getItem(_WP_KEY) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
+function _wpRead(key) {
+  try { return JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return null; }
 }
-function _wpSaveAll(list) { try { localStorage.setItem(_WP_KEY, JSON.stringify(list)); } catch {} }
+/** { conns, views }; connections saved before views get theirs here. */
+function _wpLoad() {
+  const conns = _wpRead(_WP_KEY);
+  return window.OMP_WORK_VIEWS.migrate(Array.isArray(conns) ? conns : [], _wpRead(_WP_VIEWS));
+}
+function _wpSaveAll({ conns, views }) {
+  try { localStorage.setItem(_WP_KEY, JSON.stringify(conns)); localStorage.setItem(_WP_VIEWS, JSON.stringify(views)); } catch {}
+}
 
 /** Transport into Rust. Outside Tauri (browser preview) every call fails
  *  with a clear message instead of pretending. */
@@ -42,79 +53,6 @@ function _wpAgo(iso) {
   if (s < 3600) return `${Math.max(1, Math.round(s / 60))}m`;
   if (s < 86400) return `${Math.round(s / 3600)}h`;
   return `${Math.round(s / 86400)}d`;
-}
-
-// ── Connection form ───────────────────────────────────────────────────────
-function _WP_ConnectionForm({ initial, onSave, onCancel, onDelete }) {
-  const W = window.OMP_WORK;
-  const [c, setC] = React.useState(initial ?? { id: `c${Date.now().toString(36)}`, name: "", platform: "gitlab", via: "cli", host: "", project: "", team: "", tokenEnv: "", columns: "" });
-  const [test, setTest] = React.useState(null);
-  const set = (k, v) => { setC(o => ({ ...o, [k]: v })); setTest(null); };
-  const p = W.PLATFORMS[c.platform];
-  const problems = W.validate(c);
-  const ways = W.transports(c.platform);
-  React.useEffect(() => { if (!ways.find(w => w.id === c.via && !w.disabled)) set("via", ways.find(w => !w.disabled).id); }, [c.platform]); // eslint-disable-line
-  const runTest = async () => {
-    setTest({ busy: true });
-    try { const n = (await W.client(c, _wpRun).list()).length; setTest({ ok: `Connected: ${n} ticket${n === 1 ? "" : "s"} visible.` }); }
-    catch (e) { setTest({ err: String(e?.message ?? e) }); }
-  };
-  return (
-    <form className="wp-form" onSubmit={e => { e.preventDefault(); if (!problems.length) onSave(c); }}>
-      <div className="wp-form-title">{initial ? "Edit connection" : "New connection"}</div>
-      <label className="wp-field"><span>Name</span>
-        <input value={c.name} placeholder="Team tracker" onChange={e => set("name", e.target.value)} autoFocus /></label>
-      <div className="wp-field"><span>Platform</span>
-        <div className="wp-seg" role="radiogroup" aria-label="platform">
-          {Object.entries(W.PLATFORMS).map(([id, x]) => (
-            <button type="button" key={id} role="radio" aria-checked={c.platform === id} className={c.platform === id ? "on" : ""} onClick={() => set("platform", id)}>{x.label}</button>
-          ))}
-        </div>
-        <small>{p.hint}</small>
-      </div>
-      <div className="wp-field"><span>Connect with</span>
-        <div className="wp-seg" role="radiogroup" aria-label="transport">
-          {ways.map(w => (
-            <button type="button" key={w.id} role="radio" aria-checked={c.via === w.id} disabled={w.disabled}
-              className={c.via === w.id ? "on" : ""} onClick={() => set("via", w.id)}>{w.label}</button>
-          ))}
-        </div>
-      </div>
-      {c.platform !== "linear" && (
-        <label className="wp-field"><span>Host <em>optional</em></span>
-          <input value={c.host} placeholder={c.platform === "github" ? "api.github.com" : "gitlab.com"} onChange={e => set("host", e.target.value.trim())} /></label>
-      )}
-      {p.fields.includes("project") && (
-        <label className="wp-field"><span>{c.platform === "github" ? "Repository" : "Project"}</span>
-          <input value={c.project} placeholder={c.platform === "github" ? "owner/name" : "group/project or id"} onChange={e => set("project", e.target.value.trim())} /></label>
-      )}
-      {p.fields.includes("team") && (
-        <label className="wp-field"><span>Team key</span>
-          <input value={c.team} placeholder="ENG" onChange={e => set("team", e.target.value.trim())} /></label>
-      )}
-      {c.via === "token" && (
-        <label className="wp-field"><span>Token variable</span>
-          <input className="mono" value={c.tokenEnv} placeholder={c.platform === "linear" ? "LINEAR_API_KEY" : c.platform === "github" ? "GITHUB_TOKEN" : "GITLAB_TOKEN"}
-            onChange={e => set("tokenEnv", e.target.value.trim().toUpperCase())} />
-          <small>The name of an environment variable the app starts with. The token itself is never saved here.</small></label>
-      )}
-      {c.platform !== "linear" && (
-        <label className="wp-field"><span>Board columns <em>optional</em></span>
-          <input value={c.columns} placeholder="labels, comma-separated: To do, Doing, Review" onChange={e => set("columns", e.target.value)} />
-          <small>Labels that act as columns between Open and Closed.</small></label>
-      )}
-      {problems.length > 0 && <ul className="wp-problems">{problems.map(m => <li key={m}>{m}</li>)}</ul>}
-      {test?.ok && <div className="wp-note ok"><_WP_Icon name="check" size={12} /> {test.ok}</div>}
-      {test?.err && <div className="wp-note err"><_WP_Icon name="warn" size={12} /> {test.err}</div>}
-      <div className="wp-form-actions">
-        {onDelete && <button type="button" className="btn ghost danger-text" onClick={onDelete}>Remove</button>}
-        <span style={{ flex: 1 }} />
-        <button type="button" className="btn ghost" onClick={onCancel}>Cancel</button>
-        <button type="button" className="btn outlined" disabled={!!problems.length || test?.busy} onClick={runTest}>{test?.busy ? "Testing…" : "Test"}</button>
-        <button type="submit" className="btn primary" disabled={!!problems.length}>Save</button>
-      </div>
-    </form>
-  );
 }
 
 // ── Ticket drawer ─────────────────────────────────────────────────────────
@@ -259,7 +197,7 @@ function _WP_List({ tickets, activeId, onOpen }) {
       {tickets.map(t => (
         <button key={t.id} role="listitem" className={`wp-row${t.id === activeId ? " on" : ""}`} onClick={() => onOpen(t)}>
           <span className={`wp-dot ${t.state}`} aria-label={t.state} />
-          <span className="wp-key mono">{t.key}</span>
+          <span className="wp-key mono" title={t.raw?.references?.full ?? t.key}>{t.key}</span>
           <span className="wp-row-title">{t.title}</span>
           <span className="wp-row-col">{t.column}</span>
           <span className="wp-row-ago mono">{_wpAgo(t.updatedAt)}</span>
@@ -270,100 +208,138 @@ function _WP_List({ tickets, activeId, onOpen }) {
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────
+const _wpNewView = connId => ({ id: `v${Date.now().toString(36)}`, connId, name: "", kind: "issues", project: "", scope: "project",
+  who: "all", members: "", columns: "", team: "", branch: "" });
+
 function WorkPanel() {
-  const W = window.OMP_WORK;
-  const [conns, setConns] = React.useState(_wpLoad);
+  const W = window.OMP_WORK, V = window.OMP_WORK_VIEWS, R = window.OMP_WORK_REVIEW;
+  const { _WP_ConnectionForm: ConnForm, _WP_ViewForm: ViewForm, _WP_MrList: MrList, _WP_PipeList: PipeList,
+    _WP_MrDrawer: MrDrawer, _WP_PipeDrawer: PipeDrawer } = window;
+  const [{ conns, views }, setStore] = React.useState(_wpLoad);
   const [activeId, setActiveId] = React.useState(() => localStorage.getItem(_WP_ACTIVE) ?? "");
-  const [view, setView] = React.useState(() => localStorage.getItem(_WP_VIEW) ?? "board");
-  const [editing, setEditing] = React.useState(null); // null | "new" | conn
-  const [tickets, setTickets] = React.useState([]);
+  const [layout, setLayout] = React.useState(() => localStorage.getItem(_WP_LAYOUT) ?? "board");
+  const [editing, setEditing] = React.useState(null); // null | { conn, back? } | { view }
+  const [items, setItems] = React.useState([]);
   const [columns, setColumns] = React.useState([]);
   const [state, setState] = React.useState({ loading: false, error: null });
   const [open, setOpen] = React.useState(null);
   const [q, setQ] = React.useState("");
   const [showClosed, setShowClosed] = React.useState(false);
-  const conn = conns.find(c => c.id === activeId) ?? conns[0] ?? null;
-  const client = React.useMemo(() => (conn ? W.client(conn, _wpRun) : null), [conn]); // eslint-disable-line
+  // A pre-views active id is a connection's: its migrated view has that connId.
+  const view = views.find(v => v.id === activeId) ?? views.find(v => v.connId === activeId) ?? views[0] ?? null;
+  const target = React.useMemo(() => (view ? V.resolve(view, conns) : null), [view, conns]); // eslint-disable-line
+  const kind = target?.kind ?? "issues";
+  const client = React.useMemo(() => (!target ? null : kind === "issues" ? W.client(target, _wpRun) : R.client(target, _wpRun)), [target]); // eslint-disable-line
 
   const refresh = React.useCallback(async () => {
     if (!client) return;
     setState({ loading: true, error: null });
-    try { const list = await client.list(); setTickets(list); setColumns(client.columns()); setState({ loading: false, error: null }); }
+    try { const list = await client.list(); setItems(list); setColumns(kind === "issues" ? client.columns() : []); setState({ loading: false, error: null }); }
     catch (e) { setState({ loading: false, error: String(e?.message ?? e) }); }
-  }, [client]);
-  React.useEffect(() => { setTickets([]); setOpen(null); refresh(); }, [refresh]);
-  React.useEffect(() => { localStorage.setItem(_WP_VIEW, view); }, [view]);
+  }, [client]); // eslint-disable-line
+  React.useEffect(() => { setItems([]); setOpen(null); refresh(); }, [refresh]);
+  React.useEffect(() => { localStorage.setItem(_WP_LAYOUT, layout); }, [layout]);
 
-  const persist = list => { setConns(list); _wpSaveAll(list); };
+  const persist = next => { setStore(next); _wpSaveAll(next); };
+  const activate = id => { setActiveId(id); localStorage.setItem(_WP_ACTIVE, id); };
+  const upsert = (list, x) => (list.some(y => y.id === x.id) ? list.map(y => (y.id === x.id ? x : y)) : [...list, x]);
   const saveConn = c => {
-    const list = conns.some(x => x.id === c.id) ? conns.map(x => (x.id === c.id ? c : x)) : [...conns, c];
-    persist(list); setActiveId(c.id); localStorage.setItem(_WP_ACTIVE, c.id); setEditing(null);
+    const isNew = !conns.some(x => x.id === c.id);
+    persist({ conns: upsert(conns, c), views });
+    setEditing(isNew ? { view: _wpNewView(c.id) } : editing?.back ?? null);
   };
-  const replace = t => { setTickets(list => list.map(x => (x.id === t.id ? t : x))); setOpen(o => (o && o.id === t.id ? t : o)); };
+  const saveView = v => { persist({ conns, views: upsert(views, v) }); activate(v.id); setEditing(null); };
+  const replace = t => { setItems(list => list.map(x => (x.id === t.id ? t : x))); setOpen(o => (o && o.id === t.id ? t : o)); };
   const move = async (t, col) => {
     const prev = t;
-    setTickets(list => list.map(x => (x.id === t.id ? { ...x, column: col } : x))); // optimistic
+    setItems(list => list.map(x => (x.id === t.id ? { ...x, column: col } : x))); // optimistic
     try { replace(await client.move(t, col)); }
     catch (e) { replace(prev); setState(s => ({ ...s, error: `Move failed: ${String(e?.message ?? e)}` })); }
   };
 
-  const needle = q.trim().toLowerCase();
-  const shown = tickets.filter(t => (!needle || `${t.key} ${t.title} ${t.labels.join(" ")}`.toLowerCase().includes(needle))
-    && (view === "board" || showClosed || t.state === "open"));
-  const boardCols = conn?.platform === "linear" ? columns : columns.filter(c => showClosed || c !== W.CLOSED);
-
-  if (editing || !conn) {
+  if (editing || !target) {
+    const ev = editing?.view, ec = editing?.conn;
     return (
       <div className="wp-panel">
         <div className="wp-head"><span className="wp-head-title">Work</span></div>
         <div className="wp-scroll">
-          {!conn && !editing && (
+          {!editing && (
             <div className="wp-empty">
-              <div className="wp-empty-title">Connect a tracker</div>
-              <p>GitLab (cloud or self-hosted), GitHub or Linear. Use the CLI you are already signed in to, or an API token kept in an environment variable.</p>
-              <button className="btn primary" onClick={() => setEditing("new")}><_WP_Icon name="plus" size={12} /> Add connection</button>
+              <div className="wp-empty-title">{conns.length ? "Add a view" : "Connect a tracker"}</div>
+              <p>{conns.length
+                ? "A view shows issues, merge requests or pipelines from a project or a whole group: yours, your team's or everyone's."
+                : "GitLab (cloud or self-hosted), GitHub or Linear. Use the CLI you are already signed in to, or an API token kept in an environment variable."}</p>
+              <button className="btn primary" onClick={() => setEditing(conns.length ? { view: _wpNewView(conns[0].id) } : { conn: null })}>
+                <_WP_Icon name="plus" size={12} /> {conns.length ? "Add view" : "Add connection"}</button>
             </div>
           )}
-          {editing && <_WP_ConnectionForm initial={editing === "new" ? null : editing} onSave={saveConn}
-            onCancel={() => setEditing(null)}
-            onDelete={editing !== "new" ? () => { persist(conns.filter(x => x.id !== editing.id)); setEditing(null); } : null} />}
+          {editing && "conn" in editing && <ConnForm key={ec?.id ?? "new"} initial={ec} onSave={saveConn} onCancel={() => setEditing(editing.back ?? null)}
+            onDelete={ec ? () => { persist({ conns: conns.filter(x => x.id !== ec.id), views: views.filter(v => v.connId !== ec.id) }); setEditing(null); } : null} />}
+          {ev && <ViewForm key={ev.id} initial={ev} conns={conns} onSave={saveView} onCancel={() => setEditing(null)}
+            onEditConn={c => setEditing({ conn: c, back: editing })}
+            onDelete={views.some(v => v.id === ev.id) ? () => { persist({ conns, views: views.filter(v => v.id !== ev.id) }); setEditing(null); } : null} />}
         </div>
       </div>
     );
   }
 
+  const needle = q.trim().toLowerCase();
+  const text = t => (kind === "issues" ? `${t.key} ${t.title} ${t.labels.join(" ")} ${t.assignees.join(" ")}`
+    : kind === "mrs" ? `${t.key} ${t.title} ${t.author} ${t.source} ${t.statusLabel}` : `${t.key} ${t.ref} ${t.status} ${t.sha}`);
+  const shown = items.filter(t => (!needle || text(t).toLowerCase().includes(needle))
+    && (kind !== "issues" || layout === "board" || showClosed || t.state === "open"));
+  const boardCols = target.platform === "linear" ? columns : columns.filter(c => showClosed || c !== W.CLOSED);
+  const noun = { issues: "tickets", mrs: "merge requests", pipelines: "pipelines" }[kind];
+
   return (
     <div className={`wp-panel${open ? " has-drawer" : ""}`}>
       <div className="wp-head">
-        <select className="wp-select wp-conn" value={conn.id} aria-label="connection"
-          onChange={e => { if (e.target.value === "+") { setEditing("new"); return; } setActiveId(e.target.value); localStorage.setItem(_WP_ACTIVE, e.target.value); }}>
-          {conns.map(c => <option key={c.id} value={c.id}>{c.name} · {W.PLATFORMS[c.platform]?.label}</option>)}
-          <option value="+">+ Add connection…</option>
+        <select className="wp-select wp-conn" value={view.id} aria-label="view"
+          onChange={e => {
+            const v = e.target.value;
+            if (v === "+view") setEditing({ view: _wpNewView(target.connId) });
+            else if (v === "+edit") setEditing({ view });
+            else if (v === "+conn") setEditing({ conn: null });
+            else activate(v);
+          }}>
+          {conns.map(c => (
+            <optgroup key={c.id} label={c.name}>
+              {views.filter(v => v.connId === c.id).map(v => <option key={v.id} value={v.id}>{v.name} · {V.KINDS[v.kind]}</option>)}
+            </optgroup>
+          ))}
+          <option value="+edit">✎ Edit this view…</option>
+          <option value="+view">+ New view…</option>
+          <option value="+conn">+ Add connection…</option>
         </select>
-        <div className="wp-seg small" role="radiogroup" aria-label="view">
-          <button role="radio" aria-checked={view === "board"} className={view === "board" ? "on" : ""} title="board" aria-label="board" onClick={() => setView("board")}><_WP_Icon name="grid" size={13} /></button>
-          <button role="radio" aria-checked={view === "list"} className={view === "list" ? "on" : ""} title="list" aria-label="list" onClick={() => setView("list")}><_WP_Icon name="layers" size={13} /></button>
-        </div>
+        {kind === "issues" && (
+          <div className="wp-seg small" role="radiogroup" aria-label="layout">
+            <button role="radio" aria-checked={layout === "board"} className={layout === "board" ? "on" : ""} title="board" aria-label="board" onClick={() => setLayout("board")}><_WP_Icon name="grid" size={13} /></button>
+            <button role="radio" aria-checked={layout === "list"} className={layout === "list" ? "on" : ""} title="list" aria-label="list" onClick={() => setLayout("list")}><_WP_Icon name="layers" size={13} /></button>
+          </div>
+        )}
         <span style={{ flex: 1 }} />
-        <button className={`btn icon ghost${showClosed ? " on" : ""}`} title={showClosed ? "hide closed" : "show closed"} aria-pressed={showClosed} aria-label="show closed" onClick={() => setShowClosed(v => !v)}><_WP_Icon name="check" size={13} /></button>
+        {kind === "issues" && <button className={`btn icon ghost${showClosed ? " on" : ""}`} title={showClosed ? "hide closed" : "show closed"} aria-pressed={showClosed} aria-label="show closed" onClick={() => setShowClosed(v => !v)}><_WP_Icon name="check" size={13} /></button>}
         <button className="btn icon ghost" title="refresh" aria-label="refresh" disabled={state.loading} onClick={refresh}><_WP_Icon name="refresh" size={13} /></button>
-        <button className="btn icon ghost" title="edit connection" aria-label="edit connection" onClick={() => setEditing(conn)}><_WP_Icon name="cog" size={13} /></button>
+        <button className="btn ghost wp-edit" title="edit this view: what it shows, from where, whose" onClick={() => setEditing({ view })}><_WP_Icon name="edit" size={12} /> Edit view</button>
       </div>
       <div className="wp-search">
         <_WP_Icon name="search" size={12} />
-        <input value={q} placeholder={`Filter ${tickets.length} tickets`} onChange={e => setQ(e.target.value)} aria-label="filter tickets" />
+        <input value={q} placeholder={`Filter ${items.length} ${noun}`} onChange={e => setQ(e.target.value)} aria-label={`filter ${noun}`} />
         {state.loading && <span className="wp-loading">loading…</span>}
       </div>
       {state.error && <div className="wp-note err wp-banner"><_WP_Icon name="warn" size={12} /> {state.error}</div>}
       <div className="wp-scroll">
-        {view === "board"
-          ? <_WP_Board tickets={shown} columns={boardCols} activeId={open?.id} onOpen={setOpen} onMove={move} />
+        {kind === "mrs" ? <MrList items={shown} activeId={open?.id} onOpen={setOpen} />
+          : kind === "pipelines" ? <PipeList items={shown} activeId={open?.id} onOpen={setOpen} />
+          : layout === "board" ? <_WP_Board tickets={shown} columns={boardCols} activeId={open?.id} onOpen={setOpen} onMove={move} />
           : <_WP_List tickets={shown} activeId={open?.id} onOpen={setOpen} />}
-        {!state.loading && !state.error && tickets.length === 0 && <div className="wp-empty-line pad">No tickets here yet.</div>}
+        {!state.loading && !state.error && items.length === 0 && <div className="wp-empty-line pad">No {noun} here yet.</div>}
       </div>
-      {open && <_WP_Drawer ticket={open} client={client} columns={columns} onClose={() => setOpen(null)} onSaved={replace} />}
+      {open && kind === "issues" && <_WP_Drawer ticket={open} client={client} columns={columns} onClose={() => setOpen(null)} onSaved={replace} />}
+      {open && kind === "mrs" && <MrDrawer mr={open} client={client} onClose={() => setOpen(null)} onChanged={replace} />}
+      {open && kind === "pipelines" && <PipeDrawer pipe={open} client={client} onClose={() => setOpen(null)} onChanged={replace} />}
     </div>
   );
 }
 
-Object.assign(window, { WorkPanel });
+Object.assign(window, { WorkPanel, _wpRun, _wpAgo });
