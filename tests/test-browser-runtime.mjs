@@ -481,7 +481,10 @@ test("hook: a localhost chat link opens in the panel; a modifier click goes to t
   assert.equal(openBy.s, true, "the panel opens to load it");
   const other = click("https://example.com/");
   ui.onChatClick(other);
-  assert.equal(other.defaultPrevented, false, "not this machine: left to the webview");
+  assert.equal(other.defaultPrevented, true, "fork: any web link opens in the panel");
+  const mail = click("mailto:a@b.c");
+  ui.onChatClick(mail);
+  assert.equal(mail.defaultPrevented, false, "not a web link: left to the webview");
   const mod = click("http://localhost:3000/b", { ctrlKey: true });
   ui.onChatClick(mod);
   assert.deepEqual(external, ["http://localhost:3000/b"]);

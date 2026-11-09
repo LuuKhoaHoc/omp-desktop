@@ -2,7 +2,8 @@
 // No DOM, no bridge:
 //   normalizeUrl(input)             address field text → loadable URL or null
 //   browserCommand(args)            `/browser [url]` → open, load or a note
-//   localUrl(href) / linkClick(e)   a localhost / 127.x / [::1] http(s) chat link
+//   localUrl(href)                  a localhost / 127.x / [::1] http(s) link
+//   linkClick(e)                    an http(s) chat link → panel, or external with a modifier
 //   annotationText / chipLabel / mergeIntoMessage / droppedScreenshots
 //                                   annotation chips → prompt text + images
 //   toPageCoords / modifiersOf / keyEventToCdp / mouseButton / escapeAction
@@ -76,13 +77,16 @@
     return typeof href === "string" && LOCAL_LINK.test(href.trim()) ? normalizeUrl(href) : null;
   }
 
-  // A primary click on a localhost link in the chat (`.md-content a`):
-  // `{ url, external }`, else null. `external` (⌘/Ctrl, Shift or Alt held)
-  // means the system browser instead of the panel.
+  // A primary click on an http(s) link in the chat (`.md-content a`), fork:
+  // any site, not only this machine. `{ url, external }`, else null.
+  // `external` (⌘/Ctrl, Shift or Alt held) means the system browser instead
+  // of the panel.
+  const WEB_LINK = /^https?:\/\/[^\s/?#]/i;
   function linkClick(e) {
     if (e.defaultPrevented || e.button !== 0) return null;
     const a = typeof e.target?.closest === "function" ? e.target.closest(".md-content a[href]") : null;
-    const url = a && localUrl(a.getAttribute("href"));
+    const href = a?.getAttribute("href")?.trim();
+    const url = href && WEB_LINK.test(href) ? normalizeUrl(href) : null;
     if (!url) return null;
     return { url, external: Boolean(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) };
   }

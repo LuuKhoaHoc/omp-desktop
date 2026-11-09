@@ -151,7 +151,7 @@
         custom("chromium", "Browser", "Which Chromium the panel runs; panels started afterwards use it. `automatic` finds one installed on this PC.", "chrome edge chromium"),
       ] },
       { name: "Links", rows: [
-        tweak("browserLocalhostInPanel", "toggle", "Open localhost links in the panel", "A click on a `localhost` link in the chat opens it here instead of your system browser.", "dev server url"),
+        tweak("browserLocalhostInPanel", "toggle", "Open chat links in the panel", "A click on a web link in the chat opens it in this window's browser panel; Ctrl/⌘+click opens your system browser.", "dev server url link localhost"),
       ] },
     ] },
     { id: "agent", icon: "agent", title: "Agent", blurb: "Which omp profile new tabs use and how omp behaves in them.", groups: [

@@ -503,7 +503,7 @@ check("localUrl accepts only explicit http(s) links to this machine", () => {
   ]) assert.equal(B.localUrl(bad), null, String(bad));
 });
 
-check("linkClick: a primary click on a chat localhost link, external with a modifier", () => {
+check("linkClick: a primary click on a chat web link, external with a modifier", () => {
   const click = (href, over = {}) => ({
     button: 0, defaultPrevented: false,
     target: { closest: (sel) => (sel === ".md-content a[href]" && href != null ? { getAttribute: () => href } : null) },
@@ -513,7 +513,11 @@ check("linkClick: a primary click on a chat localhost link, external with a modi
   for (const mod of ["metaKey", "ctrlKey", "shiftKey", "altKey"]) {
     assert.deepEqual(B.linkClick(click("http://localhost:3000/a", { [mod]: true })), { url: "http://localhost:3000/a", external: true }, mod);
   }
-  assert.equal(B.linkClick(click("https://example.com/")), null, "not this machine");
+  assert.deepEqual(B.linkClick(click(" https://example.com/x?y ")), { url: "https://example.com/x?y", external: false }, "any site");
+  assert.equal(B.linkClick(click("https://example.com/", { ctrlKey: true })).external, true);
+  for (const bad of ["mailto:a@b.c", "javascript:alert(1)", "file:///etc/passwd", "src/a.js", "#top", "https://", "http:///x"]) {
+    assert.equal(B.linkClick(click(bad)), null, bad);
+  }
   assert.equal(B.linkClick(click(null)), null, "not a chat link");
   assert.equal(B.linkClick(click("http://localhost/", { button: 1 })), null, "middle button");
   assert.equal(B.linkClick(click("http://localhost/", { defaultPrevented: true })), null, "taken by another handler");
