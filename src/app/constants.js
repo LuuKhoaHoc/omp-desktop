@@ -14,8 +14,8 @@
   // `browserWidth`: px of the browser panel, 0 = half the stage (OMP_BROWSER.clampWidth).
   // `sidebarWidth` / `splitWidth` / `railWidth` / `treeWidth`: px of those
   // columns, 0 = the default (OMP_LAYOUT_WIDTHS.fit).
-  // `browserLocalhostInPanel`: a plain click on a localhost chat link opens
-  // the panel instead of the system browser. (The Chromium path is a Rust
+  // `browserLocalhostInPanel` (name kept for stored prefs): a plain click on
+  // a web link in the chat opens the panel instead of the system browser. (The Chromium path is a Rust
   // setting, browser.json — never a tweak.)
   // Settings page (#37): `defaultSide` is the side column a new tab starts
   // with; `followOutput` pins the transcript to the newest message;
