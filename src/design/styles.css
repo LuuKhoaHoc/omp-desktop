@@ -4,11 +4,10 @@
    Density: cozy / compact / dense (rem scale + line-height).
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* Bundled fonts (OFL, src/fonts). The user can swap each role for any
-   installed font in Settings → Appearance → Font (app/font-settings.js). */
-@font-face { font-family: "Be Vietnam Pro"; src: url("../fonts/BeVietnamPro-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "Be Vietnam Pro"; src: url("../fonts/BeVietnamPro-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
-@font-face { font-family: "Be Vietnam Pro"; src: url("../fonts/BeVietnamPro-SemiBold.ttf") format("truetype"); font-weight: 600 700; font-display: swap; }
+/* Bundled fonts (OFL, src/fonts). Inter: the open font closest to Claude
+   Desktop's Anthropic Sans (same x/cap ratio and width) with full Vietnamese.
+   Each role can be swapped in Settings → Appearance → Font (rows-fonts.jsx). */
+@font-face { font-family: "Inter"; src: url("../fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "JetBrains Mono"; src: url("../fonts/JetBrainsMono.ttf") format("truetype"); font-weight: 100 800; font-display: swap; }
 
 :root {
@@ -191,8 +190,8 @@
    Graphite surfaces, warm paper text, one sodium accent for running /
    waiting / primary / edited. No glows. Restyle rules: layout/night.css. */
 .theme-night {
-  --font-sans: "Be Vietnam Pro", "Geist", "Inter", system-ui, sans-serif;
-  --font-display: "Be Vietnam Pro", "Geist", "Inter", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --bg-app: #121314;

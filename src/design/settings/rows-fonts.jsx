@@ -50,7 +50,7 @@ function _SRF_Picker({ role, value, fonts, onChange }) {
             value={q} onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && shown[0]) pick(shown[0].family); }} />
           <button type="button" role="option" aria-selected={!value} className={`font-pick-row${!value ? " on" : ""}`} onClick={() => pick("")}>
-            Theme default <span className="font-pick-tag">Be Vietnam Pro / JetBrains Mono</span>
+            Theme default <span className="font-pick-tag">Inter / JetBrains Mono</span>
           </button>
           {shown.map((f) => (
             <button type="button" role="option" aria-selected={f.family === value} key={f.family}
