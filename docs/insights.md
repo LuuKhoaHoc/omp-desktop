@@ -9,10 +9,18 @@ panel.
 
 ```
 .omp/insights/
-  doc-analysis.json
-  testcases.json
-  diagrams/*           .mmd/.mermaid, .svg, .png, .html, .excalidraw; sorted by name
+  docs/<slug>.json       one document analysis per file (doc-analysis.json at the root still reads)
+  testcases/<slug>.json  one test case set per document (testcases.json at the root still reads)
+  diagrams/*             .mmd/.mermaid, .svg, .png, .html, .excalidraw; sorted by name
 ```
+
+Several documents live side by side: **Add document** (Test cases and
+Documents tabs) drafts a prompt that makes the agent pick a new slug, so a new
+document never overwrites the last one. A chip row picks the document (Test
+cases also has **All**); the trash button deletes the selected file, and each
+diagram card has one too. Delete asks once ("Delete?", click again within
+4 s) and goes through `insights_delete`, which removes only a file of the
+shapes above, never another path, a folder or a symlink.
 
 ## diagrams/*
 
@@ -51,7 +59,7 @@ verbatim `dist/mermaid.min.js` from npm, SHA-256
 only when the panel first draws a Mermaid diagram, at Mermaid's `strict`
 security level (labels sanitised, no click callbacks or scripts).
 
-## doc-analysis.json
+## docs/<slug>.json (or doc-analysis.json)
 
 ```json
 {
@@ -63,7 +71,7 @@ security level (labels sanitised, no click callbacks or scripts).
 }
 ```
 
-## testcases.json
+## testcases/<slug>.json (or testcases.json)
 
 ```json
 {

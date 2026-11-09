@@ -958,6 +958,12 @@ async fn insights_read(project: String) -> Result<serde_json::Value, String> {
     off_ipc(move || work::insights(&project)).await?
 }
 
+/// Deletes one listed Insights file (`work::insights_delete`).
+#[tauri::command]
+async fn insights_delete(project: String, file: String) -> Result<(), String> {
+    off_ipc(move || work::insights_delete(&project, &file)).await?
+}
+
 /// Stores an interactive chat page and returns its id (`chat_pages`).
 #[tauri::command]
 fn page_register(html: String, store: tauri::State<'_, chat_pages::PageStore>) -> Result<String, String> {
@@ -1593,6 +1599,7 @@ pub fn run() {
             work_cli,
             work_http,
             insights_read,
+            insights_delete,
             page_register,
             list_fonts,
             send_command,
