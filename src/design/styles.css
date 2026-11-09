@@ -1,14 +1,23 @@
 /* ═══════════════════════════════════════════════════════════════════════
    OMP Desktop — design tokens
-   Three themes: aurora (default dark), phosphor (terminal), daylight.
+   Four themes: night (default, fork), aurora, phosphor (terminal), daylight.
    Density: cozy / compact / dense (rem scale + line-height).
    ═══════════════════════════════════════════════════════════════════════ */
+
+/* Bundled fonts (OFL, src/fonts). The user can swap each role for any
+   installed font in Settings → Appearance → Font (app/font-settings.js). */
+@font-face { font-family: "Be Vietnam Pro"; src: url("../fonts/BeVietnamPro-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Be Vietnam Pro"; src: url("../fonts/BeVietnamPro-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Be Vietnam Pro"; src: url("../fonts/BeVietnamPro-SemiBold.ttf") format("truetype"); font-weight: 600 700; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("../fonts/JetBrainsMono.ttf") format("truetype"); font-weight: 100 800; font-display: swap; }
 
 :root {
   /* type */
   --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "Berkeley Mono", ui-monospace, "SF Mono", Menlo, "Cascadia Mono", "Cascadia Code", Consolas, monospace;
   --font-display: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  /* Messages (user + assistant). Follows the UI font unless set apart. */
+  --font-chat: var(--font-sans);
 
   /* density (overridden by .density-* on root) */
   --d-row: 28px;
@@ -176,6 +185,62 @@
 
   --grain-opacity: 0;
   color-scheme: light;
+}
+
+/* ── Night shift (fork default) ───────────────────────────────────────
+   Graphite surfaces, warm paper text, one sodium accent for running /
+   waiting / primary / edited. No glows. Restyle rules: layout/night.css. */
+.theme-night {
+  --font-sans: "Be Vietnam Pro", "Geist", "Inter", system-ui, sans-serif;
+  --font-display: "Be Vietnam Pro", "Geist", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --bg-app: #121314;
+  --bg-window: #17181A;
+  --bg-surface: #1D1E21;
+  --bg-elevated: #25262A;
+  --bg-input: #1A1B1E;
+  --bg-hover: #2A2B30;
+  --bg-active: #303137;
+
+  --line: #2A2B2F;
+  --line-soft: #222326;
+  --line-bright: #3A3B41;
+
+  --fg: #E7E3DA;
+  --fg-2: #BDB9B0;
+  --fg-3: #969289;
+  --fg-4: #75726C;
+  --fg-5: #4F4D49;
+
+  --accent: #E3A857;
+  --accent-deep: #B9853F;
+  --accent-soft: rgba(227, 168, 87, 0.12);
+  --accent-glow: rgba(227, 168, 87, 0.0);
+
+  --magenta: #D49AB8;
+  --cyan: #8FB8C9;
+  --amber: #E3A857;
+  --lilac: #ABA2D0;
+  --rose: #E2958B;
+  --lime: #9CC39A;
+
+  --syntax-comment: #75726C;
+  --syntax-key: #ABA2D0;
+  --syntax-str: #9CC39A;
+  --syntax-num: #E3A857;
+  --syntax-fn: #8FB8C9;
+  --syntax-tag: #D49AB8;
+
+  --diff-add-bg: rgba(156, 195, 154, 0.12);
+  --diff-add-fg: #B7D4B4;
+  --diff-rm-bg: rgba(226, 149, 139, 0.12);
+  --diff-rm-fg: #ECB8B0;
+
+  --shadow-pop: 0 18px 50px -12px rgba(8, 8, 9, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-card: none;
+  --grain-opacity: 0;
+  color-scheme: dark;
 }
 
 /* ── Density ──────────────────────────────────────────────────────────── */

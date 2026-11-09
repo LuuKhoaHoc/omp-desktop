@@ -10,6 +10,17 @@
 
 const { Icon: _TM_Icon, THINKING_LEVELS: _TM_LEVELS } = window;
 
+/** Filled bars (0–3) for a thinking level: the pill shows bars, the
+ *  tooltip and the menu keep the word. Unknown levels read as medium. */
+function _TM_bars(level) {
+  const l = String(level ?? "").toLowerCase();
+  if (l === "off" || l === "none" || l === "") return 0;
+  if (l === "minimal" || l === "low") return 1;
+  if (l === "medium" || l === "auto") return 2;
+  if (l === "high" || l === "xhigh" || l === "max") return 3;
+  return 2;
+}
+
 function ThinkingMenu({ model, level, cycleHint, onLoad, onSet }) {
   const [open, setOpen] = React.useState(false);
   // { key, levels } or { key, error }, tagged with the model it was fetched
@@ -59,11 +70,12 @@ function ThinkingMenu({ model, level, cycleHint, onLoad, onSet }) {
   return (
     <div className="thinking-menu" ref={rootRef}>
       <button ref={triggerRef} className="composer-pill" aria-haspopup="menu" aria-expanded={open}
-        title={cycleHint ? `thinking level (${cycleHint} cycles)` : "thinking level"}
+        title={`thinking: ${level}${cycleHint ? ` (${cycleHint} cycles)` : ""}`} aria-label={`thinking level: ${level}`}
         onClick={() => (open ? close() : setOpen(true))}>
-        <_TM_Icon name="thinking" size={11} color="var(--lilac)" />
-        <span style={{ color: "var(--fg-2)" }}>thinking · {level}</span>
-        <_TM_Icon name="chev" size={10} color="var(--fg-4)" />
+        <_TM_Icon name="thinking" size={13} color="var(--fg-3)" />
+        <span className="thinking-bars" aria-hidden="true">
+          {[1, 2, 3].map(i => <i key={i} className={i <= _TM_bars(level) ? "f" : ""} />)}
+        </span>
       </button>
       {open && (
         <div ref={popRef} className={`thinking-pop${busy ? " busy" : ""}`} role="menu" aria-label="thinking level" onKeyDown={onPopKey}>
@@ -96,4 +108,4 @@ function ThinkingMenu({ model, level, cycleHint, onLoad, onSet }) {
   );
 }
 
-Object.assign(window, { ThinkingMenu });
+Object.assign(window, { ThinkingMenu, _TM_bars });

@@ -19,7 +19,7 @@
 
 const {
   Icon, ChatView, Composer, CommandBridge, WindowChrome, Toolbar, TabBar, SubagentPane, ProjectSidebar, EmptyWorkspace,
-  StatusBar, AmbientRail, ConversationTree, PlanKanban, HistoryModal, GitBrowser, FilePreview, ApprovalRulesPanel, UsageStatsPanel, PromptHistoryModal, UpdateModal, useTweaks,
+  StatusBar, AmbientRail, ConversationTree, WorkPanel, InsightsPanel, PlanKanban, HistoryModal, GitBrowser, FilePreview, ApprovalRulesPanel, UsageStatsPanel, PromptHistoryModal, UpdateModal, useTweaks,
   SettingsPage, ConfirmCloseDialog,
   useWidgets, WidgetCard, WidgetErrorCard, WidgetApprovalCard, WidgetBoundary,
   TWEAK_DEFAULTS, NULL_MODEL, EMPTY_PROJECT, DEFAULT_PROFILE_ID,
@@ -866,6 +866,8 @@ function App() {
     "desktop.chat.expandAll":  () => handleCollapseAll(false),
     "desktop.terminal.toggle": () => terminal.toggle(planKey),
     "desktop.browser.toggle":  () => toggleSide("browser"),
+    "desktop.panel.work":      () => toggleSide("work"),
+    "desktop.panel.insights":  () => toggleSide("insights"),
   };
 
   // Profile switch applies to the active tab only: its omp process is
@@ -911,7 +913,8 @@ function App() {
   const workspaceRef = React.useRef(null);
   const browserFull = side === "browser" && browser.fullView;
   const splitShown = showSplit && !browserFull;
-  const sideRail = side === "tree" ? "tree" : side !== "browser" && showRail ? "rail" : null;
+  // Fork: Work and Insights take the conversation tree's column (and width).
+  const sideRail = side === "tree" || side === "work" || side === "insights" ? "tree" : side !== "browser" && showRail ? "rail" : null;
   const panes = usePaneWidths({
     tweaks: t, setTweak, workspaceRef,
     open: [showSidebar && "sidebar", splitShown && "split", sideRail].filter(Boolean),
@@ -976,6 +979,8 @@ function App() {
               fullView: browser.fullView, onFullView: browser.setFullView,
             }}
             terminal={{ open: _TERM_entryOf(terminal.state, planKey).open, onToggle: () => terminal.toggle(planKey) }}
+            work={{ open: side === "work", onToggle: () => toggleSide("work") }}
+            insights={{ open: side === "insights", onToggle: () => toggleSide("insights") }}
             onGit={() => setGitOpen({ path: null })}
             approvals={{ cell: approvalCell, onOpen: () => setRulesOpen(true) }}
             onStats={() => setStatsOpen(true)}
@@ -1120,6 +1125,10 @@ function App() {
 
               {side === "browser" ? (
                 <BrowserDock ui={browser} stageRef={stageRef} room={panes.browserRoom} />
+              ) : side === "work" ? (
+                <WorkPanel />
+              ) : side === "insights" ? (
+                <InsightsPanel projectPath={activeProject.path ?? null} onAsk={handleInsertDraft} />
               ) : side === "tree" ? (
                 <ConversationTree
                   model={convTree.model} currentFile={convTree.currentFile} error={convTree.error}

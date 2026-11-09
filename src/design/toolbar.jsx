@@ -56,12 +56,13 @@ function ApprovalModeButton({ cell, onClick }) {
  * nav:      { sidebarOpen, onToggleSidebar, onOpenProject, onHistory }
  * rail, subagents, terminal: { open, onToggle }
  * tree:     { open, onToggle, onRefresh, canRefresh }
+ * work, insights: { open, onToggle } (fork panels; optional)
  * browser:  { open, onToggle, annotate, canAnnotate, onAnnotate(on), fullView, onFullView(on) }
  * approvals: { cell, onOpen }; onGit, onStats, onCommands
  * profile:  ProfileMenu's props (profiles, activeId, startupId, on…)
  * settings: { active, onOpen }
  */
-function Toolbar({ nav, rail, subagents, tree, browser, terminal, onGit, approvals, onStats, onCommands, profile, settings }) {
+function Toolbar({ nav, rail, subagents, tree, browser, terminal, work, insights, onGit, approvals, onStats, onCommands, profile, settings }) {
   const commands = _tbChord("desktop.commands.open");
   return (
     <div className="toolbar" role="toolbar" aria-label="app toolbar">
@@ -92,6 +93,9 @@ function Toolbar({ nav, rail, subagents, tree, browser, terminal, onGit, approva
         <ToolButton icon="terminal" title={_tbTip("terminal", "desktop.terminal.toggle")} pressed={terminal.open} onClick={terminal.onToggle} />
         <span className="tb-sep" />
 
+        {work && <ToolButton icon="tag" title={_tbTip("work: tickets", "desktop.panel.work")} pressed={work.open} onClick={work.onToggle} />}
+        {insights && <ToolButton icon="test" title={_tbTip("insights: charts and test cases", "desktop.panel.insights")} pressed={insights.open} onClick={insights.onToggle} />}
+        {(work || insights) && <span className="tb-sep" />}
         <ToolButton icon="diff2" title={_tbTip("git browser", "desktop.panel.changes")} onClick={onGit} />
         <ToolButton icon="cost" title={_tbTip("usage statistics", "desktop.panel.stats")} onClick={onStats} />
       </div>

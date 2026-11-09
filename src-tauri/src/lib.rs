@@ -46,6 +46,7 @@ mod text;
 mod updater;
 mod voice_spectrum;
 mod widgets;
+mod work;
 mod workspace;
 
 use agent::AgentBridge;
@@ -937,6 +938,31 @@ async fn project_file_read(
     off_ipc(move || project_file::read(&root, &path)).await?
 }
 
+/// Work panel: one `glab api` / `gh api` call (`work::cli`).
+#[tauri::command]
+async fn work_cli(tool: String, args: Vec<String>, stdin: Option<String>) -> Result<String, String> {
+    off_ipc(move || work::cli(&tool, &args, stdin)).await?
+}
+
+/// Work panel: one token-authenticated HTTPS call (`work::http`); the token
+/// is read from `token_env` here and never returned.
+#[tauri::command]
+async fn work_http(url: String, method: String, auth: String, token_env: String, body: Option<String>) -> Result<String, String> {
+    off_ipc(move || work::http(&url, &method, &auth, &token_env, body)).await?
+}
+
+/// Insights panel data for a project (`work::insights`).
+#[tauri::command]
+async fn insights_read(project: String) -> Result<serde_json::Value, String> {
+    off_ipc(move || work::insights(&project)).await?
+}
+
+/// Installed font families for the font picker (`work::fonts`).
+#[tauri::command]
+async fn list_fonts() -> Result<Vec<work::FontFamily>, String> {
+    off_ipc(work::fonts).await
+}
+
 /// Stage a file's changes — see `workspace::accept`.
 ///
 /// Runs `async` + `spawn_blocking`: `workspace::accept` shells out to
@@ -1355,7 +1381,7 @@ fn config_dir<E: std::fmt::Display>(resolved: Result<PathBuf, E>) -> Option<Path
 /// opens with no tab until the user (or an OS folder open) picks a project.
 fn setup(app: &tauri::App) {
     #[cfg(debug_assertions)]
-    if let Some(win) = app.get_webview_window("main") {
+    if let (Some(win), None) = (app.get_webview_window("main"), std::env::var_os("OMP_NO_DEVTOOLS")) {
         win.open_devtools();
     }
     // Every store below is memory-only without it (see `config_dir`).
@@ -1553,6 +1579,10 @@ pub fn run() {
     let builder = builder.plugin(single_instance_plugin());
     let app = with_plugins_and_state(builder)
         .invoke_handler(tauri::generate_handler![
+            work_cli,
+            work_http,
+            insights_read,
+            list_fonts,
             send_command,
             start_session,
             stop_session,
