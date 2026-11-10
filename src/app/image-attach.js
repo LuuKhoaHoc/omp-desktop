@@ -78,19 +78,6 @@
     return carriesFiles(dt) || (!onEditable && carriesType(dt, "text/uri-list"));
   }
 
-  // The element a file drag is over inside the drop zone, after one
-  // dragenter/dragleave/drop that reached the zone (`null`: not over it).
-  // Engines fire dragenter on the new element before dragleave on the old
-  // one, so a leave only ends the hover when it leaves the element last
-  // entered, i.e. the next one is outside the zone. Unlike a depth count,
-  // this survives a leave that never arrives: one whose element was
-  // removed mid-drag goes to the detached node, not to the zone.
-  function dropHoverAfter(current, type, target) {
-    if (type === "dragenter") return target;
-    if (type === "dragleave") return target === current ? null : current;
-    return null;
-  }
-
   // Image Files carried by a paste/drop DataTransfer. Engines differ on
   // whether a pasted screenshot shows up in `items`, `files`, or both, so
   // read `items` and fall back to `files` only when it yielded nothing —
@@ -206,7 +193,6 @@
     needsReencode,
     carriesFiles,
     refusesStrayDrop,
-    dropHoverAfter,
     imageFilesFromTransfer,
     imageFilesFromClipboardAsync,
     prepareImage,

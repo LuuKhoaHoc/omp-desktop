@@ -4,7 +4,7 @@
 
 const { Icon } = window;
 const { parseMentionQuery, applyMention } = window.OMP_MENTIONS;
-const { prepareImage, carriesFiles, dropHoverAfter, imageFilesFromTransfer, imageFilesFromClipboardAsync, toDataUrl, MAX_ATTACHMENTS } = window.OMP_IMAGES;
+const { prepareImage, imageFilesFromTransfer, imageFilesFromClipboardAsync, toDataUrl, MAX_ATTACHMENTS } = window.OMP_IMAGES;
 const { isDesktop, slashMenu, midPromptSlashToken, skillMenu, matchesQuery, insertText: slashInsertText } = window.OMP_SLASH;
 const {
   entryOf: draftEntryOf, updateEntry: updateDraftEntry, pruneEntries: pruneDrafts, DRAFT_IDLE, recallInDraft,
@@ -102,11 +102,9 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
   const listRef = React.useRef(null);
   const attachCounterRef = React.useRef(0);
   const fileInputRef     = React.useRef(null);
-  // Image drop from the OS file manager (#50): the element the drag is over
-  // (`dropHoverAfter`) lives in a ref, so crossing children re-renders only
-  // when the highlight itself flips.
+  // Files dropped anywhere on the window (Tauri's native drop) light the
+  // prompt box while dragged.
   const [dropActive, setDropActive] = React.useState(false);
-  const dropHoverRef = React.useRef(null);
 
   const cmds = window.OMP_DATA?.commands || [];
 
@@ -470,25 +468,27 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
   const removeAttachment = (attId) =>
     updateDraft(sessionId, d => ({ ...d, attachments: d.attachments.filter(a => a.id !== attId) }));
 
-  // Image files dropped from the OS file manager (#50) go the paste/pick
-  // way (`addFiles`: same preparation, limits and tab); non-images are
-  // ignored. One handler for all four drag events (dragleave is not
-  // cancelable, so its preventDefault is a no-op).
-  const onFileDrag = (e) => {
-    if (!carriesFiles(e.dataTransfer)) return;
-    // On dragover, accepting the drop is what makes the drop event fire at all.
-    e.preventDefault();
-    if (e.type === "dragover") {
-      e.dataTransfer.dropEffect = "copy";
-      return;
-    }
-    dropHoverRef.current = dropHoverAfter(dropHoverRef.current, e.type, e.target);
-    setDropActive(dropHoverRef.current !== null);
-    if (e.type === "drop") {
-      addFiles(imageFilesFromTransfer(e.dataTransfer));
-      taRef.current?.focus();
-    }
+  // Files dropped from the OS file manager go in at the caret as `@path`
+  // mentions; omp reads them itself at send (text, folders, and images as
+  // image input). Tauri's native drop (`dragDropEnabled`) is the only way
+  // to learn a dropped file's path; the page never sees those drops.
+  const dropInsertRef = React.useRef(null);
+  dropInsertRef.current = (paths) => {
+    const ta = taRef.current;
+    const at = ta ? ta.selectionStart : text.length;
+    const before = at > 0 && !/\s/.test(text[at - 1]) ? " " : "";
+    spliceDraft({ start: at, end: ta ? ta.selectionEnd : at }, `${before}${window.OMP_MENTIONS.mentionsForPaths(paths)} `);
   };
+  React.useEffect(() => {
+    const webview = window.__TAURI__?.webview?.getCurrentWebview?.();
+    if (!webview) return undefined;
+    let stop = null, gone = false;
+    webview.onDragDropEvent(({ payload }) => {
+      setDropActive(payload.type === "enter" || payload.type === "over");
+      if (payload.type === "drop" && payload.paths?.length) dropInsertRef.current(payload.paths);
+    }).then(un => { if (gone) un(); else stop = un; });
+    return () => { gone = true; stop?.(); };
+  }, []);
 
   // Collapse long pastes (session-ui.js shouldCollapsePaste) into a token
   // so the textarea stays navigable; the chip strip above shows and
@@ -592,8 +592,7 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
   const sendHints = _CMP_SEND_HINTS[submitKey] ?? _CMP_SEND_HINTS.enter;
 
   return (
-    <div className={`composer${planMode ? " plan-on" : ""}${goalTint ? " goal-on" : ""}${goalMode ? " goal-draft" : ""}${dropActive ? " drop-on" : ""}`}
-      onDragEnter={onFileDrag} onDragOver={onFileDrag} onDragLeave={onFileDrag} onDrop={onFileDrag}>
+    <div className={`composer${planMode ? " plan-on" : ""}${goalTint ? " goal-on" : ""}${goalMode ? " goal-draft" : ""}${dropActive ? " drop-on" : ""}`}>
       {planMode && (
         <div className="plan-strip">
           <Icon name="plan" size={12} color="var(--amber)" />
