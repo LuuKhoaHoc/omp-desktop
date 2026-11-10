@@ -73,10 +73,10 @@ impl PageStore {
 /// Status, content type and body for a request path (`/<id>`).
 pub fn respond(store: &PageStore, path: &str) -> (u16, &'static str, Vec<u8>) {
     let id = path.trim_start_matches('/');
-    match store.get(id) {
-        Some(html) => (200, "text/html; charset=utf-8", html.into_bytes()),
-        None => (404, "text/plain; charset=utf-8", b"page expired".to_vec()),
-    }
+    store.get(id).map_or_else(
+        || (404, "text/plain; charset=utf-8", b"page expired".to_vec()),
+        |html| (200, "text/html; charset=utf-8", html.into_bytes()),
+    )
 }
 
 /// The protocol handler: serves a stored page with [`PAGE_CSP`].

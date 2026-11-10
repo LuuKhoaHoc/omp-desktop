@@ -941,14 +941,24 @@ async fn project_file_read(
 
 /// Work panel: one `glab api` / `gh api` call (`work::cli`).
 #[tauri::command]
-async fn work_cli(tool: String, args: Vec<String>, stdin: Option<String>) -> Result<String, String> {
+async fn work_cli(
+    tool: String,
+    args: Vec<String>,
+    stdin: Option<String>,
+) -> Result<String, String> {
     off_ipc(move || work::cli(&tool, &args, stdin)).await?
 }
 
 /// Work panel: one token-authenticated HTTPS call (`work::http`); the token
 /// is read from `token_env` here and never returned.
 #[tauri::command]
-async fn work_http(url: String, method: String, auth: String, token_env: String, body: Option<String>) -> Result<String, String> {
+async fn work_http(
+    url: String,
+    method: String,
+    auth: String,
+    token_env: String,
+    body: Option<String>,
+) -> Result<String, String> {
     off_ipc(move || work::http(&url, &method, &auth, &token_env, body)).await?
 }
 
@@ -966,7 +976,10 @@ async fn insights_delete(project: String, file: String) -> Result<(), String> {
 
 /// Stores an interactive chat page and returns its id (`chat_pages`).
 #[tauri::command]
-fn page_register(html: String, store: tauri::State<'_, chat_pages::PageStore>) -> Result<String, String> {
+fn page_register(
+    html: String,
+    store: tauri::State<'_, chat_pages::PageStore>,
+) -> Result<String, String> {
     store.register(html)
 }
 
@@ -1394,7 +1407,10 @@ fn config_dir<E: std::fmt::Display>(resolved: Result<PathBuf, E>) -> Option<Path
 /// opens with no tab until the user (or an OS folder open) picks a project.
 fn setup(app: &tauri::App) {
     #[cfg(debug_assertions)]
-    if let (Some(win), None) = (app.get_webview_window("main"), std::env::var_os("OMP_NO_DEVTOOLS")) {
+    if let (Some(win), None) = (
+        app.get_webview_window("main"),
+        std::env::var_os("OMP_NO_DEVTOOLS"),
+    ) {
         win.open_devtools();
     }
     // Every store below is memory-only without it (see `config_dir`).
