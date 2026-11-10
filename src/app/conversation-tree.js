@@ -379,5 +379,15 @@
     };
   }
 
-  window.OMP_CONV_TREE = { buildModel, isLive, isCached };
+  /** The entry id of the prompt a chat bubble shows: the user entry on the
+   *  current path whose `message.timestamp` is the bubble's `ts` (the
+   *  transcript merge's own key). `null` for a bubble omp has not echoed
+   *  yet (no `ts`) or a prompt not on the current path. */
+  function promptEntryId(tree, ts) {
+    if (ts == null || !tree?.entries) return null;
+    const hit = tree.entries.findLast(e => e.kind === "user" && e.inCurrent && Number(e.ts) === Number(ts));
+    return hit?.id ?? null;
+  }
+
+  window.OMP_CONV_TREE = { buildModel, isLive, isCached, promptEntryId };
 })();

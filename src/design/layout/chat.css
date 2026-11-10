@@ -545,3 +545,15 @@
   scrollbar-width: thin;
   scrollbar-color: var(--line-bright) transparent;
 }
+
+/* Edit on a sent prompt (fork, user-bubble.jsx): shown on hover. */
+.user-actions { margin-left: auto; display: inline-flex; gap: 2px; opacity: 0; transition: opacity var(--motion-fast, 140ms) ease; }
+.row.user:hover .user-actions, .user-actions:focus-within { opacity: 1; }
+.user-act {
+  appearance: none; border: 0; background: transparent; color: var(--fg-3);
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 6px; border-radius: var(--r-1);
+  font: inherit; font-size: var(--d-text-xs); cursor: pointer;
+}
+.user-act:hover { background: var(--bg-hover); color: var(--fg); }
+.user-act:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }

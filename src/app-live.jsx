@@ -693,6 +693,19 @@ function App() {
     streaming, onBranchText: text => setPromptInsert({ text, nonce: Date.now() }),
   });
 
+  // Edit on a sent prompt (fork): the tree's "branch here" for the
+  // bubble's prompt, found by its `ts`. The turns after it stay a branch in
+  // the conversation tree; files the agent changed are not rolled back.
+  const handleEditPrompt = async msg => {
+    if (!bridge || streaming || !activeProject.sessionFile) return;
+    const tree = await bridge.conversationTree(activeProject.sessionFile, activeProfileId);
+    const entryId = tree.ok ? window.OMP_CONV_TREE.promptEntryId(tree.value, msg.ts) : null;
+    if (!entryId) { console.error("[app] edit: prompt not found in the session file", tree.error ?? ""); return; }
+    const res = await bridge.branchAt(entryId);
+    if (!res.ok) { if (!res.cancelled) console.error("[app] edit failed:", res.error); return; }
+    setPromptInsert({ text: res.text ?? msg.text ?? "", nonce: Date.now() });
+  };
+
   // `args`: text typed after a desktop command in the composer (composer.jsx
   // `execCmd`); empty from the ⌘K bridge.
   const handleCommand = (c, args = "") => {
@@ -1066,6 +1079,7 @@ function App() {
                     onToggleCollapse={handleToggleCollapse}
                     followOutput={t.followOutput}
                     submitKey={t.submitKey}
+                    onEdit={streaming ? null : handleEditPrompt}
                   />
                   <TerminalPanels sessions={sessions} activeId={planKey} terminal={terminal} />
                   <Composer

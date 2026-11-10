@@ -848,4 +848,17 @@ check("headLive counts requests on every branch, not only the current path", () 
   assert.equal(row(quiet, "p2").readTokens, 0);
 });
 
+check("promptEntryId finds the bubble's prompt on the current path by ts", () => {
+  const { promptEntryId } = ctx.OMP_CONV_TREE;
+  const entries = [
+    { id: "u-old", kind: "user", ts: 100, inCurrent: false },
+    { id: "u1", kind: "user", ts: 100, inCurrent: true },
+    { id: "a1", kind: "assistant", ts: 200, inCurrent: true },
+  ];
+  assert.equal(promptEntryId({ entries }, 100), "u1");
+  assert.equal(promptEntryId({ entries }, 200), null, "assistant entries never match");
+  assert.equal(promptEntryId({ entries }, null), null, "an un-echoed bubble has no ts");
+  assert.equal(promptEntryId(null, 100), null);
+});
+
 console.log(`conversation-tree: ${passed} checks passed`);
