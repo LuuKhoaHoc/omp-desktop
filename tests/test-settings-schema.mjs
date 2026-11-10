@@ -113,7 +113,7 @@ check("isModified compares with defaults, accent with the theme's own", () => {
   assert.ok(S.isModified(row("theme"), daylight));
   assert.ok(!S.isModified(row("accent"), daylight));
   assert.ok(S.isModified(row("accent"), vals({ accent: "#FF7AC6" })));
-  assert.ok(!S.isModified(row("accent"), vals({ accent: "#e3a857" })), "case-insensitive");
+  assert.ok(!S.isModified(row("accent"), vals({ accent: "#da7c47" })), "case-insensitive");
   assert.ok(!S.isModified(row("foldTools"), vals({ foldTools: "auto" })), "explicit auto equals unset");
   assert.ok(S.isModified(row("foldTools"), vals({ foldTools: "open" })));
 });

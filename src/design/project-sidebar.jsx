@@ -15,6 +15,7 @@ const { groupTabs, groupRunState, groupTarget, membersNewestFirst, basename, par
 function ProjectSidebar({
   tabs, activeId, recents, profileLabel,
   onSelectTab, onCloseTab, onRenameTab, onNewInProject, onOpenRecent, onForgetRecent, onOpenFolder, onReorder,
+  footer = null,
 }) {
   // Group keys the user folded. Not persisted: tab ids (and so pathless
   // groups' keys) don't survive a restart anyway.
@@ -41,7 +42,12 @@ function ProjectSidebar({
 
   return (
     <aside className="project-sidebar" aria-label="projects">
-      <div className="psb-head">projects</div>
+      <div className="psb-head">
+        <span>projects</span>
+        <button className="psb-act psb-head-act" title="open folder…" aria-label="open folder" onClick={onOpenFolder}>
+          <Icon name="plus" size={11} />
+        </button>
+      </div>
 
       <div className="psb-scroll" onPointerDown={reorder.onPointerDown}>
         <div className="psb-section">open</div>
@@ -154,9 +160,8 @@ function ProjectSidebar({
         ))}
       </div>
 
-      <button className="psb-foot" onClick={onOpenFolder}>
-        <Icon name="plus" size={11} />open folder…
-      </button>
+      {/* App-wide actions (toolbar.jsx SidebarFooter): settings, history, usage. */}
+      {footer}
     </aside>
   );
 }

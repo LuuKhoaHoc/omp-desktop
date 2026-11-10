@@ -1,13 +1,18 @@
 /* ═════════════════════════════════════════════════════════════════════
-   toolbar.jsx — the app toolbar between the title bar and the tabs. Left,
-   one cluster of icon buttons: project navigation, the panel toggles (each
-   open panel's own actions sit beside its toggle), git and usage. Right:
-   approvals (with the mode in use), the command bridge, the tab's profile
-   menu and settings. Panels carry no close button of their own: their
-   toggle here closes them. The todo count and the app version are the
-   status bar's. The left cluster scrolls sideways in a narrow window; the
-   right one never clips, since the profile menu's pop-up hangs from it,
-   and its labels give way first (layout/toolbar.css).
+   toolbar.jsx — the app's controls, each placed over what it acts on
+   (the layout OpenChamber, Claude Desktop and Codex share):
+   - HeaderStart / HeaderEnd: the one header row (chrome.jsx WindowChrome
+     slots). Start: sidebar toggle, new conversation, and history while
+     the sidebar is closed. End: the command bridge.
+   - PanelRail: a column of toggles at the window's right edge, one per
+     panel that opens beside or under the chat (rail cards, conversation
+     tree, subagents, browser, work, insights, terminal) plus the git
+     browser. An open panel's own actions sit under its toggle.
+   - SidebarFooter: settings, history, usage, at the foot of the project
+     sidebar (project-sidebar.jsx `footer`).
+   - SessionPills: the tab's approval mode and omp profile, in the
+     composer's foot beside model / thinking / plan / goal.
+   Panels carry no close button of their own: their toggle closes them.
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon: _TB_Icon, ProfileMenu: _TB_ProfileMenu } = window;
@@ -22,97 +27,126 @@ function _tbTip(label, actionId) {
   return chord ? `${label} (${chord})` : label;
 }
 
-// A `.btn ghost` at toolbar size. `pressed` undefined: a plain button;
+// A `.btn ghost` icon button. `pressed` undefined: a plain button;
 // boolean: a toggle.
-function ToolButton({ icon, title, onClick, pressed, disabled, color, children }) {
+function ToolButton({ icon, title, onClick, pressed, disabled, color, size = 16, children }) {
   return (
     <button type="button" className={`btn ghost tb-btn${pressed ? " on" : ""}`}
       title={title} aria-label={children ? undefined : title} aria-pressed={pressed}
       disabled={disabled} onClick={onClick}>
-      <_TB_Icon name={icon} size={16} color={color} />
+      <_TB_Icon name={icon} size={size} color={color} />
       {children}
     </button>
   );
 }
 
-// The approvals button: names the tab's running tool approval mode
-// (`OMP_APPROVAL_MODE.statusCell`). Yolo as the target turns the glyph to
-// `warn` and amber; a change waiting for the turn to end reads
-// `running ⇢ target` with the running mode muted.
-function ApprovalModeButton({ cell, onClick }) {
-  const targetColor = cell.warn ? "var(--amber)" : undefined;
+// ── Header ────────────────────────────────────────────────────────────
+/** nav: { sidebarOpen, onToggleSidebar, onNewChat, onHistory } */
+function HeaderStart({ nav }) {
   return (
-    <ToolButton icon={cell.warn ? "warn" : "check"} color={targetColor} onClick={onClick}
-      title={cell.pending ? `approvals — switches to ${cell.target} when the agent finishes its turn` : "approvals"}>
-      <span className="tb-end-label tb-mode" style={{ color: targetColor }}>
-        {cell.pending && <span style={{ color: "var(--fg-4)" }}>{cell.running} ⇢ </span>}
-        {cell.target}
-      </span>
-    </ToolButton>
-  );
-}
-
-/**
- * nav:      { sidebarOpen, onToggleSidebar, onOpenProject, onHistory }
- * rail, subagents, terminal: { open, onToggle }
- * tree:     { open, onToggle, onRefresh, canRefresh }
- * work, insights: { open, onToggle } (fork panels; optional)
- * browser:  { open, onToggle, annotate, canAnnotate, onAnnotate(on), fullView, onFullView(on) }
- * approvals: { cell, onOpen }; onGit, onStats, onCommands
- * profile:  ProfileMenu's props (profiles, activeId, startupId, on…)
- * settings: { active, onOpen }
- */
-function Toolbar({ nav, rail, subagents, tree, browser, terminal, work, insights, onGit, approvals, onStats, onCommands, profile, settings }) {
-  const commands = _tbChord("desktop.commands.open");
-  return (
-    <div className="toolbar" role="toolbar" aria-label="app toolbar">
-      <div className="tb-main">
-        <ToolButton icon="sidebar" title={_tbTip("project sidebar", "desktop.sidebar.toggle")}
-          pressed={nav.sidebarOpen} onClick={nav.onToggleSidebar} />
-        <ToolButton icon="rail" title="ambient rail" pressed={rail.open} onClick={rail.onToggle} />
-        <ToolButton icon="plus" title={_tbTip("open project", "desktop.tab.new")} onClick={nav.onOpenProject} />
+    <div className="hd-cluster">
+      <ToolButton icon="sidebar" title={_tbTip("project sidebar", "desktop.sidebar.toggle")}
+        pressed={nav.sidebarOpen} onClick={nav.onToggleSidebar} />
+      <ToolButton icon="plus" title={_tbTip("new conversation", "desktop.chat.new")} onClick={nav.onNewChat} />
+      {/* The sidebar's footer holds history; with it closed, the header does. */}
+      {!nav.sidebarOpen && (
         <ToolButton icon="clock" title={_tbTip("conversation history", "desktop.history.open")} onClick={nav.onHistory} />
-        <span className="tb-sep" />
-
-        <ToolButton icon="agent" title="subagent manager" pressed={subagents.open} onClick={subagents.onToggle} />
-        <ToolButton icon="branch" title="conversation tree (prompt-cache status)" pressed={tree.open} onClick={tree.onToggle} />
-        {tree.open && (
-          <span className="tb-sub" role="group" aria-label="conversation tree">
-            <ToolButton icon="refresh" title="refresh conversation tree" disabled={!tree.canRefresh} onClick={tree.onRefresh} />
-          </span>
-        )}
-        <ToolButton icon="web" title={_tbTip("browser panel", "desktop.browser.toggle")} pressed={browser.open} onClick={browser.onToggle} />
-        {browser.open && (
-          <span className="tb-sub" role="group" aria-label="browser panel">
-            <ToolButton icon="edit" title="annotate the page" pressed={browser.annotate}
-              disabled={!browser.canAnnotate} onClick={() => browser.onAnnotate(!browser.annotate)} />
-            <ToolButton icon="focus" title="browser full view" pressed={browser.fullView}
-              onClick={() => browser.onFullView(!browser.fullView)} />
-          </span>
-        )}
-        <ToolButton icon="terminal" title={_tbTip("terminal", "desktop.terminal.toggle")} pressed={terminal.open} onClick={terminal.onToggle} />
-        <span className="tb-sep" />
-
-        {work && <ToolButton icon="tag" title={_tbTip("work: tickets", "desktop.panel.work")} pressed={work.open} onClick={work.onToggle} />}
-        {insights && <ToolButton icon="test" title={_tbTip("insights: diagrams and test cases", "desktop.panel.insights")} pressed={insights.open} onClick={insights.onToggle} />}
-        {(work || insights) && <span className="tb-sep" />}
-        <ToolButton icon="diff2" title={_tbTip("git browser", "desktop.panel.changes")} onClick={onGit} />
-        <ToolButton icon="cost" title={_tbTip("usage statistics", "desktop.panel.stats")} onClick={onStats} />
-      </div>
-
-      <div className="tb-end">
-        <ApprovalModeButton cell={approvals.cell} onClick={approvals.onOpen} />
-        <ToolButton icon="command" title={commands ? `command bridge (${commands})` : "command bridge"} onClick={onCommands}>
-          <span className="tb-end-label">bridge</span>
-          {commands && <span className="kbd tb-end-label">{commands}</span>}
-        </ToolButton>
-        {/* Per-tab omp profile — the selector acts on the active tab only. */}
-        <_TB_ProfileMenu {...profile} />
-        <ToolButton icon="cog" title={_tbTip("settings", "desktop.settings.open")}
-          pressed={settings.active} onClick={settings.onOpen} />
-      </div>
+      )}
     </div>
   );
 }
 
-Object.assign(window, { Toolbar });
+function HeaderEnd({ onCommands }) {
+  const chord = _tbChord("desktop.commands.open");
+  return (
+    <div className="hd-cluster">
+      <button type="button" className="hd-bridge" title={chord ? `command bridge (${chord})` : "command bridge"} onClick={onCommands}>
+        <_TB_Icon name="search" size={13} />
+        <span className="hd-bridge-label">commands, models…</span>
+        {chord && <span className="kbd">{chord}</span>}
+      </button>
+    </div>
+  );
+}
+
+// ── Panel rail (right edge) ───────────────────────────────────────────
+/**
+ * rail, subagents, terminal: { open, onToggle }
+ * tree:     { open, onToggle, onRefresh, canRefresh }
+ * work, insights: { open, onToggle } (fork panels; optional)
+ * browser:  { open, onToggle, annotate, canAnnotate, onAnnotate(on), fullView, onFullView(on) }
+ * onGit
+ */
+function PanelRail({ rail, subagents, tree, browser, terminal, work, insights, onGit }) {
+  return (
+    <nav className="panel-rail" aria-label="panels">
+      <ToolButton icon="radar" title={_tbTip("rail: context, activity, widgets", "desktop.rail.toggle")} pressed={rail.open} onClick={rail.onToggle} />
+      <ToolButton icon="branch" title={_tbTip("conversation tree (prompt-cache status)", "desktop.tree.toggle")} pressed={tree.open} onClick={tree.onToggle} />
+      {tree.open && (
+        <span className="tb-sub" role="group" aria-label="conversation tree">
+          <ToolButton icon="refresh" size={14} title="refresh conversation tree" disabled={!tree.canRefresh} onClick={tree.onRefresh} />
+        </span>
+      )}
+      <ToolButton icon="agent" title={_tbTip("subagent manager", "desktop.subagents.toggle")} pressed={subagents.open} onClick={subagents.onToggle} />
+      <ToolButton icon="web" title={_tbTip("browser panel", "desktop.browser.toggle")} pressed={browser.open} onClick={browser.onToggle} />
+      {browser.open && (
+        <span className="tb-sub" role="group" aria-label="browser panel">
+          <ToolButton icon="edit" size={14} title={_tbTip("annotate the page", "desktop.browser.annotate")} pressed={browser.annotate}
+            disabled={!browser.canAnnotate} onClick={() => browser.onAnnotate(!browser.annotate)} />
+          <ToolButton icon="focus" size={14} title={_tbTip("browser full view", "desktop.browser.fullView")} pressed={browser.fullView}
+            onClick={() => browser.onFullView(!browser.fullView)} />
+        </span>
+      )}
+      {(work || insights) && <span className="pr-sep" />}
+      {work && <ToolButton icon="tag" title={_tbTip("work: tickets", "desktop.panel.work")} pressed={work.open} onClick={work.onToggle} />}
+      {insights && <ToolButton icon="test" title={_tbTip("insights: diagrams and test cases", "desktop.panel.insights")} pressed={insights.open} onClick={insights.onToggle} />}
+      <span className="pr-sep" />
+      <ToolButton icon="diff2" title={_tbTip("git browser", "desktop.panel.changes")} onClick={onGit} />
+      <span className="pr-fill" />
+      <ToolButton icon="terminal" title={_tbTip("terminal", "desktop.terminal.toggle")} pressed={terminal.open} onClick={terminal.onToggle} />
+    </nav>
+  );
+}
+
+// ── Sidebar footer ────────────────────────────────────────────────────
+/** settings: { active, onOpen }; onHistory, onStats */
+function SidebarFooter({ settings, onHistory, onStats }) {
+  return (
+    <div className="psb-foot" role="group" aria-label="app">
+      <ToolButton icon="cog" size={15} title={_tbTip("settings", "desktop.settings.open")}
+        pressed={settings.active} onClick={settings.onOpen}>
+        <span className="psb-foot-label">Settings</span>
+      </ToolButton>
+      <span className="pr-fill" />
+      <ToolButton icon="clock" size={15} title={_tbTip("conversation history", "desktop.history.open")} onClick={onHistory} />
+      <ToolButton icon="cost" size={15} title={_tbTip("usage statistics", "desktop.panel.stats")} onClick={onStats} />
+    </div>
+  );
+}
+
+// ── Composer session pills ────────────────────────────────────────────
+// The approvals pill names the tab's running tool approval mode
+// (`OMP_APPROVAL_MODE.statusCell`). Yolo as the target turns the glyph to
+// `warn` and amber; a change waiting for the turn to end reads
+// `running ⇢ target` with the running mode muted.
+/** approvals: { cell, onOpen }; profile: ProfileMenu's props */
+function SessionPills({ approvals, profile }) {
+  const { cell } = approvals;
+  const targetColor = cell.warn ? "var(--amber)" : undefined;
+  return (
+    <>
+      <button type="button" className="composer-pill" onClick={approvals.onOpen}
+        title={cell.pending ? `approvals — switches to ${cell.target} when the agent finishes its turn` : "tool approvals"}>
+        <_TB_Icon name={cell.warn ? "warn" : "check"} size={13} color={targetColor ?? "var(--fg-3)"} />
+        <span style={targetColor ? { color: targetColor } : undefined}>
+          {cell.pending && <span style={{ color: "var(--fg-4)" }}>{cell.running} ⇢ </span>}
+          {cell.target}
+        </span>
+      </button>
+      {/* Per-tab omp profile — the selector acts on the active tab only. */}
+      <span className="composer-profile"><_TB_ProfileMenu {...profile} /></span>
+    </>
+  );
+}
+
+Object.assign(window, { HeaderStart, HeaderEnd, PanelRail, SidebarFooter, SessionPills });

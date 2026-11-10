@@ -20,9 +20,10 @@
 }
 
 .chrome {
-  display: flex; align-items: center; gap: 12px;
-  height: 38px;
-  padding: 0 12px;
+  flex: none;
+  display: flex; align-items: center; gap: 10px;
+  height: 44px;
+  padding: 0 8px 0 12px;
   background: linear-gradient(180deg, color-mix(in oklab, var(--bg-elevated) 90%, transparent), var(--bg-window));
   border-bottom: 1px solid var(--line);
 }

@@ -47,7 +47,7 @@
   const TOKEN_NAMES = ["--accent", "--accent-soft", "--accent-glow", "--accent-deep"];
 
   function applyThemeTokens(root, themeId, accent) {
-    root.classList.remove("theme-night", "theme-aurora", "theme-phosphor", "theme-daylight");
+    root.classList.remove("theme-kiln", "theme-night", "theme-aurora", "theme-phosphor", "theme-daylight");
     root.classList.add(`theme-${themeId}`);
     for (const name of TOKEN_NAMES) root.style.removeProperty(name);
     const tokens = accent ? accentTokens(accent) : null;

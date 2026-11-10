@@ -89,6 +89,22 @@ pub const ACTION_IDS: &[&str] = &[
     "desktop.chat.collapseAll",
     "desktop.chat.expandAll",
     "desktop.terminal.toggle",
+    "desktop.chat.new",
+    "desktop.composer.focus",
+    "desktop.rail.toggle",
+    "desktop.tree.toggle",
+    "desktop.subagents.toggle",
+    "desktop.browser.annotate",
+    "desktop.browser.fullView",
+    "desktop.tab.goto1",
+    "desktop.tab.goto2",
+    "desktop.tab.goto3",
+    "desktop.tab.goto4",
+    "desktop.tab.goto5",
+    "desktop.tab.goto6",
+    "desktop.tab.goto7",
+    "desktop.tab.goto8",
+    "desktop.tab.goto9",
 ];
 
 // ── public types ──────────────────────────────────────────────────────────────

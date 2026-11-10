@@ -18,7 +18,7 @@
    ═════════════════════════════════════════════════════════════════════ */
 
 const {
-  Icon, ChatView, Composer, CommandBridge, WindowChrome, Toolbar, TabBar, SubagentPane, ProjectSidebar, EmptyWorkspace,
+  Icon, ChatView, Composer, CommandBridge, WindowChrome, HeaderStart, HeaderEnd, PanelRail, SidebarFooter, SessionPills, TabBar, SubagentPane, ProjectSidebar, EmptyWorkspace,
   StatusBar, AmbientRail, ConversationTree, WorkPanel, InsightsPanel, PlanKanban, HistoryModal, GitBrowser, FilePreview, ApprovalRulesPanel, UsageStatsPanel, PromptHistoryModal, UpdateModal, useTweaks,
   SettingsPage, ConfirmCloseDialog,
   useWidgets, WidgetCard, WidgetErrorCard, WidgetApprovalCard, WidgetBoundary,
@@ -825,6 +825,7 @@ function App() {
   // ── Project navigation (#27) ──────────────────────────────────────────────
   const showSidebar   = t.sidebar ?? true;
   const toggleSidebar = () => setTweak("sidebar", !showSidebar);
+  const showTabStrip  = !!t.tabStrip || ttabs.tabs.length > 0 || stab.open;
 
   // A recent project: focus its open tab in the active profile, else spawn.
   const handleOpenRecent = async path => {
@@ -935,6 +936,25 @@ function App() {
     "desktop.browser.toggle":  () => toggleSide("browser"),
     "desktop.panel.work":      () => toggleSide("work"),
     "desktop.panel.insights":  () => toggleSide("insights"),
+    "desktop.chat.new":        () => newChat(),
+    "desktop.composer.focus":  () => {
+      setStab(window.OMP_SETTINGS_TAB.selectProject);
+      setTtabs(window.OMP_TERMINAL_TABS.selectProject);
+      requestAnimationFrame(() => document.querySelector(".composer-input textarea")?.focus());
+    },
+    "desktop.rail.toggle":     toggleRail,
+    "desktop.tree.toggle":     () => toggleSide("tree"),
+    "desktop.subagents.toggle": subagentUi.togglePane,
+    "desktop.browser.annotate": () => { if (side === "browser" && browser.state.status === "running") browser.setAnnotate(!browser.annotate); },
+    "desktop.browser.fullView": () => { if (side === "browser") browser.setFullView(!browser.fullView); },
+    // Ctrl+1..9: the nth tab as the sidebar lists it (grouped by project).
+    ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => [`desktop.tab.goto${n}`, () => {
+      const id = window.OMP_PROJECT_NAV.groupTabs(sessions).flatMap(g => g.tabs)[n - 1]?.id;
+      if (!id) return;
+      setStab(window.OMP_SETTINGS_TAB.selectProject);
+      setTtabs(window.OMP_TERMINAL_TABS.selectProject);
+      if (id !== activeProject.id) bridge?.activateSession(id);
+    }])),
   };
 
   // Profile switch applies to the active tab only: its omp process is
@@ -1020,6 +1040,9 @@ function App() {
     () => (stab.open ? window.OMP_SETTINGS.modifiedCount("all", t, settingsKeyOpts) : 0),
     [stab.open, t, settingsKeyOpts]);
 
+  // A new conversation: in the active tab's project, else pick a folder.
+  const newChat = () => (activeProject.id ? handleNewInProject(activeProject.path, activeProject.profile) : handleNewProject());
+
   // Chat links: project files to the preview, localhost to the browser panel.
   return (
     <_AL_MdLinkCtx.Provider value={handleChatLinkClick}>
@@ -1029,38 +1052,16 @@ function App() {
         {/* `is-running`: the active tab streams; the always-visible loops
             (status/model dots, activity radar) run only then (styles.css). */}
         <div className={`window scanlines ${showSplit ? "is-split" : ""}${streaming ? " is-running" : ""}`}>
-          <WindowChrome project={activeProject} />
-          <Toolbar
-            nav={{
+          <WindowChrome project={activeProject}
+            start={<HeaderStart nav={{
               sidebarOpen: showSidebar, onToggleSidebar: toggleSidebar,
-              onOpenProject: handleNewProject, onHistory: () => setHistoryOpen(true),
-            }}
-            rail={{ open: railVisible, onToggle: toggleRail }}
-            subagents={{ open: showSplit, onToggle: subagentUi.togglePane }}
-            tree={{
-              open: side === "tree", onToggle: () => toggleSide("tree"),
-              onRefresh: convTree.refresh, canRefresh: !convTree.loading && !!convTree.key,
-            }}
-            browser={{
-              open: side === "browser", onToggle: () => toggleSide("browser"),
-              annotate: browser.annotate, canAnnotate: browser.state.status === "running", onAnnotate: browser.setAnnotate,
-              fullView: browser.fullView, onFullView: browser.setFullView,
-            }}
-            terminal={{ open: _TERM_entryOf(terminal.state, planKey).open, onToggle: () => terminal.toggle(planKey) }}
-            work={{ open: side === "work", onToggle: () => toggleSide("work") }}
-            insights={{ open: side === "insights", onToggle: () => toggleSide("insights") }}
-            onGit={() => setGitOpen({ path: null })}
-            approvals={{ cell: approvalCell, onOpen: () => setRulesOpen(true) }}
-            onStats={() => setStatsOpen(true)}
-            onCommands={() => setBridgeOpen(true)}
-            profile={{
-              profiles, activeId: activeProfileId, startupId: startupProfileId,
-              onSelect: handleSelectProfile, onCreate: handleCreateProfile, onRename: handleRenameProfile,
-              onDelete: handleDeleteProfile, onSetStartup: handleSetStartupProfile,
-            }}
-            settings={{ active: stab.active, onOpen: () => openSettings() }}
-          />
-          <TabBar
+              onNewChat: newChat, onHistory: () => setHistoryOpen(true),
+            }} />}
+            end={<HeaderEnd onCommands={() => setBridgeOpen(true)} />} />
+          {/* Tabs live in the sidebar; the strip is opt-in (Settings → Layout)
+              and comes back while a terminal tab or Settings is open, the
+              tabs the sidebar does not list. */}
+          {showTabStrip && <TabBar
             profiles={profiles}
             projects={sessions}
             activeId={stab.active || ttabs.active ? null : activeSessionId}
@@ -1095,6 +1096,8 @@ function App() {
                 onForgetRecent={handleForgetRecent}
                 onOpenFolder={handleNewProject}
                 onReorder={handleReorder}
+                footer={<SidebarFooter settings={{ active: stab.active, onOpen: () => openSettings() }}
+                  onHistory={() => setHistoryOpen(true)} onStats={() => setStatsOpen(true)} />}
               />
             )}
             {showSidebar && <ResizeHandle className="at-sidebar" {...panes.handle("sidebar")} />}
@@ -1180,6 +1183,13 @@ function App() {
                     onBrowserChipClick={handleBrowserChipClick}
                     submitKey={t.submitKey}
                     pasteCollapseLines={t.pasteCollapseLines}
+                    sessionPills={<SessionPills
+                      approvals={{ cell: approvalCell, onOpen: () => setRulesOpen(true) }}
+                      profile={{
+                        profiles, activeId: activeProfileId, startupId: startupProfileId,
+                        onSelect: handleSelectProfile, onCreate: handleCreateProfile, onRename: handleRenameProfile,
+                        onDelete: handleDeleteProfile, onSetStartup: handleSetStartupProfile,
+                      }} />}
                   />
                 </>)}
               </main>
@@ -1262,6 +1272,23 @@ function App() {
                 </div>
               )}
             </div>
+            <PanelRail
+              rail={{ open: railVisible, onToggle: toggleRail }}
+              subagents={{ open: showSplit, onToggle: subagentUi.togglePane }}
+              tree={{
+                open: side === "tree", onToggle: () => toggleSide("tree"),
+                onRefresh: convTree.refresh, canRefresh: !convTree.loading && !!convTree.key,
+              }}
+              browser={{
+                open: side === "browser", onToggle: () => toggleSide("browser"),
+                annotate: browser.annotate, canAnnotate: browser.state.status === "running", onAnnotate: browser.setAnnotate,
+                fullView: browser.fullView, onFullView: browser.setFullView,
+              }}
+              terminal={{ open: _TERM_entryOf(terminal.state, planKey).open, onToggle: () => terminal.toggle(planKey) }}
+              work={{ open: side === "work", onToggle: () => toggleSide("work") }}
+              insights={{ open: side === "insights", onToggle: () => toggleSide("insights") }}
+              onGit={() => setGitOpen({ path: null })}
+            />
           </div>
           {/* Full window width under the workspace: no side column (rail,
               tree, browser panel, subagent split) ever narrows it. */}

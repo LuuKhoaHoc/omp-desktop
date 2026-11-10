@@ -1,0 +1,101 @@
+/* kiln.css — "Kiln" theme (fork default). Tokens: styles.css .theme-kiln.
+   night.css (shared selector) gives the long-reading base; this file
+   swaps its hairline ledger for OpenChamber's depth rule (MIT):
+   - tone steps instead of borders: sidebar and rail sit a step below the
+     canvas, tool calls and rail cards are borderless tiles a step above,
+     code and diffs an inset step below their tile;
+   - fields and floating surfaces are raised: a faint lit top line, a
+     half-pixel ring and a soft drop (--shadow-pop); popovers add glass;
+   - selection is a neutral tint, the accent only means act / running;
+   - small text a step larger and heavier than night's (thin strokes vanish
+     on a dark ground, worst on Linux's grayscale antialiasing). */
+
+/* ── Type ──────────────────────────────────────────────────────────────── */
+.theme-kiln.density-cozy    { --d-text-xs: 0.8125rem;  --d-text-sm: 0.8438rem; }
+.theme-kiln.density-compact { --d-text-xs: 0.7813rem;  --d-text-sm: 0.8125rem; }
+.theme-kiln.density-dense   { --d-text-xs: 0.75rem;    --d-text-sm: 0.7813rem; }
+.theme-kiln body { font-weight: 480; }
+.theme-kiln :is(.mono, kbd, .kbd, code) { font-weight: 500; }
+.theme-kiln :is(kbd, .kbd) { font-size: max(0.6875rem, 0.85em); }
+
+/* ── Tones ─────────────────────────────────────────────────────────────── */
+.theme-kiln {
+  --kiln-tile: color-mix(in oklab, var(--fg) 4%, var(--bg-window));
+  --kiln-tile-hover: color-mix(in oklab, var(--fg) 6.5%, var(--bg-window));
+  --kiln-inset: #0F0D0C;
+  --kiln-select: color-mix(in oklab, var(--fg) 10%, transparent);
+}
+.theme-kiln ::selection { background: color-mix(in oklab, var(--accent) 32%, transparent); }
+.theme-kiln :focus-visible { outline-color: color-mix(in oklab, var(--accent) 70%, transparent); }
+
+/* ── Regions: a step below the canvas, no drawn edge ───────────────────── */
+.theme-kiln :is(.project-sidebar, .rail) { background: var(--bg-app); border-color: transparent; }
+.theme-kiln .chrome { border-bottom-color: transparent; }
+.theme-kiln .panel-rail { background: var(--bg-app); border-left-color: transparent; }
+.theme-kiln .status { border-top-color: transparent; background: var(--bg-app); }
+
+/* ── Selection: neutral, never the accent ──────────────────────────────── */
+.theme-kiln :is(.tab.active, .psb-row.active) { background: var(--kiln-select); }
+.theme-kiln .tb-btn.on { color: var(--fg); background: var(--kiln-select); border-color: transparent; }
+.theme-kiln .chip.accent { background: var(--kiln-select); color: var(--fg-2); }
+.theme-kiln .composer-pill.on { background: var(--kiln-select); color: var(--fg); }
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.theme-kiln .btn.primary { color: #1A0E07; }
+.theme-kiln .btn.primary:hover:not(:disabled) { background: color-mix(in oklab, var(--accent) 88%, #ffffff); }
+
+/* ── Transcript ────────────────────────────────────────────────────────── */
+.theme-kiln .user-bubble {
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-window));
+  border-radius: 14px 14px 4px 14px;
+}
+.theme-kiln .ass-text :not(pre) > code,
+.theme-kiln .ass-text code { color: var(--lime); background: var(--kiln-inset); }
+.theme-kiln .ass-text pre { background: var(--kiln-inset); border-color: transparent; }
+.theme-kiln .thought { border-left-color: var(--line); }
+
+/* Tool calls: borderless tiles beside a quiet thread. */
+.theme-kiln .ass-thread { background: var(--line-soft); }
+.theme-kiln .tool-glyph { background: transparent; }
+.theme-kiln .tool-card {
+  background: var(--kiln-tile); border-radius: 10px; padding: 0 12px;
+  transition: background var(--motion-fast, 140ms) var(--ease-out);
+}
+.theme-kiln .tool-card:has(> .tool-card-head:hover) { background: var(--kiln-tile-hover); }
+.theme-kiln .tool-card-head { padding: 7px 0; }
+.theme-kiln .tool-card.running { background: color-mix(in oklab, var(--accent) 7%, var(--bg-window)); }
+.theme-kiln .row.tool:has(.tool-card.running) .tool-tag { color: var(--accent) !important; }
+.theme-kiln :is(.tool-bash, .diff-wrap) { background: var(--kiln-inset); border-color: transparent; }
+.theme-kiln .diff-head { border-bottom-color: var(--line-soft); }
+.theme-kiln :is(.inline-plan, .ass-failure) { background: var(--kiln-tile); border-color: transparent; }
+.theme-kiln .inline-plan-head { border-bottom-color: var(--line-soft); }
+
+/* ── Composer: a raised field ──────────────────────────────────────────── */
+.theme-kiln .composer-row {
+  background: var(--bg-elevated); border-color: transparent; border-radius: 14px;
+  box-shadow: var(--shadow-pop);
+  transition: box-shadow var(--motion-fast, 140ms) var(--ease-out);
+}
+.theme-kiln .composer-row:focus-within {
+  border-color: transparent;
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.05),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.16),
+    0 0 0 0.5px rgb(0 0 0 / 0.55),
+    0 16px 40px -12px rgb(0 0 0 / 0.7);
+}
+.theme-kiln .composer.plan-on .composer-row { box-shadow: var(--shadow-pop), inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent); }
+
+/* ── Rail: cards as tiles ──────────────────────────────────────────────── */
+.theme-kiln .rail { padding: 6px; gap: 6px; }
+.theme-kiln .rail .rail-card { background: color-mix(in oklab, var(--fg) 3.5%, var(--bg-app)); border-bottom: 0; border-radius: 10px; padding: 12px 14px; }
+
+/* ── Floating: glass popovers, raised dialogs ──────────────────────────── */
+.theme-kiln :is(.profile-pop, .thinking-pop, .branch-pop, .slash-pop, .mention-pop) {
+  border-color: transparent;
+  background: color-mix(in oklab, var(--bg-elevated) 88%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4);
+}
+.theme-kiln .bridge { border-color: transparent; background: var(--bg-window); }
+.theme-kiln .bridge-scrim { background: rgb(6 5 4 / 0.6); }
+.theme-kiln .chat-jump-latest { border-color: transparent; box-shadow: var(--shadow-pop); }

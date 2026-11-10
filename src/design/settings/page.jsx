@@ -214,7 +214,8 @@ function SettingsPage({ ctx }) {
         </div>
       </div>
       <div className="st-body" ref={bodyRef}>
-        <div className="st-inner">{body}</div>
+        {/* Keyed so a section switch cross-fades (layout/motion.css); typing a search keeps one key. */}
+        <div className="st-inner"><div className="st-section" key={q ? "search" : section.id}>{body}</div></div>
       </div>
       <div className="st-foot">
         <div className="st-inner">

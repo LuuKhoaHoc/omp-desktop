@@ -21,12 +21,13 @@
 // matter.
 (function () {
   const THEMES = Object.freeze([
+    { id: "kiln", tone: "dark", accent: "#DA7C47" },
     { id: "night", tone: "dark", accent: "#E3A857" },
     { id: "aurora", tone: "dark", accent: "#8AF0C8" },
     { id: "phosphor", tone: "dark", accent: "#C4FF3F" },
     { id: "daylight", tone: "light", accent: "#1F8A5B" },
   ]);
-  const ACCENTS = Object.freeze(["#E3A857", "#8AF0C8", "#6EE7FF", "#FF7AC6", "#FFC56E", "#B59BFF", "#C4FF3F"]);
+  const ACCENTS = Object.freeze(["#DA7C47", "#E3A857", "#8AF0C8", "#6EE7FF", "#FF7AC6", "#FFC56E", "#B59BFF", "#C4FF3F"]);
   /** The accent a theme ships with; picking the theme resets to it. */
   const themeAccent = (theme) => (THEMES.find(t => t.id === theme) ?? THEMES[0]).accent;
 
@@ -47,7 +48,7 @@
   const SECTIONS = [
     { id: "appearance", icon: "sparkle", title: "Appearance", blurb: "Colour theme, accent, start screen, fonts, density and text size of the whole window.", groups: [
       { name: "Theme", rows: [
-        tweak("theme", "themes", "Theme", "Picking a theme also resets the accent to the theme's own.", "dark light colour color night shift aurora phosphor daylight"),
+        tweak("theme", "themes", "Theme", "Picking a theme also resets the accent to the theme's own.", "dark light colour color kiln night shift aurora phosphor daylight"),
         tweak("accent", "swatches", "Accent", "Focus rings, the active tab, links and the assistant's marks.", "color colour highlight"),
         tweak("startScreen", "screens", "Start screen", "The animated screen behind the logo while no tab is open. It follows the theme and accent.", "welcome backdrop empty animation matrix latent embedding next token sampling agent loop orbit forward pass neural attention transformer self-attention",
           { get options() { return screenOptions(); } }),
@@ -71,6 +72,7 @@
         tweak("defaultSide", "seg", "New tabs show", "What the side column of a newly opened tab starts with. The toolbar still switches it per tab.", "conversation tree default browser",
           { options: opts(["rail", "tree", "browser"]) }),
         tweak("sidebar", "toggle", "Project sidebar", "The list of projects and their tabs on the left. `Ctrl+B` toggles it.", "projects"),
+        tweak("tabStrip", "toggle", "Tab strip", "Tabs in a strip under the header as well as in the sidebar. Terminal tabs and Settings bring the strip back while they are open.", "tabs tab bar strip"),
         custom("widths", "Column widths", "Drag a column edge to resize it, double-click the edge to reset one.", "width resize pane sidebar rail tree split browser",
           { keys: ["sidebarWidth", "railWidth", "treeWidth", "splitWidth", "browserWidth"] }),
       ] },

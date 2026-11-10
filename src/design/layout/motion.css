@@ -1,0 +1,99 @@
+/* motion.css — how surfaces arrive. One vocabulary for the whole app so
+   nothing pops in raw: scrims fade, dialogs rise, menus grow from their
+   anchor, side panes slide in from the edge they live on, a tab's chat and
+   a Settings section cross-fade. Every surface that arrives also leaves:
+   app/exit-motion.js puts a non-interactive copy (`.motion-ghost`) where a
+   removed surface stood and the exit rules at the end play on it. Exits
+   run faster than entrances, so closing still reads as responsive.
+
+   Rules of the layer:
+   - opacity plus the individual `translate` / `scale` properties only, so
+     the compositor runs it and an element's own `transform` (a centred
+     menu's translateX(-50%)) is never overwritten;
+   - nothing animates width, grid columns or backdrop-filter: those re-lay
+     out or re-blur the transcript every frame, which is the stutter itself;
+   - durations stay under 260ms; prefers-reduced-motion turns all of it off. */
+
+:root {
+  --motion-fast: 140ms;  /* menus, chips */
+  --motion-mid: 200ms;   /* scrims, dialogs, content swaps */
+  --motion-slow: 240ms;  /* side panes */
+}
+
+@keyframes motion-fade { from { opacity: 0; } }
+@keyframes motion-rise { from { opacity: 0; translate: 0 6px; scale: 0.985; } }
+@keyframes motion-pop  { from { opacity: 0; scale: 0.97; } }
+@keyframes motion-side { from { opacity: 0; translate: 14px 0; } }
+@keyframes motion-left { from { opacity: 0; translate: -14px 0; } }
+@keyframes motion-up   { from { opacity: 0; translate: 0 10px; } }
+
+@keyframes motion-fade-out  { to { opacity: 0; } }
+@keyframes motion-sink      { to { opacity: 0; translate: 0 6px; scale: 0.985; } }
+@keyframes motion-shrink    { to { opacity: 0; scale: 0.97; } }
+@keyframes motion-side-out  { to { opacity: 0; translate: 14px 0; } }
+@keyframes motion-left-out  { to { opacity: 0; translate: -14px 0; } }
+@keyframes motion-down-out  { to { opacity: 0; translate: 0 10px; } }
+
+/* ── Dialogs: the scrim fades, its panel rises ─────────────────────────── */
+:is(.bridge-scrim, .kanban-scrim, .gitb-scrim, .fp-scrim) {
+  animation: motion-fade var(--motion-mid) var(--ease-out);
+}
+:is(.bridge-scrim, .kanban-scrim, .gitb-scrim, .fp-scrim) > * {
+  animation: motion-rise var(--motion-mid) var(--ease-out) both;
+}
+.ask-dialog, .close-confirm-panel { animation: motion-rise var(--motion-mid) var(--ease-out) both; }
+
+/* ── Menus and popovers grow from where they were opened ──────────────── */
+:is(.profile-pop, .thinking-pop, .tab-group-pop, .branch-pop, .st-menu, .font-pick-pop,
+    .ip-new-menu, .pr-changes-menu, .mention-pop, .slash-pop, .browser-popover, .quote-pop) {
+  animation: motion-pop var(--motion-fast) var(--ease-out);
+}
+
+/* ── Side panes slide in from the edge they sit on ─────────────────────── */
+:is(.rail, .wp-panel, .tree-drawer, .browser-dock) {
+  animation: motion-side var(--motion-slow) var(--ease-out);
+}
+.wp-drawer { animation: motion-side var(--motion-mid) var(--ease-out); }
+.project-sidebar { animation: motion-left var(--motion-slow) var(--ease-out); }
+/* The subagent manager column opens from the chat's left edge. */
+.split { animation: motion-left var(--motion-mid) var(--ease-out); }
+/* The terminal stays mounted and toggles `hidden`: showing it restarts this. */
+.term-panel:not([hidden]) { animation: motion-up var(--motion-mid) var(--ease-out); }
+
+/* ── Toolbar and tab strip: a panel's own actions, a new tab ───────────── */
+:is(.tb-sub, .tab) { animation: motion-pop var(--motion-fast) var(--ease-out); }
+
+/* ── Content swaps: a tab's transcript, a Settings section ─────────────── */
+.chat-scroll { animation: motion-fade var(--motion-fast) var(--ease-out); }
+.st-section { animation: motion-fade var(--motion-mid) var(--ease-out); }
+
+/* ── Exits: the copies app/exit-motion.js leaves behind ──────────────────
+   Every selector in its EXIT_SELECTOR needs a rule here
+   (tests/test-exit-motion.mjs). `forwards` holds the last frame until the
+   copy is dropped. */
+.motion-ghost:is(.bridge-scrim, .kanban-scrim, .gitb-scrim, .fp-scrim) {
+  animation: motion-fade-out var(--motion-fast) var(--ease-out) forwards;
+}
+.motion-ghost:is(.bridge-scrim, .kanban-scrim, .gitb-scrim, .fp-scrim) > * {
+  animation: motion-sink var(--motion-fast) var(--ease-out) forwards;
+}
+.motion-ghost:is(.ask-dialog, .close-confirm-panel) { animation: motion-sink var(--motion-fast) var(--ease-out) forwards; }
+.motion-ghost:is(.profile-pop, .thinking-pop, .tab-group-pop, .branch-pop, .st-menu, .font-pick-pop,
+    .ip-new-menu, .pr-changes-menu, .mention-pop, .slash-pop, .browser-popover, .quote-pop, .tb-sub, .tab) {
+  animation: motion-shrink var(--motion-fast) var(--ease-out) forwards;
+}
+.motion-ghost:is(.rail, .wp-panel, .tree-drawer, .browser-dock, .wp-drawer) {
+  animation: motion-side-out var(--motion-mid) var(--ease-out) forwards;
+}
+.motion-ghost:is(.project-sidebar, .split) { animation: motion-left-out var(--motion-mid) var(--ease-out) forwards; }
+.motion-ghost.term-panel { animation: motion-down-out var(--motion-fast) var(--ease-out) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.bridge-scrim, .kanban-scrim, .gitb-scrim, .fp-scrim), :is(.bridge-scrim, .kanban-scrim, .gitb-scrim, .fp-scrim) > *,
+  .ask-dialog, .close-confirm-panel,
+  :is(.profile-pop, .thinking-pop, .tab-group-pop, .branch-pop, .st-menu, .font-pick-pop,
+      .ip-new-menu, .pr-changes-menu, .mention-pop, .slash-pop, .browser-popover, .quote-pop),
+  :is(.rail, .wp-panel, .tree-drawer, .browser-dock, .wp-drawer, .project-sidebar),
+  .split, .term-panel, .tb-sub, .tab, .motion-ghost, .motion-ghost > *,
+  .chat-scroll, .st-section { animation: none; }
+}

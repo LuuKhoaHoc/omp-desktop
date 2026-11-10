@@ -765,6 +765,8 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
           <Icon name="goal" size={13} color={goalMode ? "var(--lilac)" : "var(--fg-3)"} />
           <span style={goalMode ? { color: "var(--lilac)" } : undefined}>Goal</span>
         </button>
+        {/* The tab's approval mode and omp profile (toolbar.jsx SessionPills). */}
+        {sessionPills}
         <div style={{ flex: 1 }} />
         {backgroundWork && (
           <span className="composer-bg-note" title="omp reports background work (an async bash, task or eval job) whose result will wake the agent">

@@ -1,6 +1,6 @@
 /* ═════════════════════════════════════════════════════════════════════
    chrome.jsx — window chrome, tabs, status bar, ambient peripherals
-   - WindowChrome (traffic lights, title)
+   - WindowChrome (the one header row: traffic lights, controls, title)
    - TabBar
    - StatusBar
    - Ambient rail: TokenGauge, ActivityRadar, subagents card, Minimap
@@ -22,9 +22,10 @@ const IS_WIN = typeof navigator !== "undefined" &&
   (navigator.userAgent.includes("Windows") || navigator.platform.startsWith("Win"));
 
 // ── Window chrome ─────────────────────────────────────────────────────
-// Title and window controls only: the bridge and the profile menu are on
-// the toolbar (toolbar.jsx).
-function WindowChrome({ project }) {
+// The app's one header row: window controls, `start` (toolbar.jsx
+// HeaderStart), the title, `end` (HeaderEnd). The whole row drags the
+// window except its buttons (live.js _setupWindowChrome).
+function WindowChrome({ project, start, end }) {
   return (
     <div className="chrome" data-tauri-drag-region>
       {/* macOS traffic lights — left side, hidden on Windows */}
@@ -35,6 +36,7 @@ function WindowChrome({ project }) {
           <span className="light green" />
         </div>
       )}
+      {start}
 
       <div className="chrome-title">
         {/* No tab: EMPTY_PROJECT's name is the app's own, so no "OMP ·" prefix. */}
@@ -46,6 +48,7 @@ function WindowChrome({ project }) {
       </div>
 
       <div className="chrome-right">
+        {end}
         {/* Windows controls — right side, hidden on macOS/Linux */}
         {IS_WIN && (
           <div className="win-controls">

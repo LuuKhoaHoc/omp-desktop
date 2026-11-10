@@ -62,6 +62,24 @@
     { id: "desktop.chat.collapseAll", label: "Collapse all blocks",    group: "View",    scope: "global",   defaultKeys: [] },
     { id: "desktop.chat.expandAll",  label: "Expand all blocks",       group: "View",    scope: "global",   defaultKeys: [] },
     { id: "desktop.terminal.toggle", label: "Toggle terminal",       group: "View",    scope: "global",   defaultKeys: ["ctrl+`", "super+`"], fromGuest: true },
+    // Every control of the header, panel rail, sidebar footer and composer
+    // (design/toolbar.jsx) has an action, so none needs the mouse.
+    { id: "desktop.chat.new",        label: "New conversation in project", group: "Tabs", scope: "global", defaultKeys: ["ctrl+n", "super+n"] },
+    { id: "desktop.composer.focus",  label: "Focus message box", group: "Session", scope: "global", defaultKeys: ["ctrl+l", "super+l"] },
+    { id: "desktop.rail.toggle",     label: "Toggle rail", group: "Panels", scope: "global", defaultKeys: ["ctrl+alt+b"] },
+    { id: "desktop.tree.toggle",     label: "Toggle conversation tree", group: "Panels", scope: "global", defaultKeys: [] },
+    { id: "desktop.subagents.toggle", label: "Toggle subagent manager", group: "Panels", scope: "global", defaultKeys: [] },
+    { id: "desktop.browser.annotate", label: "Annotate browser page", group: "Panels", scope: "global", defaultKeys: [] },
+    { id: "desktop.browser.fullView", label: "Browser full view", group: "Panels", scope: "global", defaultKeys: [] },
+    { id: "desktop.tab.goto1", label: "Go to tab 1", group: "Tabs", scope: "global", defaultKeys: ["ctrl+1", "super+1"] },
+    { id: "desktop.tab.goto2", label: "Go to tab 2", group: "Tabs", scope: "global", defaultKeys: ["ctrl+2", "super+2"] },
+    { id: "desktop.tab.goto3", label: "Go to tab 3", group: "Tabs", scope: "global", defaultKeys: ["ctrl+3", "super+3"] },
+    { id: "desktop.tab.goto4", label: "Go to tab 4", group: "Tabs", scope: "global", defaultKeys: ["ctrl+4", "super+4"] },
+    { id: "desktop.tab.goto5", label: "Go to tab 5", group: "Tabs", scope: "global", defaultKeys: ["ctrl+5", "super+5"] },
+    { id: "desktop.tab.goto6", label: "Go to tab 6", group: "Tabs", scope: "global", defaultKeys: ["ctrl+6", "super+6"] },
+    { id: "desktop.tab.goto7", label: "Go to tab 7", group: "Tabs", scope: "global", defaultKeys: ["ctrl+7", "super+7"] },
+    { id: "desktop.tab.goto8", label: "Go to tab 8", group: "Tabs", scope: "global", defaultKeys: ["ctrl+8", "super+8"] },
+    { id: "desktop.tab.goto9", label: "Go to tab 9", group: "Tabs", scope: "global", defaultKeys: ["ctrl+9", "super+9"] },
   ];
 
   // ── Chord algebra ─────────────────────────────────────────────────────────
