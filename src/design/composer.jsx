@@ -667,8 +667,8 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
       {voiceSpectrum && <VoiceSpectrum source={voiceSpectrum} />}
 
       <div className="composer-row">
-        <button className="btn icon ghost" title="attach image" aria-label="attach image" onClick={() => fileInputRef.current?.click()}>
-          <Icon name="image" size={13} />
+        <button className="btn ghost composer-tool" title="attach image" onClick={() => fileInputRef.current?.click()}>
+          <Icon name="image" size={13} /><span className="composer-tool-label">Image</span>
         </button>
         <input
           ref={fileInputRef}
@@ -704,9 +704,9 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
             aria-activedescendant={showMention ? `mention-row-${mentionActiveIdx}` : undefined}
           />
         </div>
-        <button className="btn outlined composer-bridge" title={bridgeHint ? `open command bridge (${bridgeHint})` : "open command bridge"}
-          aria-label="open command bridge" onClick={onOpenCmd}>
-          <Icon name="command" size={13} />
+        <button className="btn outlined composer-bridge composer-tool" title={bridgeHint ? `open command bridge (${bridgeHint})` : "open command bridge"}
+          onClick={onOpenCmd}>
+          <Icon name="command" size={13} /><span className="composer-tool-label">Commands</span>
         </button>
         {isStreaming ? (
           <>
@@ -716,9 +716,9 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
                 <Icon name={goalMode ? "goal" : "arrow"} size={10} color={goalMode ? "var(--lilac)" : "var(--amber)"} /> {goalMode ? "start goal" : "steer"}
               </button>
             )}
-            <button className="btn danger composer-send" onClick={onAbort}
-              title={abortHint ? `abort (${abortHint})` : "abort"} aria-label="abort">
-              <Icon name="stop" size={13} />
+            <button className="btn danger composer-send composer-stop" onClick={onAbort}
+              title={abortHint ? `abort (${abortHint})` : "abort"}>
+              <Icon name="stop" size={13} /><span className="composer-tool-label">Stop</span>
             </button>
           </>
         ) : (
@@ -752,18 +752,18 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
         </button>
         <ThinkingMenu key={sessionId} model={currentModel} level={thinking}
           cycleHint={cycleThinkingHint} onLoad={onLoadThinkingLevels} onSet={onSetThinking} />
-        <button className={`composer-pill ${planMode ? "on" : "icon-only"}`} onClick={onTogglePlan}
+        <button className={`composer-pill${planMode ? " on" : ""}`} onClick={onTogglePlan}
           disabled={!!planBlocked && !planMode} title={planBlocked && !planMode ? planBlocked : "plan mode: the agent writes a plan first"}
-          aria-label="plan mode" aria-pressed={!!planMode}>
+          aria-pressed={!!planMode}>
           <Icon name="plan" size={13} color={planMode ? "var(--amber)" : "var(--fg-3)"} />
-          {planMode && <span style={{ color: "var(--amber)" }}>plan</span>}
+          <span style={planMode ? { color: "var(--amber)" } : undefined}>Plan</span>
         </button>
-        <button className={`composer-pill goal-pill${goalMode ? " on" : " icon-only"}`} onClick={onToggleGoal}
+        <button className={`composer-pill goal-pill${goalMode ? " on" : ""}`} onClick={onToggleGoal}
           disabled={!!goalBlocked && !goalMode}
           title={goalBlocked && !goalMode ? goalBlocked : "goal mode: your next message becomes a goal the agent works toward"}
-          aria-label="goal mode" aria-pressed={!!goalMode}>
+          aria-pressed={!!goalMode}>
           <Icon name="goal" size={13} color={goalMode ? "var(--lilac)" : "var(--fg-3)"} />
-          {goalMode && <span style={{ color: "var(--lilac)" }}>goal</span>}
+          <span style={goalMode ? { color: "var(--lilac)" } : undefined}>Goal</span>
         </button>
         <div style={{ flex: 1 }} />
         {backgroundWork && (

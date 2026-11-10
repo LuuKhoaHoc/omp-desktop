@@ -60,17 +60,17 @@ function VoiceModeButton({ live, dictation, codexLogin = null, onLiveAction, onD
   const dictationLabel = dictating ? (dictation.phase === "starting" ? "Cancel voice to text" : "Stop voice to text") : "Start voice to text";
   const liveButton = window.OMP_LIVE_VOICE.liveButton(live, dictating, codexLogin);
   return <>
-    <button className={`btn icon ghost voice-mode-btn${dictating ? " live-voice-mic-on" : ""}`}
+    <button className={`btn ghost composer-tool voice-mode-btn${dictating ? " live-voice-mic-on" : ""}`}
       title={dictationLabel} aria-label={dictationLabel} aria-pressed={dictating} aria-busy={dictationBusy}
       disabled={calling || (dictating && dictation.phase === "stopping")}
       onClick={() => onDictationAction(dictating ? "stop" : "start")}>
-      <window.Icon name="voice" size={13} />
+      <window.Icon name="voice" size={13} /><span className="composer-tool-label" aria-hidden="true">{dictating ? "Stop" : "Dictate"}</span>
     </button>
-    <button className={`btn icon ghost voice-mode-btn${calling ? " live-voice-mic-on" : ""}`}
+    <button className={`btn ghost composer-tool voice-mode-btn${calling ? " live-voice-mic-on" : ""}`}
       title={liveButton.label} aria-label={liveButton.label} aria-pressed={calling} aria-busy={liveBusy}
       disabled={liveButton.disabled}
       onClick={() => onLiveAction(calling ? "stop" : paused ? "resume" : "start")}>
-      <window.Icon name="conversation" size={13} />
+      <window.Icon name="conversation" size={13} /><span className="composer-tool-label" aria-hidden="true">{calling ? "End call" : "Talk"}</span>
     </button>
   </>;
 }

@@ -43,7 +43,8 @@
 .font-preview-mono { font-family: var(--font-mono); font-size: var(--d-text-sm); color: var(--fg-3); margin-top: 6px; }
 
 /* ── Composer icon buttons (all themes) ────────────────────────────────── */
-.composer-send.icon-only, .btn.danger.composer-send { width: 32px; min-width: 32px; padding: 0; justify-content: center; }
+.composer-send.icon-only { width: 32px; min-width: 32px; padding: 0; justify-content: center; }
+.btn.danger.composer-stop { gap: 6px; padding: 0 12px; }
 .composer-pill.icon-only { padding-left: 7px; padding-right: 7px; }
 .composer-bridge { padding: 0 8px; }
 .thinking-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }

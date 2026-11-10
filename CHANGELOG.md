@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tab bar "+": a new omp chat or a Terminal tab in the open project. A terminal tab is a full-size shell beside the omp tabs (run hermes, agy or any CLI there); it closes like a tab (Ctrl+W) and does not come back after a restart.
 - Reopen closed tab (Ctrl+Shift+T): brings back the last closed conversations (up to 10, this run only) under the profile they ran with, or focuses one that is open again.
 - Work panel: GitLab issue and merge request drawers show their comment threads (system notes hidden, diff threads with file:line, resolved threads folded); posting a comment refreshes them.
+- Composer tools show their name next to the icon (Image, Dictate, Talk, Commands, Stop, Plan, Goal); a narrow composer falls back to icons.
 
 ### Changed
 
