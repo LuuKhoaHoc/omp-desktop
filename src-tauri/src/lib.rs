@@ -24,6 +24,7 @@ mod git_watcher;
 mod goal_config;
 mod json_store;
 mod keybindings;
+mod model_config;
 mod model_usage;
 mod navigation_guard;
 mod omp_cli;
@@ -1138,6 +1139,39 @@ async fn goal_continuation_set(
     off_ipc(move || goal_config::set(profile.as_deref(), enabled)).await?
 }
 
+/// Which model each omp role and subagent of `profile` uses, plus the
+/// user's agent files — see `model_config::get`. Shells out to
+/// `omp config get`, so `async` + `spawn_blocking`.
+#[tauri::command]
+async fn model_config_get(
+    profile: Option<String>,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+    app: AppHandle,
+) -> Result<model_config::ModelConfig, String> {
+    let (home, profile, env_dir) = kb_resolve(profile, &store, &app)?;
+    off_ipc(move || {
+        let agents = profiles::agent_dir_for(&home, profile.as_deref(), env_dir.as_deref());
+        model_config::get(profile.as_deref(), &agents.join("agents"))
+    })
+    .await?
+}
+
+/// Set (`value`) or clear (`null`) one role (`scope: "roles"`) or subagent
+/// (`"agents"`) model of `profile` — see `model_config::set`. Returns the
+/// record omp reports afterwards.
+#[tauri::command]
+async fn model_config_set(
+    profile: Option<String>,
+    scope: String,
+    name: String,
+    value: Option<String>,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+) -> Result<model_config::Record, String> {
+    let scope = model_config::Scope::parse(&scope)?;
+    let profile = store.resolve_owned(profile)?;
+    off_ipc(move || model_config::set(profile.as_deref(), scope, &name, value.as_deref())).await?
+}
+
 /// Shared profile-resolution and home-dir setup for the three keybindings
 /// commands. Returns `(home, resolved_profile, env_dir)` ready to pass to
 /// `keybindings::payload` / `keybindings::payload_with_overlay`.
@@ -1686,6 +1720,8 @@ pub fn run() {
             usage_stats,
             goal_continuation_get,
             goal_continuation_set,
+            model_config_get,
+            model_config_set,
             list_project_files,
             list_profiles,
             create_profile,

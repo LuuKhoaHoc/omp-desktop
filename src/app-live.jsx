@@ -943,7 +943,7 @@ function App() {
     approvalModes, sessions, activeProject,
     widgets, widgetTweakKey: _widgetTweakKey, extToggles, keyOpts: settingsKeyOpts,
     panes, terminalHeight: terminal.height, updater,
-    goal: { profileId: activeProfileId },
+    goal: { profileId: activeProfileId }, models,
     openApprovals: () => setRulesOpen(true),
     section: stab.section,
     setSection: id => setStab(s => window.OMP_SETTINGS_TAB.setSection(s, id)),

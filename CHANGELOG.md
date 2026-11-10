@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+
+### Changed
+
+- Settings → Agent → Models: pick the model and thinking level of each omp role (Default, Fast, Thinking, Architect, Subtask, Advisor, …) and of each subagent (scout, reviewer, task, your own agents) from the tab's model list, per profile. Written to omp's `modelRoles` / `task.agentModelOverrides`; ↺ reset clears an entry.
+
 - Work panel: saved views over a connection. One sign-in now serves several views, each showing issues, GitLab merge requests or GitLab pipelines from one project or a whole group (every repo under it, tagged in each item's key), filtered to yours, a listed team's or everyone's. Existing connections become a connection plus an Issues view.
 - Work panel: merge request views list open MRs with their merge status and head pipeline; the drawer comments, approves or revokes, retries a failed pipeline, and merges after a confirmation, pinned to the commit shown. Pipeline views list a project's pipelines (optionally one branch) with jobs by stage and a retry.
 - Work panel: an "Edit view" button in the panel head, and pickers in the view form for the project or group, team members, board columns (reorderable) and branch, filled from the platform instead of typed from memory.

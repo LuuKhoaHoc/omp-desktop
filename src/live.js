@@ -3965,6 +3965,16 @@
      *  `{ok, value}` (true / false) or `{ok: false, error}` with omp's
      *  reason. The profile is passed explicitly, as for `recentModels`:
      *  during a respawn's detach the active profile is not the tab's. */
+    /** Role and subagent models of `profile` (`model_config_get`):
+     *  `{ ok, value: { roles, agents, customAgents } }` | `{ ok: false, error }`. */
+    modelConfig(profile) {
+      return _invokeResult("model_config_get", { profile });
+    },
+    /** Set (`value`) or clear (`null`) one entry of `scope` ("roles" |
+     *  "agents"); `value` is the record omp reports afterwards. */
+    setModelConfig(profile, scope, name, value) {
+      return _invokeResult("model_config_set", { profile, scope, name, value });
+    },
     goalContinuation(profile) {
       return _invokeResult("goal_continuation_get", { profile });
     },

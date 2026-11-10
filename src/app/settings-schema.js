@@ -158,6 +158,10 @@
       { name: "Profiles", src: "profiles.json", rows: [
         custom("startupProfile", "Startup profile", "The profile of the tab opened at launch and of new tabs. Profiles are created and renamed from the profile menu.", "profile account"),
       ] },
+      { name: "Models", src: "omp config", rows: [
+        custom("modelRoles", "Role models", "The model omp uses for each role, in this tab's profile. Unset roles fall back to Default. Running tabs pick a change up at their next use of the role.", "model role default smol slow plan architect advisor vision commit"),
+        custom("agentModels", "Subagent models", "The model each subagent runs on (`task.agentModelOverrides`). Unset: the agent's own model, else the Subtask role. Applies from the next subagent spawn.", "subagent agent task scout reviewer model override"),
+      ] },
       { name: "Goals", src: "omp config", rows: [
         custom("goalContinue", "Keep working on a goal", "omp continues an active goal on its own after each turn instead of waiting for you. Costs tokens while unattended.", "goal auto continue"),
       ] },
