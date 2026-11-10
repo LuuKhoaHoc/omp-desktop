@@ -93,7 +93,30 @@
     },
     move(conn, t, column) { return gitlab.save(conn, t, moveEdit(conn, t, column)); },
     comment: (conn, t, body) => gitlab.req(conn, "POST", gitlab.path(conn, t.id, "/notes"), { body }),
+    // shortcut: first 100 threads only, page on when a ticket outgrows it.
+    discussions: (conn, t) => gitlab.req(conn, "GET", gitlab.path(conn, t.id, "/discussions?per_page=100")),
   };
+
+  /** GitLab discussions → threads of notes, oldest first, system notes
+   *  ("changed the description", "added label") dropped. A diff thread
+   *  carries its `file:line`. Threads left without notes are dropped. */
+  function parseDiscussions(list) {
+    const out = [];
+    for (const d of Array.isArray(list) ? list : []) {
+      const notes = (d.notes ?? []).filter(n => !n.system).map(n => ({
+        id: n.id, author: n.author?.username ?? "", name: n.author?.name ?? "", body: n.body ?? "",
+        createdAt: n.created_at, edited: !!n.updated_at && n.updated_at !== n.created_at,
+      }));
+      if (!notes.length) continue;
+      const pos = d.notes[0]?.position;
+      const line = pos?.new_line ?? pos?.old_line;
+      out.push({
+        id: d.id, notes, resolvable: !!d.notes[0]?.resolvable, resolved: !!d.notes.every(n => !n.resolvable || n.resolved),
+        file: pos ? `${pos.new_path ?? pos.old_path}${line ? `:${line}` : ""}` : null,
+      });
+    }
+    return out.sort((a, b) => String(a.notes[0].createdAt).localeCompare(String(b.notes[0].createdAt)));
+  }
 
   // ── GitHub ──────────────────────────────────────────────────────────────
   const github = {
@@ -241,6 +264,7 @@
     };
     return {
       ctx,
+      hasNotes: !!p.discussions,
       async list() {
         const replies = await Promise.all(p.list(conn).map(async req => parseJson(await run(req))));
         if (conn.platform === "linear") {
@@ -280,10 +304,12 @@
         return out ?? (await this.get(t.id));
       },
       async comment(t, body) { parseJson(await run(p.comment(conn, t, body))); },
+      /** Comment threads (`hasNotes`: GitLab only for now). */
+      async notes(t) { return parseDiscussions(parseJson(await run(p.discussions(conn, t)))); },
     };
   }
 
-  const api = { PLATFORMS, OPEN, CLOSED, transports, validate, members, client, boardColumns, columnFor, moveEdit, parseJson };
+  const api = { PLATFORMS, OPEN, CLOSED, transports, validate, members, client, boardColumns, columnFor, moveEdit, parseJson, parseDiscussions };
   if (typeof window !== "undefined") window.OMP_WORK = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

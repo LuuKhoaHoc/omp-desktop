@@ -65,7 +65,14 @@ function _WP_Drawer({ ticket, client, columns, onClose, onSaved }) {
   const [err, setErr] = React.useState(null);
   const [comment, setComment] = React.useState("");
   const [note, setNote] = React.useState(null);
+  const [threads, setThreads] = React.useState(null);
+  const [notesErr, setNotesErr] = React.useState(null);
   React.useEffect(() => { setTitle(ticket.title); setBody(ticket.body); setLabels(ticket.labels.join(", ")); setErr(null); }, [ticket.id, ticket.updatedAt]);
+  const loadNotes = React.useCallback(() => {
+    if (!client.hasNotes) return;
+    client.notes(ticket).then(t => { setThreads(t); setNotesErr(null); }, e => setNotesErr(String(e?.message ?? e)));
+  }, [client, ticket.id]); // eslint-disable-line
+  React.useEffect(() => { setThreads(null); setNotesErr(null); loadNotes(); }, [loadNotes]);
   const labelList = labels.split(",").map(s => s.trim()).filter(Boolean);
   const dirtyLabels = labelList.join(",") !== ticket.labels.join(",");
   const dirty = title !== ticket.title || body !== ticket.body || dirtyLabels;
@@ -82,7 +89,7 @@ function _WP_Drawer({ ticket, client, columns, onClose, onSaved }) {
   const send = async () => {
     if (!comment.trim()) return;
     setBusy(true); setErr(null);
-    try { await client.comment(ticket, comment.trim()); setComment(""); setNote("Comment posted."); }
+    try { await client.comment(ticket, comment.trim()); setComment(""); setNote("Comment posted."); loadNotes(); }
     catch (e) { setErr(e); } finally { setBusy(false); }
   };
   React.useEffect(() => { if (!note) return; const id = setTimeout(() => setNote(null), 2400); return () => clearTimeout(id); }, [note]);
@@ -114,6 +121,7 @@ function _WP_Drawer({ ticket, client, columns, onClose, onSaved }) {
         {tab === "edit"
           ? <textarea className="wp-body-input mono" value={body} onChange={e => setBody(e.target.value)} aria-label="description (markdown)" />
           : <div className="wp-body-preview">{body.trim() ? <_WP_Markdown text={body} /> : <span className="wp-empty-line">No description.</span>}</div>}
+        {client.hasNotes && <window._WPR_Notes threads={threads} error={notesErr} />}
         {err && (
           <div className="wp-note err"><_WP_Icon name="warn" size={12} /> {String(err.message ?? err)}
             {err.conflict && <button className="btn ghost" onClick={() => onSaved(err.conflict)}>Load latest</button>}

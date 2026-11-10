@@ -29,6 +29,42 @@ function _WPR_Head({ k, tone, label, url, onClose }) {
   );
 }
 
+// ── Comment threads (issues and MRs) ──────────────────────────────────────
+// `threads`: OMP_WORK.parseDiscussions output, null while loading. Resolved
+// threads fold to one line; a click opens them.
+function _WPR_Notes({ threads, error }) {
+  const [openIds, setOpenIds] = React.useState(() => new Set());
+  if (error) return <div className="wp-note err"><_WPR_Icon name="warn" size={12} /> Comments: {error}</div>;
+  if (!threads) return <div className="wp-notes-head">Comments <span className="wp-dim">loading…</span></div>;
+  const open = id => setOpenIds(s => new Set(s).add(id));
+  const unresolved = threads.filter(t => t.resolvable && !t.resolved).length;
+  return (
+    <section className="wp-notes" aria-label="comments">
+      <div className="wp-notes-head">Comments <span className="wp-dim">{threads.length}{unresolved ? ` · ${unresolved} open thread${unresolved > 1 ? "s" : ""}` : ""}</span></div>
+      {threads.length === 0 && <span className="wp-empty-line">No comments yet.</span>}
+      {threads.map(t => {
+        const folded = t.resolved && t.resolvable && !openIds.has(t.id);
+        const first = t.notes[0];
+        return (
+          <article key={t.id} className={`wp-thread${t.resolvable && !t.resolved ? " open" : ""}${t.resolved && t.resolvable ? " resolved" : ""}`}>
+            {t.file && <div className="wp-thread-file mono">{t.file}</div>}
+            {folded
+              ? <button className="wp-thread-fold" onClick={() => open(t.id)}>
+                  <_WPR_Icon name="check" size={11} /> Resolved · <b>{first.author}</b>: {first.body.replace(/\s+/g, " ").slice(0, 90)}{t.notes.length > 1 ? ` · ${t.notes.length - 1} repl${t.notes.length > 2 ? "ies" : "y"}` : ""}
+                </button>
+              : t.notes.map(n => (
+                  <div key={n.id} className="wp-note-item">
+                    <div className="wp-note-meta"><b title={n.name}>{n.author}</b> <span className="wp-dim mono">{window._wpAgo(n.createdAt)} ago{n.edited ? " · edited" : ""}</span></div>
+                    <div className="wp-note-body"><_WPR_Markdown text={n.body} /></div>
+                  </div>
+                ))}
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
 // ── Lists ─────────────────────────────────────────────────────────────────
 function _WP_MrList({ items, activeId, onOpen }) {
   return (
@@ -71,11 +107,15 @@ function _WP_MrDrawer({ mr: initial, client, onClose, onChanged }) {
   const [note, setNote] = React.useState(null);
   const [comment, setComment] = React.useState("");
   const [confirm, setConfirm] = React.useState(false);
+  const [threads, setThreads] = React.useState(null);
+  const [notesErr, setNotesErr] = React.useState(null);
   const load = React.useCallback(async () => {
+    // Comments load on their own: a failure there leaves the MR usable.
+    client.notes(initial.id).then(t => { setThreads(t); setNotesErr(null); }, e => setNotesErr(_wprErr(e)));
     try { const [m, a] = await Promise.all([client.getMr(initial.id), client.approvals(initial.id)]); setMr(m); setAp(a); onChanged(m); }
     catch (e) { setErr(_wprErr(e)); }
   }, [initial.id, client]); // eslint-disable-line
-  React.useEffect(() => { setMr(initial); setAp(null); setErr(null); setConfirm(false); load(); }, [initial.id]); // eslint-disable-line
+  React.useEffect(() => { setMr(initial); setAp(null); setThreads(null); setNotesErr(null); setErr(null); setConfirm(false); load(); }, [initial.id]); // eslint-disable-line
   React.useEffect(() => { if (!note) return; const id = setTimeout(() => setNote(null), 2400); return () => clearTimeout(id); }, [note]);
   const act = async (fn, done) => {
     setBusy(true); setErr(null);
@@ -105,6 +145,7 @@ function _WP_MrDrawer({ mr: initial, client, onClose, onChanged }) {
           {mr.labels.length > 0 && <><span>Labels</span><span>{mr.labels.join(", ")}</span></>}
         </div>
         <div className="wp-body-preview">{mr.body.trim() ? <_WPR_Markdown text={mr.body} /> : <span className="wp-empty-line">No description.</span>}</div>
+        <_WPR_Notes threads={threads} error={notesErr} />
         {err && <div className="wp-note err"><_WPR_Icon name="warn" size={12} /> {err}</div>}
         <div className="wp-comment">
           <textarea value={comment} rows={2} placeholder="Write a comment (markdown)…" onChange={e => setComment(e.target.value)}

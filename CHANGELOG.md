@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Work panel: GitLab issue and merge request drawers show their comment threads (system notes hidden, diff threads with file:line, resolved threads folded); posting a comment refreshes them.
 
 ### Changed
 

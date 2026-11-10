@@ -103,6 +103,8 @@
       unapprove: async m => { await get(req(v, "POST", `${mrPath(m.id)}/unapprove`)); },
       merge: async m => parseMr(await get(req(v, "PUT", `${mrPath(m.id)}/merge`, { sha: m.sha }))),
       comment: async (m, body) => { await get(req(v, "POST", `${mrPath(m.id)}/notes`, { body })); },
+      // shortcut: first 100 threads only, page on when an MR outgrows it.
+      notes: async id => window.OMP_WORK.parseDiscussions(await get(req(v, "GET", `${mrPath(id)}/discussions?per_page=100`))),
       jobs: async id => (await get(req(v, "GET", `${pipePath(id)}/jobs?per_page=100`))).map(parseJob),
       retry: async id => parsePipe(await get(req(v, "POST", `${pipePath(id)}/retry`))),
     };

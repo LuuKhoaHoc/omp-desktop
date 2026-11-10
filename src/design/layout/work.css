@@ -254,3 +254,17 @@
 .btn.small.danger { color: var(--red, #e5484d); border-color: color-mix(in oklab, var(--red, #e5484d) 50%, transparent); }
 .ip-broken { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .ip-docs { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Comment threads (issue and MR drawers) ── */
+.wp-notes { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.wp-notes-head { font-size: var(--d-text-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); }
+.wp-thread { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--bg-surface); }
+.wp-thread.open { border-left: 2px solid var(--amber); }
+.wp-thread.resolved { background: transparent; }
+.wp-thread-file { font-size: var(--d-text-xs); color: var(--fg-3); }
+.wp-thread-fold { display: flex; align-items: center; gap: 6px; border: 0; background: transparent; padding: 0; color: var(--fg-3); font: inherit; font-size: var(--d-text-sm); text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.wp-thread-fold:hover { color: var(--fg); }
+.wp-note-item + .wp-note-item { padding-top: 8px; border-top: 1px dashed var(--line-soft); }
+.wp-note-meta { font-size: var(--d-text-sm); color: var(--fg-2); margin-bottom: 2px; }
+.wp-note-body { font-family: var(--font-chat); font-size: var(--d-text-sm); line-height: 1.6; color: var(--fg); overflow-wrap: anywhere; }
+.wp-note-body :is(p, ul, ol, pre) { margin: 4px 0; }

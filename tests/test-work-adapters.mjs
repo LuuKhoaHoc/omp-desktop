@@ -142,4 +142,28 @@ await check("transports: MCP listed but disabled; Linear has no CLI", () => {
   assert.deepEqual(W.transports("linear").map(t => t.id), ["token", "mcp"]);
 });
 
+await check("gitlab notes: discussions request, system notes dropped, diff file:line, resolved state", async () => {
+  const seen = [];
+  const run = async req => { seen.push(req); return JSON.stringify([
+    { id: "d2", notes: [{ id: 3, body: "late", author: { username: "b" }, created_at: "2026-02", updated_at: "2026-02", system: false }] },
+    { id: "d1", notes: [
+      { id: 1, body: "nit", author: { username: "a", name: "A" }, created_at: "2026-01", updated_at: "2026-01b", resolvable: true, resolved: true,
+        position: { new_path: "src/x.js", new_line: 12 } },
+      { id: 2, body: "done", author: { username: "c" }, created_at: "2026-01c", updated_at: "2026-01c", resolvable: true, resolved: true }] },
+    { id: "d3", notes: [{ id: 4, body: "added ~bug label", system: true, created_at: "2026-03" }] },
+    { id: "d4", notes: [{ id: 5, body: "?", author: { username: "a" }, created_at: "2026-04", resolvable: true, resolved: false }] },
+  ]); };
+  const c = W.client(gl, run);
+  assert.equal(c.hasNotes, true);
+  const th = await c.notes({ id: "7" });
+  assert.deepEqual(seen[0].args, ["api", "--hostname", "git.example.com", "projects/grp%2Fapp/issues/7/discussions?per_page=100"]);
+  assert.deepEqual(th.map(t => t.id), ["d1", "d2", "d4"]);
+  assert.equal(th[0].file, "src/x.js:12");
+  assert.deepEqual([th[0].resolvable, th[0].resolved, th[0].notes[0].edited, th[0].notes.length], [true, true, true, 2]);
+  assert.deepEqual([th[1].resolvable, th[1].file], [false, null]);
+  assert.deepEqual([th[2].resolvable, th[2].resolved], [true, false]);
+  assert.deepEqual(W.parseDiscussions(null), []);
+  assert.equal(W.client({ ...gl, platform: "linear" }, run).hasNotes, false);
+});
+
 console.log(`test-work-adapters: ${passed} checks passed`);
