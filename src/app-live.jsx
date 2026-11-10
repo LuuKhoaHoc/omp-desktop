@@ -902,6 +902,7 @@ function App() {
       else if (stab.active) closeSettings();
       else if (activeProject.id) handleCloseTab(activeProject.id);
     },
+    "desktop.tab.reopen":      () => { bridge?.reopenClosedTab().catch(err => console.error("[app] reopen closed tab failed:", err)); },
     "desktop.tab.next":        () => cycleTabs(1),
     "desktop.tab.prev":        () => cycleTabs(-1),
     "desktop.tab.moveLeft":    () => shiftActiveProject(-1),

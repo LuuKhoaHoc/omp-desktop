@@ -251,7 +251,7 @@ function bridgeHarness() {
     OMP_SESSION_PREFS: { fromTweaks: () => ({ autoCompaction: true, autoRetry: true }), closeGuardArmed: () => false },
     OMP_TWEAKS_STORE: { read: () => ({}) },
     OMP_TURN_STATUS: { runStateOf: () => "idle", isBusyRunState: () => false, retryCleared: messages => messages },
-    OMP_PROJECT_NAV: { basename: path => path.split("/").at(-1), findConversationTab: () => null },
+    OMP_PROJECT_NAV: { basename: path => path.split("/").at(-1), findConversationTab: () => null, rememberClosed: stack => stack },
     DEFAULT_PROFILE_ID: "default", INTENT_FRAMING: () => "", timeNow: () => "00:00",
   };
   // Use the real context builder; the fake transport only supplies omp data.

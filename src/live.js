@@ -165,6 +165,8 @@
   // and backfilled from the transcript whenever get_messages arrives (tab
   // switch, resume from history) — see the get_messages handler below.
   const promptHistories = new Map(); // session id → string[]
+  // Tabs the user closed, newest last, for reopenClosedTab (Ctrl+Shift+T).
+  let _closedTabs = [];
   let promptHistoryLimit = window.OMP_PROMPT_HISTORY.DEFAULT_LIMIT;
   // Static prefix INTENT_FRAMING (app/constants.js) wraps plan-mode intents
   // in — recovers the as-typed prompt from a framed transcript entry so
@@ -4958,6 +4960,7 @@
           if (!stopped.ok && id === activeSessionId && (state.dictation.active || state.liveVoice.active)) return false;
           if (!sessionRegistry.has(id)) return false;
         }
+      _closedTabs = window.OMP_PROJECT_NAV.rememberClosed(_closedTabs, sessionRegistry.get(id));
       _closeTab(id);
       sessionRegistry.delete(id);
       promptHistories.delete(id);
@@ -4985,6 +4988,18 @@
     /** `closeSession`, after asking when Settings → Session "Ask before
      *  closing a busy tab" is on and the tab's agent is busy. Resolves to
      *  whether the tab was closed. */
+    /** Bring back the last tab the user closed, resumed from its session
+     *  file under the profile it ran with; focuses it instead when that
+     *  conversation is open again. Resolves to the tab id, or null when
+     *  nothing was closed. */
+    async reopenClosedTab() {
+      const entry = _closedTabs.pop();
+      if (!entry) return null;
+      const open = window.OMP_PROJECT_NAV.findConversationTab([...sessionRegistry.values()], entry.sessionFile, entry.profile);
+      if (open) { await window.OMP_BRIDGE.activateSession(open); return open; }
+      return _openReported(entry.cwd, { resume: entry.sessionFile, name: entry.name, profile: entry.profile });
+    },
+
     async closeSessionGuarded(id) {
       const confirm = PREFS.tabCloseConfirm(sessionPrefs, _sessionsView(), id);
       if (confirm && !(await _askClose(confirm))) return false;

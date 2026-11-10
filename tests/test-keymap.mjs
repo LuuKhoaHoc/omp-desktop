@@ -377,7 +377,7 @@ check("guest: unbound chords and plain keys stay the guest's", () => {
   assert.equal(bypass(ev("Tab", "s")), false, "shift+Tab");
   assert.equal(bypass(ev("a")), false);
   assert.equal(bypass(ev("Enter")), false);
-  assert.equal(bypass(ev("t", "ms")), false, "super+shift+t");
+  assert.equal(bypass(ev("j", "ms")), false, "super+shift+j");
   assert.equal(bypass(ev("t", "ma")), false, "super+alt+t");
   assert.equal(bypass(ev("x", "cs")), false, "ctrl+shift+x");
   assert.equal(bypass(ev("~", "m")), false, "super+~ (shifted backtick) is not bound");

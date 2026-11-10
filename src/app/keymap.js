@@ -44,6 +44,7 @@
     { id: "desktop.browser.toggle",  label: "Toggle browser panel",    group: "View",    scope: "global",   defaultKeys: ["ctrl+shift+b", "shift+super+b"], fromGuest: true },
     { id: "desktop.tab.new",         label: "New tab",                 group: "Tabs",    scope: "global",   defaultKeys: ["ctrl+t", "super+t"] },
     { id: "desktop.tab.close",       label: "Close tab",               group: "Tabs",    scope: "global",   defaultKeys: ["ctrl+w", "super+w"] },
+    { id: "desktop.tab.reopen",      label: "Reopen closed tab",       group: "Tabs",    scope: "global",   defaultKeys: ["ctrl+shift+t", "shift+super+t"] },
     { id: "desktop.tab.next",        label: "Next tab",                group: "Tabs",    scope: "global",   defaultKeys: ["ctrl+tab"], fromGuest: true },
     { id: "desktop.tab.prev",        label: "Previous tab",            group: "Tabs",    scope: "global",   defaultKeys: ["ctrl+shift+tab"], fromGuest: true },
     { id: "desktop.tab.moveLeft",    label: "Move tab left",           group: "Tabs",    scope: "global",   defaultKeys: ["ctrl+shift+pageup"] },

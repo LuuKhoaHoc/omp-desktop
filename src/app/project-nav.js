@@ -174,6 +174,17 @@
     return hit ? hit.id : null;
   }
 
+  /** Closed-tab stack for "Reopen closed tab" (newest last, at most
+   *  `limit`). Only a tab with a conversation file can come back; closing
+   *  the same conversation again moves it to the top instead of doubling. */
+  function rememberClosed(stack, tab, limit = 10) {
+    if (!tab?.sessionFile) return stack;
+    const entry = { sessionFile: tab.sessionFile, cwd: tab.path ?? "", name: tab.name ?? null, profile: tab.profile };
+    const want = normPath(entry.sessionFile);
+    const rest = stack.filter(e => !(e.profile === entry.profile && normPath(e.sessionFile) === want));
+    return [...rest, entry].slice(-limit);
+  }
+
   /** `recents` minus projects already open under `profile`. */
   function recentRows(recents, tabs, profile) {
     return recents.filter(r => findProjectTab(tabs, r.path, profile, null) === null);
@@ -259,6 +270,7 @@
     tabLabel,
     findProjectTab,
     findConversationTab,
+    rememberClosed,
     recentRows,
     sessionProjects,
     tabLayout,

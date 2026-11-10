@@ -10,3 +10,7 @@
 - `open_tabs_load` filters against the file system: a gone folder drops the tab (reported in a note), a gone conversation file (an empty conversation omp never wrote) reopens as a fresh tab on the folder, a pathless tab without a conversation is dropped. The resume path is still validated by `start_session` against the tab's profile.
 - **No config folder, no file**: when the app config folder can't be resolved, the layout is kept in memory (`OpenTabsStore`'s `config_file::ConfigFile` holds the bytes the file would, so a webview reload still restores through the same `restorable` filter) and the next launch starts with no tabs. There is deliberately no temp-dir fallback: a planted `open-tabs.json` there would choose the folders, profiles and conversations omp starts in.
 - Tab ids are `session-<ms>` from a monotonic counter (`_lastSessionMs`): back-to-back restores can start within one millisecond.
+
+## Reopen closed tab (Ctrl+Shift+T)
+
+Separate from launch restore: `live.js` keeps `_closedTabs`, an in-memory stack (newest last, at most 10) that `closeSession` pushes the closing tab onto through `OMP_PROJECT_NAV.rememberClosed` (only tabs with a `sessionFile`; closing the same conversation again moves it to the top). `reopenClosedTab` (keymap `desktop.tab.reopen`) pops one and resumes it under the profile it ran with, or focuses the tab when that conversation is open again. Rollback closes (`_closeTab` directly) never land on the stack. The stack does not survive a reload or restart; older conversations stay reachable from Session history.

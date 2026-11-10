@@ -224,6 +224,24 @@ check("findProjectTab ignores tabs of another profile, and an empty path", () =>
   assert.equal(N.findProjectTab(tabs, "", "default", "b"), null);
 });
 
+// ── rememberClosed ────────────────────────────────────────────────────────
+
+check("rememberClosed keeps resumable tabs, newest last, deduped, capped", () => {
+  const tab = (f, profile = "default") => ({ id: f, sessionFile: f, path: "/p", name: `t${f}`, profile });
+  let st = N.rememberClosed([], { id: "x", sessionFile: null, path: "/p", profile: "default" });
+  assert.deepEqual(st, []);
+  st = N.rememberClosed(st, tab("/s/1.jsonl"));
+  st = N.rememberClosed(st, tab("/s/2.jsonl"));
+  st = N.rememberClosed(st, tab("/s/1.jsonl"));
+  assert.deepEqual(st.map(e => e.sessionFile), ["/s/2.jsonl", "/s/1.jsonl"]);
+  assert.deepEqual(st[1], { sessionFile: "/s/1.jsonl", cwd: "/p", name: "t/s/1.jsonl", profile: "default" });
+  st = N.rememberClosed(st, tab("/s/1.jsonl", "work"));
+  assert.equal(st.length, 3);
+  for (let i = 0; i < 20; i++) st = N.rememberClosed(st, tab(`/s/n${i}.jsonl`), 10);
+  assert.equal(st.length, 10);
+  assert.equal(st[9].sessionFile, "/s/n19.jsonl");
+});
+
 // ── findConversationTab ───────────────────────────────────────────────────
 
 check("findConversationTab matches the session file within the profile", () => {
