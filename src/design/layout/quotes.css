@@ -1,0 +1,34 @@
+/* quotes.css — chat quote popover (design/chat/quote-popover.jsx); its
+   composer chips reuse the browser chip styles (browser.css). */
+
+.quote-pop { position: fixed; z-index: 60; }
+.quote-pop-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 8px;
+  border: 1px solid var(--line-bright); background: var(--bg-elevated); color: var(--fg);
+  font: inherit; font-size: var(--d-text-xs); box-shadow: var(--shadow-pop); cursor: pointer;
+}
+.quote-pop-btn:hover { background: var(--bg-hover); }
+.quote-pop-form {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px;
+  border: 1px solid var(--line-bright); border-radius: 10px; background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+}
+.quote-pop-quote {
+  padding-left: 8px; border-left: 2px solid var(--accent);
+  color: var(--fg-3); font-size: var(--d-text-xs);
+  max-height: 4.5em; overflow: hidden;
+}
+.quote-pop-area {
+  resize: vertical; min-height: 54px; padding: 6px 8px; border-radius: 6px;
+  border: 1px solid var(--line-bright); background: var(--bg-input); color: var(--fg);
+  font: inherit; font-size: var(--d-text-sm);
+}
+.quote-pop-area:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.quote-pop-foot { display: flex; align-items: center; gap: 6px; }
+.quote-pop-hint { margin-right: auto; color: var(--fg-4); font-size: var(--d-text-xs); }
+.quote-pop-foot button {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line-bright);
+  background: transparent; color: var(--fg-2); font: inherit; font-size: var(--d-text-xs); cursor: pointer;
+}
+.quote-pop-foot .quote-pop-add { background: var(--accent); border-color: var(--accent); color: var(--bg); }

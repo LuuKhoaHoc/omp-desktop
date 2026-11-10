@@ -292,6 +292,15 @@ function App() {
   const sessionIdsKey = sessions.map(s => s.id).join("\0");
   const sessionIds = React.useMemo(() => (sessionIdsKey ? sessionIdsKey.split("\0") : []), [sessionIdsKey]);
   openVoiceTabs.current = sessionIds;
+  // Chat quotes (app/chat-quotes.js): per tab, until its next send.
+  const [quotes, setQuotes] = React.useState({});
+  const tabQuotes = window.OMP_CHAT_QUOTES.of(quotes, activeSessionId);
+  React.useEffect(() => { setQuotes(m => window.OMP_CHAT_QUOTES.prune(m, sessionIds)); }, [sessionIds]);
+  const addQuote = React.useCallback((text, comment) => {
+    const q = window.OMP_CHAT_QUOTES.makeQuote(text, comment);
+    if (q) setQuotes(m => window.OMP_CHAT_QUOTES.add(m, activeSessionId, q));
+  }, [activeSessionId]);
+  const removeQuote = id => setQuotes(m => window.OMP_CHAT_QUOTES.remove(m, activeSessionId, [id]));
   // A tab seen for the first time starts with the `defaultSide` setting;
   // tabs already open keep theirs when the setting changes.
   const seenSideIds = React.useRef(new Set());
@@ -515,7 +524,12 @@ function App() {
   // message into a command). A command takes none: they wait for the next
   // message. Returns the merge plus the chips taken (`chips`), which a
   // failed goal start hands back with its draft.
+  // Chat quotes go first, ahead of the text, the same way (a command takes
+  // none). shortcut: a goal start that fails does not hand quotes back.
   const takeBrowserChips = (text, images, route) => {
+    const taken = route.isCmd ? [] : tabQuotes;
+    if (taken.length) setQuotes(m => window.OMP_CHAT_QUOTES.remove(m, activeSessionId, taken.map(q => q.id)));
+    text = window.OMP_CHAT_QUOTES.mergeIntoMessage(text, taken);
     const chips = route.isCmd ? [] : browser.chips;
     if (chips.length) browser.takeChips(chips.map(c => c.id));
     return { ..._mergeBrowserChips(text, images ?? [], chips), chips };
@@ -526,7 +540,7 @@ function App() {
   };
   const handleSend = (text, images) => {
     const hasAnnotations = Object.keys(plan.annotations).length > 0;
-    if (!text.trim() && !hasAnnotations && !(images && images.length > 0) && !browser.chips.length) return;
+    if (!text.trim() && !hasAnnotations && !(images && images.length > 0) && !browser.chips.length && !tabQuotes.length) return;
     let msg = text.trim();
     // A slash command (typed by hand, or inserted by picking a non-desktop
     // entry from the `/` popup or the ⌘K bridge) must reach omp with its
@@ -1113,6 +1127,7 @@ function App() {
                     submitKey={t.submitKey}
                     onEdit={streaming ? null : handleEditPrompt}
                   />
+                  <ChatQuotePopover onAdd={addQuote} />
                   <TerminalPanels sessions={sessions} activeId={planKey} terminal={terminal} />
                   <Composer
                     sessionId={planKey}
@@ -1159,6 +1174,8 @@ function App() {
                     onPromoteQueued={handlePromoteQueued}
                     onSendQueuedNow={handleSendQueuedNow}
                     browserChips={browser.chips}
+                    quoteChips={tabQuotes}
+                    onRemoveQuote={removeQuote}
                     onRemoveBrowserChip={browser.removeChip}
                     onBrowserChipClick={handleBrowserChipClick}
                     submitKey={t.submitKey}

@@ -171,6 +171,12 @@
   <script src="app/accent.js"></script>
 <script src="app/excalidraw-svg.js"></script>
 <script src="app/chat-pages.js"></script>
+  <!-- Chat quotes (OMP_CHAT_QUOTES): read at render/send time by
+       design/chat/quote-popover.jsx and app-live.jsx. IIFE. -->
+  <script src="app/chat-quotes.js"></script>
+  <!-- Mermaid's schematic look (OMP_MERMAID_SCHEMATIC): read at render time
+       by design/insights-panel.jsx. IIFE. -->
+  <script src="app/mermaid-schematic.js"></script>
 
   <!-- Steer / follow-up queue strip: pure helpers over omp's queue
        snapshot. IIFE; its refusal note calls window.OMP_MARKDOWN
@@ -401,6 +407,9 @@
   <script type="text/babel" src="design/queue-strip.jsx"></script>
   <script type="text/babel" src="design/thinking-menu.jsx"></script>
   <script type="text/babel" src="design/browser-chips.jsx"></script>
+  <!-- Chat quote popover + composer quote chips (window.ChatQuotePopover,
+       window.QuoteChips), looked up at render time. -->
+  <script type="text/babel" src="design/chat/quote-popover.jsx"></script>
   <!-- Goal strip above the composer: app/use-goal-mode.jsx destructures
        window.GoalStrip at top level and hands it to composer.jsx as an element. -->
   <script type="text/babel" src="design/goal-strip.jsx"></script>

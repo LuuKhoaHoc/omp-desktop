@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Quote the chat: select text in the transcript, add a comment, and it goes with your next message as a quote chip above the composer.
 - Mermaid diagrams (Insights and chat) draw as a schematic: dot-grid sheet with corner ticks, hairline unfilled nodes, mono labels, accent on arrowheads and the graph's entry/exit nodes; the wiring traces in once and hovering a node lights its edges. Follows the theme.
 - The agent's browser work is shown, not hidden: omp is told (desktop system prompt) to use its `browser` for UI checks and smoke tests instead of Playwright/headless scripts and to narrate each step, and the tab's browser panel opens by itself as soon as the agent works in a page while it is closed.
 - Built-in browser keeps cookies and localStorage between tabs and app restarts: a tab's browser saves them when the tab closes and the next one starts with them, so a site you logged into stays logged in. Stored under the app cache (`browser/storage`); the agent drives the same logged-in browser. Session-only cookies are not kept; with two tabs browsing at once, the one closed last wins.
