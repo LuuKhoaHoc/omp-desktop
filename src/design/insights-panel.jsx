@@ -186,21 +186,9 @@ function _ipLoadMermaid() {
       s.onerror = () => { _ipMermaid = null; reject(new Error("Could not load mermaid.min.js")); };
       document.head.appendChild(s);
     }).then(m => {
+      // The schematic look (app/mermaid-schematic.js); colours come from layout/diagram.css.
       const css = getComputedStyle(document.documentElement);
-      const v = name => css.getPropertyValue(name).trim();
-      m.initialize({
-        startOnLoad: false, securityLevel: "strict", theme: "base",
-        fontFamily: v("--font-sans") || "sans-serif",
-        themeVariables: {
-          darkMode: true, background: "transparent",
-          primaryColor: v("--bg-elevated"), primaryTextColor: v("--fg"), primaryBorderColor: v("--accent"),
-          secondaryColor: v("--bg-surface"), tertiaryColor: v("--bg-window"),
-          lineColor: v("--fg-3"), textColor: v("--fg-2"), mainBkg: v("--bg-elevated"), nodeBorder: v("--line-bright"),
-          clusterBkg: v("--bg-window"), clusterBorder: v("--line"), edgeLabelBackground: v("--bg-window"), labelBackground: v("--bg-window"),
-          noteBkgColor: v("--bg-surface"), noteTextColor: v("--fg-2"), noteBorderColor: v("--line-bright"),
-          actorBkg: v("--bg-elevated"), actorBorder: v("--accent"), actorTextColor: v("--fg"), signalColor: v("--fg-2"), signalTextColor: v("--fg-2"),
-        },
-      });
+      m.initialize(window.OMP_MERMAID_SCHEMATIC.config(name => css.getPropertyValue(name).trim()));
       return m;
     });
   }
@@ -271,6 +259,18 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete }) 
   const [showSrc, setShowSrc] = React.useState(false);
   const view = React.useRef(null);
   const drag = React.useRef(null);
+  const graph = React.useRef(null);
+  // A new drawing: mark its entry/exit nodes and start the draw-in.
+  React.useLayoutEffect(() => {
+    const svg = out?.mermaid && view.current?.querySelector(".ip-mmd svg");
+    graph.current = svg ? { svg, ...window.OMP_MERMAID_SCHEMATIC.decorate(svg) } : null;
+  }, [out?.mermaid, showSrc]);
+  const onOver = e => {
+    const g = graph.current;
+    if (!g || drag.current) return;
+    const node = e.target.closest?.("g.node");
+    window.OMP_MERMAID_SCHEMATIC.focus(g.svg, g, node?.dataset.node ?? null);
+  };
   // Zoom sets the drawing's width from its natural size; fit caps it at the card.
   React.useLayoutEffect(() => {
     const el = view.current?.querySelector("svg, img");
@@ -309,8 +309,9 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete }) 
     : out.err ? (text ? <pre className="ip-src mono">{source}</pre> : null)
     : out.html != null ? <iframe className="ip-frame" sandbox="" title={title} srcDoc={out.html} />
     : (
-      <div ref={view} className={`ip-view${zoom == null ? " fit" : ""}`} onWheel={onWheel}
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }} onPointerLeave={() => { drag.current = null; }}>
+      <div ref={view} className={`ip-view${zoom == null ? " fit" : ""}${out.mermaid ? " ip-sheet" : ""}`} onWheel={onWheel}
+        onPointerOver={onOver} onPointerLeave={e => { drag.current = null; onOver(e); }}
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }}>
         {out.mermaid ? <div className="ip-mmd" dangerouslySetInnerHTML={{ __html: out.mermaid }} /> : <img src={out.img} alt={title} draggable={false} />}
       </div>
     );
@@ -318,7 +319,7 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete }) 
     <figure className={`ip-card ip-diagram${max ? " max" : ""}`}>
       <figcaption className="ip-card-title">
         <span className="ip-diagram-name" title={file}>{title}</span>
-        <span className="ip-kind">{kind}</span>
+        <span className="ip-kind">{kind === "mermaid" ? window.OMP_MERMAID_SCHEMATIC.diagramType(source) : kind}</span>
         <span style={{ flex: 1 }} />
         {zoomable && !showSrc && (
           <span className="ip-zoom" role="group" aria-label="Zoom">
