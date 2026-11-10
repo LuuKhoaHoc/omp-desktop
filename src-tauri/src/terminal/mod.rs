@@ -171,6 +171,31 @@ impl TerminalManager {
         }
     }
 
+    /// Make `id` a terminal-only tab (no omp) in the folder of the
+    /// registered tab `from`, so the webview never names the folder. Fails
+    /// for an unknown `from` or an `id` already registered.
+    pub fn register_like(&self, id: &str, from: &str) -> Result<(), String> {
+        let mut tabs = self.tabs();
+        if tabs.contains_key(id) {
+            return Err(format!("tab {id} already exists"));
+        }
+        // Owned: the new tab keeps its own copy of the folder.
+        let folder = tabs
+            .get(from)
+            .ok_or_else(|| format!("unknown tab {from}"))?
+            .folder
+            .clone();
+        tabs.insert(
+            id.to_owned(),
+            Tab {
+                folder,
+                slot: Slot::Idle,
+            },
+        );
+        drop(tabs);
+        Ok(())
+    }
+
     /// Every registered tab.
     pub fn tab_ids(&self) -> Vec<String> {
         self.tabs().keys().cloned().collect()

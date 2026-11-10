@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Built-in browser keeps cookies and localStorage between tabs and app restarts: a tab's browser saves them when the tab closes and the next one starts with them, so a site you logged into stays logged in. Stored under the app cache (`browser/storage`); the agent drives the same logged-in browser. Session-only cookies are not kept; with two tabs browsing at once, the one closed last wins.
 - Edit on your sent messages (hover a prompt): goes back to just before it and puts its text in the prompt box to change and resend (clear it to simply undo that turn). Nothing is lost: the later turns stay as a branch in the conversation tree. Files the agent changed are not rolled back.
 - Drop any file or folder from the file manager onto the window: its path goes into the prompt as an `@path` mention at the cursor, and omp reads it when you send (images arrive as images). Paths with spaces are quoted. Replaces the drop-images-only behaviour of #50; paste and the attach button still give image thumbnails.
+- Tab bar "+": a new omp chat or a Terminal tab in the open project. A terminal tab is a full-size shell beside the omp tabs (run hermes, agy or any CLI there); it closes like a tab (Ctrl+W) and does not come back after a restart.
 - Work panel: GitLab issue and merge request drawers show their comment threads (system notes hidden, diff threads with file:line, resolved threads folded); posting a comment refreshes them.
 
 ### Changed

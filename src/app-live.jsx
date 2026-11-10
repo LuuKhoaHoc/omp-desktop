@@ -24,7 +24,7 @@ const {
   useWidgets, WidgetCard, WidgetErrorCard, WidgetApprovalCard, WidgetBoundary,
   TWEAK_DEFAULTS, NULL_MODEL, EMPTY_PROJECT, DEFAULT_PROFILE_ID,
   INTENT_FRAMING, APPROVAL_PROMPT,
-  useBridgeSnapshot, useThemeEffect, useSubagentManager, useUpdater, useConversationTree, useGoalMode, useTerminal, TerminalPanels, timeNow,
+  useBridgeSnapshot, useThemeEffect, useSubagentManager, useUpdater, useConversationTree, useGoalMode, useTerminal, TerminalPanels, TerminalTabViews, timeNow,
   useKeymap, useKeymapDispatch, useBrowser, BrowserDock, MarkdownLinkContext: _AL_MdLinkCtx, ChatPageContext: _AL_PageCtx,
   usePaneWidths, ResizeHandle, useRemote, usePrAutomation, PrAutomationCard,
 } = window;
@@ -264,6 +264,7 @@ function App() {
   // Settings is a separate app tab, though it does not switch omp sessions.
   // Do not hide a potentially open microphone if stopping it fails.
   const openSettings = section => {
+    setTtabs(window.OMP_TERMINAL_TABS.selectProject);
     const id = planKey;
     pendingLiveFromSettings.current = null;
     if (settingsOpening.current) return;
@@ -281,6 +282,9 @@ function App() {
   const closeSettings = () => setStab(window.OMP_SETTINGS_TAB.close);
   // Another omp tab shown (opened, picked, restored) leaves the settings tab.
   React.useEffect(() => { setStab(window.OMP_SETTINGS_TAB.selectProject); }, [activeSessionId]);
+  // Terminal tabs (fork, app/terminal-tabs.js): shells beside the omp tabs.
+  const [ttabs, setTtabs] = React.useState(window.OMP_TERMINAL_TABS.initial);
+  React.useEffect(() => { setTtabs(window.OMP_TERMINAL_TABS.selectProject); }, [activeSessionId]);
   // Tab ids, for dropping the per-tab state of closed tabs (here and in
   // the composer's drafts). live.js rebuilds `sessions` on every snapshot,
   // streaming deltas included, so the list is memoised on the ids' content:
@@ -400,9 +404,28 @@ function App() {
   const keymap = useKeymap(bridge, activeProfileId);
 
   // One shell per tab, in a panel above the composer (app/use-terminal.jsx).
+  // Terminal tabs share the per-tab shell machinery under their own ids.
+  const ttabIdsKey = ttabs.tabs.map(x => x.id).join("\0");
+  const shellIds = React.useMemo(() => (ttabIdsKey ? [...sessionIds, ...ttabIdsKey.split("\0")] : sessionIds), [sessionIds, ttabIdsKey]);
   const terminal = useTerminal({
-    bridge, activeSessionId: planKey, sessionIds, tweaks: t, setTweak,
+    bridge, activeSessionId: ttabs.active ?? planKey, sessionIds: shellIds, tweaks: t, setTweak,
   });
+  const openTerminalTab = async () => {
+    if (!bridge || !activeProject.id) return;
+    const r = await bridge.openTerminalTab(activeProject.id);
+    if (!r.ok) { console.error("[app] terminal tab failed:", r.error); return; }
+    setStab(window.OMP_SETTINGS_TAB.selectProject);
+    setTtabs(st => window.OMP_TERMINAL_TABS.add(st, { id: r.value, path: activeProject.path ?? "", profile: activeProject.profile }));
+    terminal.open(r.value);
+  };
+  const closeTerminalTab = id => {
+    setTtabs(st => window.OMP_TERMINAL_TABS.remove(st, id));
+    bridge?.closeTerminalTab(id);
+  };
+  const selectTerminalTab = id => {
+    setStab(window.OMP_SETTINGS_TAB.selectProject);
+    setTtabs(st => window.OMP_TERMINAL_TABS.select(st, id));
+  };
 
   const subagentUi = useSubagentManager({
     bridge, layout: t.layout, setTweak, activeSessionId, subagents, messages, setHoveredMsgIdx,
@@ -754,6 +777,7 @@ function App() {
   // and re-fetches from the new session's omp → notify() pushes fresh data.
   const handleSelectTab = id => {
     setStab(window.OMP_SETTINGS_TAB.selectProject);
+    setTtabs(window.OMP_TERMINAL_TABS.selectProject);
     if (id === activeSessionId) return;
     bridge?.activateSession(id);
     // setActiveSessionId is driven by snap.activeSessionId from onUpdate
@@ -874,7 +898,8 @@ function App() {
     // The settings tab, when it is the one shown, closes itself; it is the
     // last stop of next/prev (OMP_SETTINGS_TAB.cycle).
     "desktop.tab.close":       () => {
-      if (stab.active) closeSettings();
+      if (ttabs.active) closeTerminalTab(ttabs.active);
+      else if (stab.active) closeSettings();
       else if (activeProject.id) handleCloseTab(activeProject.id);
     },
     "desktop.tab.next":        () => cycleTabs(1),
@@ -1023,7 +1048,7 @@ function App() {
           <TabBar
             profiles={profiles}
             projects={sessions}
-            activeId={stab.active ? null : activeSessionId}
+            activeId={stab.active || ttabs.active ? null : activeSessionId}
             onSelect={handleSelectTab}
             onClose={handleCloseTab}
             onRename={handleRenameTab}
@@ -1032,7 +1057,13 @@ function App() {
             settings={{ open: stab.open, active: stab.active, changed: settingsChanged }}
             onSelectSettings={() => openSettings()}
             onCloseSettings={closeSettings}
-          />
+            terminals={{ tabs: ttabs.tabs, active: ttabs.active, onSelect: selectTerminalTab, onClose: closeTerminalTab }}
+            newTab={{
+              project: activeProject.id ? activeProject : null,
+              onChat: newChat,
+              onTerminal: openTerminalTab,
+            }}
+          />}
 
           <div ref={workspaceRef} className="workspace" style={panes.style}>
             {showSidebar && (
@@ -1206,6 +1237,7 @@ function App() {
                   ))}
                 </AmbientRail>
               )}
+              <TerminalTabViews tabs={ttabs.tabs} active={ttabs.active} terminal={terminal} />
               {settingsCtx && (
                 <div className="st-host" hidden={!stab.active}>
                   <SettingsPage ctx={settingsCtx} />

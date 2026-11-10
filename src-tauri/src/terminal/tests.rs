@@ -1113,3 +1113,17 @@ fn overlapping_opens_start_one_shell() {
         manager.close_tab("twice");
     }
 }
+
+/// A terminal-only tab takes the folder of the tab it was opened from and
+/// is refused for an unknown source or an id already in use.
+#[test]
+fn register_like_copies_the_source_folder() {
+    let manager = TerminalManager::new(None);
+    let dir = std::env::temp_dir();
+    manager.register_tab("omp", Some(dir.as_path()));
+    manager.register_like("term-1", "omp").unwrap();
+    assert_eq!(manager.folder("term-1"), Some(dir));
+    assert!(manager.register_like("term-2", "nope").is_err());
+    assert!(manager.register_like("term-1", "omp").is_err());
+    assert!(manager.register_like("omp", "term-1").is_err());
+}

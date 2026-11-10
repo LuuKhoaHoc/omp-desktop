@@ -4519,6 +4519,21 @@
       return _invokeSafe("terminal_ack", { sessionId, instance, bytes: n });
     },
 
+    /** Open a terminal-only tab (fork) in the folder of the open tab
+     *  `fromSessionId`; Rust picks the folder. Resolves to `{ok, value: id}`
+     *  or `{ok: false, error}`. Its shell starts with the first terminalOpen. */
+    async openTerminalTab(fromSessionId) {
+      _lastSessionMs = Math.max(Date.now(), _lastSessionMs + 1);
+      const id = `term-${_lastSessionMs}`;
+      const r = await _invokeResult("terminal_tab_open", { sessionId: id, fromSession: fromSessionId });
+      return r.ok ? { ok: true, value: id } : r;
+    },
+
+    /** End a terminal-only tab and its shell (`close_tab`, as for any tab). */
+    closeTerminalTab(id) {
+      return _invokeSafe("close_tab", { sessionId: id });
+    },
+
     /** Send keystrokes (a string, as xterm's `onData` emits it) to the shell. */
     terminalWrite(sessionId, data) {
       return _invokeSafe("terminal_write", { sessionId, data });

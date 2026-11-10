@@ -210,3 +210,8 @@ The trust boundary is the integrity of the webview's JavaScript, as for tool app
 ## Not covered
 
 One shell per tab, no splits; no WebGL renderer; a webview reload ends every shell (`close_all_tabs`) rather than reattaching; no terminal on Windows before 10 1809 (no ConPTY: `terminal_open` refuses). Runtime tests: `tests.rs` on macOS and Linux, `tests_windows.rs` on Windows.
+
+## Terminal tabs (fork)
+
+The tab bar's "+" (`design/tab-group-chip.jsx` `NewTabMenu`) opens either an omp chat or a terminal tab in the active project. A terminal tab is a registry entry with no omp: `terminal_tab_open(sessionId, fromSession)` → `TerminalManager::register_like`, which copies the folder of the registered tab `fromSession`, so the webview still never names a folder. The id is `term-<ms>`; the shell starts through the normal `terminal_open` once the view mounts, and the tab ends through `close_tab` like any tab (`end_tabs` is a no-op for the omp, browser, widgets and watcher parts it lacks). Frontend state is `app/terminal-tabs.js` (`OMP_TERMINAL_TABS`, held in `app-live.jsx`); `useTerminal` gets the omp tab ids plus the terminal tab ids and the shown terminal tab as its active id, and `TerminalTabViews` (`design/terminal-panel.jsx`) lays the full-size shell over the chat like the Settings page. Nothing is persisted: the boot-time `close_all_tabs` ends any left from a previous document.
+

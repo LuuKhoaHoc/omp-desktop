@@ -54,6 +54,8 @@
     "test:terminal": "node tests/test-terminal.mjs",
     "test:terminal-stream": "node tests/test-terminal-stream.mjs",
     "test:terminal-xterm": "node tests/test-terminal-xterm.mjs",
+    "test:terminal-tabs": "node tests/test-terminal-tabs.mjs",
+    "test:mentions": "node tests/test-mentions.mjs",
     "test:tool-output": "node tests/test-tool-output.mjs",
     "test:transcript-merge": "node tests/test-transcript-merge.mjs",
     "test:turn-status": "node tests/test-turn-status.mjs",

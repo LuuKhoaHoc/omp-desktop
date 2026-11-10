@@ -37,3 +37,21 @@
 /* The inset sits on xterm's own element: FitAddon subtracts that padding
    from the body's size, so the last row and column are never clipped. */
 .term-body .xterm { padding: 4px 6px; }
+
+/* ── Terminal tabs (fork): a shell filling the stage, over the chat ───── */
+.term-tab-host { position: absolute; inset: 0; z-index: 15; display: flex; background: var(--bg-window); }
+.term-tab-host[hidden] { display: none; }
+.term-panel.term-full { flex: 1; max-height: none; border-top: 0; }
+
+/* The tab bar's "+" (design/tab-group-chip.jsx NewTabMenu). */
+.tab-new { position: relative; display: flex; align-items: center; padding: 0 4px; }
+.tab-new-btn {
+  appearance: none; border: 0; background: transparent; color: var(--fg-3);
+  width: 24px; height: 24px; border-radius: var(--r-1);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tab-new-btn:hover, .tab-new-btn[aria-expanded="true"] { background: var(--bg-hover); color: var(--fg); }
+.tab-new-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.tab-new .tab-group-pop { min-width: 200px; }
+.tab-new-hint { margin-left: auto; color: var(--fg-4); font-size: var(--d-text-xs); }
+.tab.term-tab .tab-name { font-family: var(--font-mono); }

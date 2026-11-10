@@ -84,6 +84,7 @@ function TabBar({
   projects, activeId, onSelect, onClose, onRename, onNewInProject, onReorder,
   profiles = [],
   settings, onSelectSettings, onCloseSettings,
+  terminals, newTab,
 }) {
   // Tabs can run under different profiles, so a tab whose profile is not the
   // built-in one is labelled with it — otherwise two tabs on the same folder
@@ -142,6 +143,21 @@ function TabBar({
           </div>
         );
       })}
+      {/* Terminal tabs (fork, app/terminal-tabs.js): shells after the
+          projects, never dragged. */}
+      {terminals?.tabs.map(t => {
+        const active = t.id === terminals.active;
+        return (
+          <div key={t.id} className={`tab term-tab ${active ? "active" : ""}`} title={t.path}
+            {...tabClickProps(() => terminals.onSelect(t.id), () => terminals.onClose(t.id))}>
+            <span className="tab-bar-mark" style={{ background: active ? "var(--fg-3)" : "transparent" }} />
+            <Icon name="terminal" size={11} color={active ? "var(--fg-2)" : "var(--fg-4)"} />
+            <span className="tab-name">{t.name}</span>
+            <span className="chip muted tab-profile">{t.path.split(/[\\/]/).filter(Boolean).pop() ?? t.path}</span>
+            <button className="tab-close" title="close terminal" onClick={e => { e.stopPropagation(); terminals.onClose(t.id); }}><Icon name="close" size={9} /></button>
+          </div>
+        );
+      })}
       {/* The Settings app tab (#37): pinned after the projects, never
           dragged; `changed` counts settings off their default. */}
       {settings?.open && (
@@ -160,6 +176,7 @@ function TabBar({
           </button>
         </div>
       )}
+      {newTab && <window.NewTabMenu {...newTab} />}
     </div>
   );
 }

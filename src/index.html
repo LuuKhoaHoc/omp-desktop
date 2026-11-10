@@ -292,6 +292,11 @@
        app-live.jsx read window.OMP_SETTINGS / OMP_SETTINGS_TAB. -->
   <script src="app/settings-schema.js"></script>
   <script src="app/settings-tab.js"></script>
+  <!-- Terminal tabs (fork): pure state, read by app-live.jsx at render. -->
+  <script src="app/terminal-tabs.js"></script>
+  <!-- Settings → Agent → Models helpers (OMP_MODEL_ROLES), read by
+       design/settings/rows-models.jsx at render time. IIFE. -->
+  <script src="app/model-roles.js"></script>
 
   <!-- Tweak storage (localStorage `omp-desktop:tweaks`): useTweaks and the
        OMP_TWEAKS_STORE reader live.js uses at its top-level init. IIFE. -->

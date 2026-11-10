@@ -79,4 +79,37 @@ function TerminalPanels({ sessions, activeId, terminal }) {
   );
 }
 
-Object.assign(window, { TerminalPanels });
+/**
+ * Terminal tabs (fork, app/terminal-tabs.js): each tab's shell filling the
+ * stage, laid over the chat like the Settings page. Hidden ones stay
+ * mounted so their output keeps arriving.
+ */
+function TerminalTabViews({ tabs, active, terminal }) {
+  return (
+    <>
+      {tabs.map((t) => {
+        const entry = _TP_entryOf(terminal.state, t.id);
+        return (
+          <div key={t.id} className="term-tab-host" hidden={t.id !== active}>
+            <section className="term-panel term-full">
+              <div className="term-head">
+                <_TP_Icon name="terminal" size={11} color="var(--fg-3)" />
+                <span className="term-head-shell">{_TP_shellLabel(entry.status?.shell)}</span>
+                {t.path && <span className="term-head-cwd" title={t.path}>{t.path}</span>}
+                {_TP_isExited(entry) && (
+                  <span className="term-head-exited" title={entry.error ?? undefined}>
+                    {entry.error != null ? "failed to start" : "exited · Enter starts a new shell"}
+                  </span>
+                )}
+              </div>
+              <div className="term-body" ref={terminal.mountFor(t.id)}
+                onContextMenu={(e) => { if (terminal.copySelection(t.id)) e.preventDefault(); }} />
+            </section>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+Object.assign(window, { TerminalPanels, TerminalTabViews });

@@ -20,7 +20,7 @@
    (or failed) shell starts a new one; auto-open, height and focus (a
    panel hidden while it holds the focus hands it to the composer).
 
-   Returns `{ state, height, toggle, setHeight, mountFor,
+   Returns `{ state, height, toggle, open, setHeight, mountFor,
    copySelection }`. `height` is the panel height every
    panel shares, the `terminalHeight` tweak (its default lives in
    TWEAK_DEFAULTS). Every panel body is watched with a ResizeObserver:
@@ -285,6 +285,7 @@ function useTerminal({ bridge, activeSessionId, sessionIds, tweaks, setTweak }) 
     }
     setState((s) => _UT_toggle(s, sid));
   }, []);
+  const open = React.useCallback((sid) => { if (sid) setState((s) => _UT_open(s, sid)); }, []);
   const setHeight = React.useCallback((px) => setTweak("terminalHeight", px), [setTweak]);
 
   // A visible panel: size the xterm to it, start the shell of a tab that has
@@ -330,7 +331,7 @@ function useTerminal({ bridge, activeSessionId, sessionIds, tweaks, setTweak }) 
     }
   }, [tweaks.theme, tweaks.accent, fontSize, scrollback, fit]);
 
-  return { state, height, toggle, setHeight, mountFor, copySelection };
+  return { state, height, toggle, open, setHeight, mountFor, copySelection };
 }
 
 Object.assign(window, { useTerminal });

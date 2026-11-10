@@ -411,6 +411,18 @@ async fn terminal_open(
     .await
 }
 
+/// Register a terminal-only tab (a shell in the tab bar, no omp) in the
+/// folder of the open tab `from_session`; the shell starts with the first
+/// `terminal_open`. It ends like any tab, through `close_tab`.
+#[tauri::command]
+fn terminal_tab_open(
+    session_id: String,
+    from_session: String,
+    terminal: State<'_, Arc<terminal::TerminalManager>>,
+) -> Result<(), String> {
+    terminal.register_like(&session_id, &from_session)
+}
+
 /// The tab's shell (`None` while it has none). A map lookup.
 #[tauri::command]
 fn terminal_status(
@@ -1662,6 +1674,7 @@ pub fn run() {
             start_session,
             stop_session,
             terminal_open,
+            terminal_tab_open,
             terminal_status,
             terminal_replay,
             terminal_ack,

@@ -140,4 +140,38 @@ function TabGroupChip({ group, activeId, profileLabel, onSelect, onClose, onNewI
   );
 }
 
-Object.assign(window, { TabGroupChip, TabRunDot, TabLabel });
+/** The tab bar's "+" (fork): a new omp chat or a terminal tab in the
+ *  project that is open. Without an open project the chat entry picks a
+ *  folder and the terminal entry is off (it opens in a project's folder). */
+function NewTabMenu({ project, onChat, onTerminal }) {
+  const [open, setOpen] = React.useState(false);
+  const rootRef = React.useRef(null);
+  const triggerRef = React.useRef(null);
+  const close = React.useCallback(() => { setOpen(false); triggerRef.current?.focus(); }, []);
+  window.usePopoverDismiss(open, rootRef, close);
+  const where = project?.name ? ` in ${project.name}` : "";
+  return (
+    <div ref={rootRef} className="tab-new" data-no-reorder>
+      <button ref={triggerRef} className="tab-new-btn" title={`new chat or terminal${where}`}
+        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <Icon name="plus" size={12} />
+      </button>
+      {open && (
+        <div className="tab-group-pop" role="menu">
+          <button className="tab-group-item" role="menuitem" onClick={() => { close(); onChat(); }}>
+            <span className="tab-group-dot"><Icon name="sparkle" size={11} /></span>
+            <span className="tab-name">{project ? "omp chat" : "omp chat in a folder…"}</span>
+          </button>
+          <button className="tab-group-item" role="menuitem" disabled={!project}
+            title={project ? undefined : "open a project first"} onClick={() => { close(); onTerminal(); }}>
+            <span className="tab-group-dot"><Icon name="terminal" size={11} /></span>
+            <span className="tab-name">Terminal</span>
+            <span className="tab-new-hint">hermes, agy…</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+Object.assign(window, { TabGroupChip, TabRunDot, TabLabel, NewTabMenu });
