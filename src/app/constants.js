@@ -12,13 +12,15 @@
 (function () {
   // `foldThinking` / `foldTools`: null until picked (OMP_COLLAPSE.foldModes).
   // `browserWidth`: px of the browser panel, 0 = half the stage (OMP_BROWSER.clampWidth).
-  // `sidebarWidth` / `splitWidth` / `railWidth` / `treeWidth`: px of those
+  // `sidebarWidth` / `splitWidth` / `railWidth` / `treeWidth` / `filesWidth`: px of those
   // columns, 0 = the default (OMP_LAYOUT_WIDTHS.fit).
   // `browserLocalhostInPanel` (name kept for stored prefs): a plain click on
   // a web link in the chat opens the panel instead of the system browser. (The Chromium path is a Rust
   // setting, browser.json — never a tweak.)
   // Settings page (#37): `defaultSide` is the side column a new tab starts
-  // with; `followOutput` pins the transcript to the newest message;
+  // with; `locale` is the interface language ("auto" = the OS language;
+  // app/i18n.js, Settings → Appearance → Language); `followOutput` pins the
+  // transcript to the newest message;
   // `terminalScrollback` is xterm's scrollback in lines; `submitKey` is
   // "enter" | "ctrl+enter" for multi-line fields; `pasteCollapseLines` is
   // the line count above which a paste becomes a chip; `restoreTabs`,
@@ -27,6 +29,7 @@
   // empty workspace's animated screen (OMP_BACKDROPS.SCREENS). Rows,
   // labels and bounds: app/settings-schema.js.
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "locale": "auto",
     "theme": "kiln",
     "startScreen": "latent",
     "density": "cozy",
@@ -55,6 +58,7 @@
     "splitWidth": 0,
     "railWidth": 0,
     "treeWidth": 0,
+    "filesWidth": 0,
     "defaultSide": "rail",
     "terminalAutoOpen": false,
     "terminalHeight": 240,

@@ -6,10 +6,14 @@
 //   linkClick(e)                    an http(s) chat link → panel, or external with a modifier
 //   annotationText / chipLabel / mergeIntoMessage / droppedScreenshots
 //                                   annotation chips → prompt text + images
+//   neutralise / neutralisePage     a comment's / page data's commands (and
+//                                   page `@` mentions) made inert in a prompt;
+//                                   also app/file-comments.js
 //   toPageCoords / modifiersOf / keyEventToCdp / mouseButton / escapeAction
 //                                   (shape of src-tauri/src/browser/view/ `InputEvent`)
 //   EMPTY / chipsOf / addChip / removeChip / removeChips / restoreChips
-//                                   per-tab chips (OMP_SESSION_UI's per-tab map)
+//                                   per-tab chips (OMP_SESSION_UI's per-tab map;
+//                                   also the files panel's marks)
 //   clampWidth(px, stageWidth)      panel width bounds (MIN_WIDTH .. maxWidth)
 //   maxWidth(stageWidth)            the widest the panel goes
 //   popoverTop(rect, pageH, popH, margin)  annotate popover's top, view fraction
@@ -361,6 +365,8 @@
     localUrl,
     linkClick,
     annotationText,
+    neutralise,
+    neutralisePage,
     chipLabel,
     mergeIntoMessage,
     droppedScreenshots,

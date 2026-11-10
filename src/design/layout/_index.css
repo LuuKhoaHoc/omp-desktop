@@ -22,6 +22,7 @@
 @import "./git.css";
 @import "./subagents.css";
 @import "./tree.css";
+@import "./files.css";
 @import "./terminal.css";
 @import "./fork.css";
 @import "./work.css";

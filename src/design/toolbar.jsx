@@ -21,10 +21,12 @@ const { Icon: _TB_Icon, ProfileMenu: _TB_ProfileMenu } = window;
 function _tbChord(actionId) {
   return window.OMP_KEYMAP ? window.OMP_KEYMAP.hintFor(actionId) : "";
 }
-// `label (chord)`, or just the label while the action is unbound.
+// `label (chord)`, or just the label while the action is unbound. The label
+// is dictionary text (window chrome), the chord is a key binding.
 function _tbTip(label, actionId) {
   const chord = _tbChord(actionId);
-  return chord ? `${label} (${chord})` : label;
+  const text = OMP_TR(label);
+  return chord ? `${text} (${chord})` : text;
 }
 
 // A `.btn ghost` icon button. `pressed` undefined: a plain button;
@@ -60,9 +62,9 @@ function HeaderEnd({ onCommands }) {
   const chord = _tbChord("desktop.commands.open");
   return (
     <div className="hd-cluster">
-      <button type="button" className="hd-bridge" title={chord ? `command bridge (${chord})` : "command bridge"} onClick={onCommands}>
+      <button type="button" className="hd-bridge" title={chord ? `${OMP_TR("command bridge")} (${chord})` : OMP_TR("command bridge")} onClick={onCommands}>
         <_TB_Icon name="search" size={13} />
-        <span className="hd-bridge-label">commands, models…</span>
+        <span className="hd-bridge-label">{OMP_TR("commands, models…")}</span>
         {chord && <span className="kbd">{chord}</span>}
       </button>
     </div>
@@ -75,26 +77,34 @@ function HeaderEnd({ onCommands }) {
  * tree:     { open, onToggle, onRefresh, canRefresh }
  * work, insights: { open, onToggle } (fork panels; optional)
  * browser:  { open, onToggle, annotate, canAnnotate, onAnnotate(on), fullView, onFullView(on) }
+ * files:    { open, onToggle, fullView, onFullView(on) }
  * onGit
  */
-function PanelRail({ rail, subagents, tree, browser, terminal, work, insights, onGit }) {
+function PanelRail({ rail, subagents, tree, browser, files, terminal, work, insights, onGit }) {
   return (
-    <nav className="panel-rail" aria-label="panels">
+    <nav className="panel-rail" aria-label={OMP_TR("panels")}>
       <ToolButton icon="radar" title={_tbTip("rail: context, activity, widgets", "desktop.rail.toggle")} pressed={rail.open} onClick={rail.onToggle} />
       <ToolButton icon="branch" title={_tbTip("conversation tree (prompt-cache status)", "desktop.tree.toggle")} pressed={tree.open} onClick={tree.onToggle} />
       {tree.open && (
-        <span className="tb-sub" role="group" aria-label="conversation tree">
-          <ToolButton icon="refresh" size={14} title="refresh conversation tree" disabled={!tree.canRefresh} onClick={tree.onRefresh} />
+        <span className="tb-sub" role="group" aria-label={OMP_TR("conversation tree")}>
+          <ToolButton icon="refresh" size={14} title={OMP_TR("refresh conversation tree")} disabled={!tree.canRefresh} onClick={tree.onRefresh} />
         </span>
       )}
       <ToolButton icon="agent" title={_tbTip("subagent manager", "desktop.subagents.toggle")} pressed={subagents.open} onClick={subagents.onToggle} />
       <ToolButton icon="web" title={_tbTip("browser panel", "desktop.browser.toggle")} pressed={browser.open} onClick={browser.onToggle} />
       {browser.open && (
-        <span className="tb-sub" role="group" aria-label="browser panel">
+        <span className="tb-sub" role="group" aria-label={OMP_TR("browser panel")}>
           <ToolButton icon="edit" size={14} title={_tbTip("annotate the page", "desktop.browser.annotate")} pressed={browser.annotate}
             disabled={!browser.canAnnotate} onClick={() => browser.onAnnotate(!browser.annotate)} />
           <ToolButton icon="focus" size={14} title={_tbTip("browser full view", "desktop.browser.fullView")} pressed={browser.fullView}
             onClick={() => browser.onFullView(!browser.fullView)} />
+        </span>
+      )}
+      <ToolButton icon="file" title={_tbTip("files panel", "desktop.files.toggle")} pressed={files.open} onClick={files.onToggle} />
+      {files.open && (
+        <span className="tb-sub" role="group" aria-label={OMP_TR("files panel")}>
+          <ToolButton icon="focus" size={14} title={OMP_TR("files panel full view")} pressed={files.fullView}
+            onClick={() => files.onFullView(!files.fullView)} />
         </span>
       )}
       {(work || insights) && <span className="pr-sep" />}
@@ -112,10 +122,10 @@ function PanelRail({ rail, subagents, tree, browser, terminal, work, insights, o
 /** settings: { active, onOpen }; onHistory, onStats */
 function SidebarFooter({ settings, onHistory, onStats }) {
   return (
-    <div className="psb-foot" role="group" aria-label="app">
+    <div className="psb-foot" role="group" aria-label={OMP_TR("app")}>
       <ToolButton icon="cog" size={15} title={_tbTip("settings", "desktop.settings.open")}
         pressed={settings.active} onClick={settings.onOpen}>
-        <span className="psb-foot-label">Settings</span>
+        <span className="psb-foot-label">{OMP_TR("Settings")}</span>
       </ToolButton>
       <span className="pr-fill" />
       <ToolButton icon="clock" size={15} title={_tbTip("conversation history", "desktop.history.open")} onClick={onHistory} />
@@ -136,11 +146,13 @@ function SessionPills({ approvals, profile }) {
   return (
     <>
       <button type="button" className="composer-pill" onClick={approvals.onOpen}
-        title={cell.pending ? `approvals — switches to ${cell.target} when the agent finishes its turn` : "tool approvals"}>
+        title={cell.pending
+          ? OMP_TR("approvals — switches to {target} when the agent finishes its turn", { target: OMP_TR(cell.target) })
+          : OMP_TR("approvals")}>
         <_TB_Icon name={cell.warn ? "warn" : "check"} size={13} color={targetColor ?? "var(--fg-3)"} />
         <span style={targetColor ? { color: targetColor } : undefined}>
-          {cell.pending && <span style={{ color: "var(--fg-4)" }}>{cell.running} ⇢ </span>}
-          {cell.target}
+          {cell.pending && <span style={{ color: "var(--fg-4)" }}>{OMP_TR(cell.running)} ⇢ </span>}
+          {OMP_TR(cell.target)}
         </span>
       </button>
       {/* Per-tab omp profile — the selector acts on the active tab only. */}
