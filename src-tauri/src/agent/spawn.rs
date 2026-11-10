@@ -242,7 +242,11 @@ than prose, reply with one ```html page block (start it with <title>). A <form> 
 [data-omp-send=\"text\"] or omp.submit(json) in the page sends the answer back after the user clicks \
 Send; you receive it as `My answer in the page \"<title>\":` plus a json block. After sending a page, \
 end your turn and wait. Never ask for secrets in a page. A ```mermaid block draws as a diagram, \
-so prefer it for workflows, sequences and state machines. Details: the omp-desktop-chat-pages skill."
+so prefer it for workflows, sequences and state machines. Details: the omp-desktop-chat-pages skill. \
+The `browser` of your eval tool drives the browser panel the user watches live in this app (it opens \
+when you use it, and keeps the user's logins). For UI checks, smoke tests or showing how a feature \
+behaves, use it, not Playwright, Puppeteer scripts, a headless browser or another browser CLI, and \
+say what you open, click and check at each step so the user can follow the flow."
     };
 }
 const DESKTOP_PROMPT_ARG: &str = concat!("--append-system-prompt=", desktop_prompt!());

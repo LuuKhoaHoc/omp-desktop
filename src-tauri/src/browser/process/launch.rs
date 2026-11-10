@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 
 use super::instance::{create_private_file, remove_dir_retrying};
+use super::keep;
 use super::pipe::attach;
 use super::stderr::StderrTail;
 use crate::browser::broker::Broker;
@@ -20,6 +21,9 @@ use crate::supervisor::ProcessSupervisor;
 pub const LAUNCH_TIMEOUT: Duration = Duration::from_secs(10);
 
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+/// How long a closing tab's browser gets to quit and flush its storage.
+const CLOSE_GRACE: Duration = Duration::from_secs(2);
 
 /// How long a browser whose pipe failed at start gets to show it exited.
 const EXIT_GRACE: Duration = Duration::from_secs(1);
@@ -189,6 +193,28 @@ impl Chromium {
             let _ = std::fs::remove_file(&self.pid_file);
             let _ = remove_dir_retrying(&self.profile);
         }
+    }
+
+    /// Ask the browser to quit, so it writes its cookies and local storage
+    /// out, wait up to [`CLOSE_GRACE`] for it to exit, then [`keep::save`]
+    /// them to `store`. Call before [`stop`](Self::stop).
+    pub fn save_storage(&self, store: &Path) {
+        if !self.is_alive() {
+            return;
+        }
+        let _ = self.broker.call("Browser.close", json!({}), CLOSE_GRACE);
+        let deadline = Instant::now() + CLOSE_GRACE;
+        while Instant::now() < deadline {
+            let exited = lock(&self.child)
+                .as_mut()
+                .is_none_or(|child| !matches!(child.try_wait(), Ok(None)));
+            if exited {
+                keep::save(&self.profile, store);
+                return;
+            }
+            std::thread::sleep(POLL_INTERVAL);
+        }
+        eprintln!("[omp-desktop] browser: did not quit in time, cookies not saved");
     }
 
     /// The browser process's pid while it runs.

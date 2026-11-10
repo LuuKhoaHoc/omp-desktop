@@ -1504,6 +1504,12 @@ fn setup(app: &tauri::App) {
             eprintln!("[omp-desktop] managed browser disabled: {reason}");
             browser::BrowserManager::unavailable(reason)
         });
+    // The agent browsing while the tab's panel is closed (fork): the app
+    // opens the panel, so the user sees what the agent does.
+    let agent_events = app.handle().clone(); // the listener owns its handle
+    browser.on_agent_browsing(move |session_id| {
+        let _ = agent_events.emit("browser://agent", session_id);
+    });
     app.manage(browser);
     // What crashed earlier runs left under the browser root: reaping their
     // browsers can take seconds, so not on the main thread.

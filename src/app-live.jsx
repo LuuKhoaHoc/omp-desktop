@@ -416,6 +416,14 @@ function App() {
   const browser = useBrowser({
     bridge, activeSessionId: activeProject.id, sessionIds, open: side === "browser", setOpen: setBrowserOpen, tweaks: t, setTweak,
   });
+  // The agent browsing in the shown tab opens its panel (fork), so the user
+  // watches smoke tests and flows live instead of them running unseen.
+  React.useEffect(() => {
+    let off = null, gone = false;
+    bridge?.onBrowserAgent?.(sid => { if (sid === activeProject.id) setBrowserOpen(true); })
+      .then(un => { if (gone) un(); else off = un; });
+    return () => { gone = true; off?.(); };
+  }, [bridge, activeProject.id, setBrowserOpen]);
   // Clicks on links in the agent's markdown: a project file opens the
   // preview (Ctrl/⌘-click: the git browser); anything else goes on to the
   // browser panel's localhost handler. Without this a relative link would

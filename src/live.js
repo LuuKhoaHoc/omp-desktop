@@ -4463,6 +4463,16 @@
     remoteReady(ready) {
       return _invokeResult("remote_ready", { ready });
     },
+    /** The agent works in its browser while the tab's panel is closed (fork):
+     *  `cb(sessionId)`. Resolves to an unlisten. */
+    async onBrowserAgent(cb) {
+      if (!window.__TAURI__) return () => {};
+      try {
+        return await window.__TAURI__.event.listen("browser://agent", ev => cb(ev.payload));
+      } catch {
+        return () => {};
+      }
+    },
     /** Resolves to an unlisten; callbacks receive payloads only. */
     async onRemoteEvent(kind, cb) {
       if (!window.__TAURI__ || !["watch", "action", "status"].includes(kind)) return () => {};

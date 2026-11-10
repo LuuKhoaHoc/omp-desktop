@@ -4,6 +4,7 @@
 //! run left behind.
 
 mod instance;
+pub mod keep;
 mod launch;
 mod locate;
 mod pipe;

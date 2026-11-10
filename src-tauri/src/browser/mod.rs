@@ -25,11 +25,13 @@ mod tests;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 use crate::private_fs::private_dirs;
 use broker::Broker;
-use process::{prepare_instance_dir, prune_dead, remove_dir_retrying, write_overlay, Chromium};
+use process::{
+    keep, prepare_instance_dir, prune_dead, remove_dir_retrying, write_overlay, Chromium,
+};
 pub use process::{BrowserSettings, SettingsStore};
 use proxy::Proxy;
 
@@ -72,6 +74,9 @@ struct Slot {
     profiles: PathBuf,
     /// Which browser to run, read at every launch.
     settings: Arc<SettingsStore>,
+    /// `<root>/storage`: cookies and local storage every launch starts with
+    /// and a tab's close saves (`process/keep.rs`).
+    storage: PathBuf,
     launches: AtomicU32,
     closed: AtomicBool,
     chromium: Mutex<Option<Chromium>>,
@@ -96,7 +101,16 @@ impl Slot {
         private_dirs(true)
             .create(&self.profiles)
             .map_err(|e| format!("browser profile dir: {e}"))?;
-        let chromium = Chromium::launch(&binaries, || self.next_profile(), WINDOW.0, WINDOW.1)?;
+        let chromium = Chromium::launch(
+            &binaries,
+            || {
+                let profile = self.next_profile();
+                keep::seed(&self.storage, &profile);
+                profile
+            },
+            WINDOW.0,
+            WINDOW.1,
+        )?;
         let broker = Arc::clone(chromium.broker());
         *slot = Some(chromium);
         drop(slot);
@@ -141,6 +155,7 @@ impl Entry {
         self.proxy.shutdown();
         let chromium = lock(&self.slot.chromium).take();
         if let Some(chromium) = chromium {
+            chromium.save_storage(&self.slot.storage);
             chromium.stop();
         }
         let _ = std::fs::remove_file(&self.overlay);
@@ -184,7 +199,12 @@ pub struct BrowserManager {
     /// then [`allocate`](Self::allocate) always fails.
     instance: Result<Instance, String>,
     state: Mutex<State>,
+    /// Told a session id when its agent works in a page while no panel is
+    /// open (fork: `lib.rs` emits `browser://agent`, the app opens it).
+    agent_listener: Arc<OnceLock<AgentListener>>,
 }
+
+type AgentListener = Box<dyn Fn(&str) + Send + Sync>;
 
 impl BrowserManager {
     /// `root` is a user-private directory (the app cache dir in production),
@@ -198,7 +218,14 @@ impl BrowserManager {
         Ok(Self {
             instance: Ok(Instance { dir, settings }),
             state: Mutex::new(State::default()),
+            agent_listener: Arc::default(),
         })
+    }
+
+    /// Set the [`agent_listener`](Self::agent_listener) (once; later calls
+    /// are ignored).
+    pub fn on_agent_browsing(&self, listener: impl Fn(&str) + Send + Sync + 'static) {
+        let _ = self.agent_listener.set(Box::new(listener));
     }
 
     /// A manager that has no working directory: every
@@ -208,6 +235,7 @@ impl BrowserManager {
         Self {
             instance: Err(reason),
             state: Mutex::new(State::default()),
+            agent_listener: Arc::default(),
         }
     }
 
@@ -246,6 +274,7 @@ impl BrowserManager {
             session_id: session_id.to_owned(),
             profiles: instance.dir.join("profiles"),
             settings: Arc::clone(&instance.settings),
+            storage: instance.dir.with_file_name("storage"),
             launches: AtomicU32::new(0),
             closed: AtomicBool::new(false),
             chromium: Mutex::new(None),
@@ -253,9 +282,17 @@ impl BrowserManager {
         let launcher = Arc::clone(&slot);
         let view = Arc::new(commands::ViewSlot::default());
         let reporter = Arc::clone(&view);
+        let listener = Arc::clone(&self.agent_listener);
+        let session = session_id.to_owned();
         let proxy = Proxy::bind(
             Arc::new(move || launcher.ensure()),
-            Arc::new(move |target| lock(&reporter).agent_worked_in(target)),
+            Arc::new(move |target| {
+                if lock(&reporter).agent_worked_in(target) {
+                    if let Some(listener) = listener.get() {
+                        listener(&session);
+                    }
+                }
+            }),
         )
         .map_err(|e| format!("browser proxy: {e}"))?;
         let overlay = instance.dir.join(format!("{session_id}.yml"));

@@ -86,12 +86,15 @@ impl PanelSlot {
     }
 
     /// The agent worked in page `target` (reported from a proxy thread):
-    /// remember it, and let the open view follow.
-    pub fn agent_worked_in(&mut self, target: &str) {
+    /// remember it, and let the open view follow. `true` when no panel is
+    /// open to show it (fork: the app then opens one).
+    pub fn agent_worked_in(&mut self, target: &str) -> bool {
         target.clone_into(self.last_agent_target.get_or_insert_with(String::new));
-        if let Some(view) = &self.view {
-            view.follow_agent(target);
-        }
+        let Some(view) = &self.view else {
+            return true;
+        };
+        view.follow_agent(target);
+        false
     }
 }
 
@@ -372,4 +375,17 @@ pub async fn browser_scroll_to(
     app: AppHandle,
 ) -> Result<(), String> {
     with_view(app, session_id, move |v| v.scroll_to(&rect)).await
+}
+
+#[cfg(test)]
+mod panel_slot_tests {
+    use super::PanelSlot;
+
+    #[test]
+    fn agent_work_without_an_open_panel_asks_for_one_and_is_remembered() {
+        let mut panel = PanelSlot::default();
+        assert!(panel.agent_worked_in("page-1"));
+        assert!(panel.agent_worked_in("page-2"));
+        assert_eq!(panel.last_agent_target.as_deref(), Some("page-2"));
+    }
 }
