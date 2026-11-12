@@ -50,6 +50,10 @@ pub struct OpenTab {
     /// Tab label at save time, shown until omp reports the session's title.
     #[serde(default)]
     pub name: Option<String>,
+    /// The tab was mid-turn when this layout was written; a restore asks
+    /// omp to continue it.
+    #[serde(default)]
+    pub busy: bool,
 }
 
 /// The persisted layout: tabs in order plus the active tab's index.
@@ -226,6 +230,7 @@ mod tests {
             profile: Some("work".to_owned()),
             session_file: session_file.map(str::to_owned),
             name: Some("label".to_owned()),
+            busy: false,
         }
     }
 
@@ -362,6 +367,7 @@ mod tests {
                 profile: Some(String::new()),
                 session_file: Some(String::new()),
                 name: Some(String::new()),
+                busy: false,
             }],
             active: Some(0),
         });
@@ -398,7 +404,7 @@ mod tests {
         assert_eq!(
             serde_json::to_value(&restore).expect("serialize"),
             serde_json::json!({
-                "tabs": [{ "path": "/p", "profile": "work", "sessionFile": null, "name": "label" }],
+                "tabs": [{ "path": "/p", "profile": "work", "sessionFile": null, "name": "label", "busy": false }],
                 "active": 0,
                 "skipped": ["/gone"],
             })

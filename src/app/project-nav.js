@@ -248,6 +248,15 @@
    *  tab's folder, profile, conversation file and label, plus the index of
    *  the active tab (`null` when none is). The shape `open_tabs_save`
    *  takes; equal tab sets yield equal JSON, so it doubles as the change key. */
+  // Run states a quit cuts short: a turn in flight, a retry wait or an open
+  // question. "background" (only jobs left) is not one: the reply is done.
+  const INTERRUPTIBLE = new Set(["running", "retrying", "waiting-user"]);
+  /** Whether the tab (a `_sessionsView` entry) is mid-turn: saved as
+   *  `busy` so the next launch can pick the turn up again. */
+  const interruptedByQuit = t => !!t.sessionFile && INTERRUPTIBLE.has(t.runState);
+  /** The prompt sent to a tab that was mid-turn when the app closed. */
+  const RESUME_PROMPT = "The app was closed while you were working on this. Continue from where you stopped.";
+
   function tabLayout(tabs, activeId) {
     const active = tabs.findIndex(t => t.id === activeId);
     return {
@@ -256,6 +265,7 @@
         profile: t.profile ?? null,
         sessionFile: t.sessionFile || null,
         name: t.name || null,
+        busy: interruptedByQuit(t),
       })),
       active: active < 0 ? null : active,
     };
@@ -275,6 +285,8 @@
       // No saved profile is the built-in one: the tab must record the
       // profile its process actually runs under.
       profile: tab.profile || DEFAULT_PROFILE_ID,
+      // Only a conversation that is still on disk can be picked up again.
+      resumeTurn: !!(resume && tab.busy),
     };
   }
 
@@ -302,5 +314,6 @@
     sessionProjects,
     tabLayout,
     restoreSpec,
+    RESUME_PROMPT,
   };
 })();

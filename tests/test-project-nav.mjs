@@ -313,8 +313,8 @@ check("tabLayout keeps tab order and points at the active tab", () => {
   ];
   assert.deepEqual(N.tabLayout(tabs, "b"), {
     tabs: [
-      { path: "/a", profile: "default", sessionFile: "/s/a.jsonl", name: "Fix login" },
-      { path: "", profile: "work", sessionFile: null, name: "b" },
+      { path: "/a", profile: "default", sessionFile: "/s/a.jsonl", name: "Fix login", busy: false },
+      { path: "", profile: "work", sessionFile: null, name: "b", busy: false },
     ],
     active: 1,
   });
@@ -326,14 +326,29 @@ check("tabLayout has no active index without an active tab", () => {
 });
 
 check("tabLayout is insensitive to per-tab state that a relaunch cannot restore", () => {
-  const idle = tab("a", "/a", { branch: "main", runState: "idle" });
-  const busy = tab("a", "/a", { branch: "dev", runState: "running" });
-  assert.equal(JSON.stringify(N.tabLayout([idle], "a")), JSON.stringify(N.tabLayout([busy], "a")));
+  const a = tab("a", "/a", { branch: "main", runState: "idle", sessionFile: "/s/a.jsonl" });
+  const b = tab("a", "/a", { branch: "dev", runState: "background", sessionFile: "/s/a.jsonl" });
+  assert.equal(JSON.stringify(N.tabLayout([a], "a")), JSON.stringify(N.tabLayout([b], "a")));
+});
+
+check("tabLayout marks a conversation cut off mid-turn, and restoreSpec asks to continue it", () => {
+  for (const runState of ["running", "retrying", "waiting-user"]) {
+    const [t] = N.tabLayout([tab("a", "/a", { runState, sessionFile: "/s/a.jsonl" })], "a").tabs;
+    assert.equal(t.busy, true, runState);
+    assert.equal(N.restoreSpec(t).resumeTurn, true, runState);
+  }
+  for (const runState of ["idle", "background", "failed"]) {
+    assert.equal(N.tabLayout([tab("a", "/a", { runState, sessionFile: "/s/a.jsonl" })], "a").tabs[0].busy, false, runState);
+  }
+  // Nothing on disk to continue: a busy fresh tab is not resumed.
+  assert.equal(N.tabLayout([tab("a", "/a", { runState: "running" })], "a").tabs[0].busy, false);
+  assert.equal(N.restoreSpec({ path: "/a", busy: true, sessionFile: null }).resumeTurn, false);
+  assert.equal(N.restoreSpec({ path: "/a", sessionFile: "/s/a.jsonl" }).resumeTurn, false);
 });
 
 check("restoreSpec resumes a conversation under its saved label", () => {
   const spec = N.restoreSpec({ path: "/a", profile: "work", sessionFile: "/s/a.jsonl", name: "Fix login" });
-  assert.deepEqual(spec, { cwd: "/a", resume: "/s/a.jsonl", name: "Fix login", profile: "work" });
+  assert.deepEqual(spec, { cwd: "/a", resume: "/s/a.jsonl", name: "Fix login", profile: "work", resumeTurn: false });
 });
 
 check("restoreSpec leaves an unlabeled conversation's name to the spawn's fallback", () => {
@@ -342,7 +357,7 @@ check("restoreSpec leaves an unlabeled conversation's name to the spawn's fallba
 
 check("restoreSpec opens a fresh, unnamed tab on the folder when there is no conversation", () => {
   const spec = N.restoreSpec({ path: "/a", profile: null, sessionFile: null, name: "Old title" });
-  assert.deepEqual(spec, { cwd: "/a", resume: null, name: null, profile: "default" });
+  assert.deepEqual(spec, { cwd: "/a", resume: null, name: null, profile: "default", resumeTurn: false });
 });
 
 // ── Listed order and "go to tab N" digits ─────────────────────────────────

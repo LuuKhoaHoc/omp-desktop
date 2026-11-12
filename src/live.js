@@ -840,7 +840,7 @@
   }
 
   function _layoutNow() {
-    return window.OMP_PROJECT_NAV.tabLayout([...sessionRegistry.values()], activeSessionId);
+    return window.OMP_PROJECT_NAV.tabLayout(_sessionsView(), activeSessionId);
   }
 
   /** Write the open-tab layout if it changed since the last one (see
@@ -2056,7 +2056,7 @@
         );
       }
       for (const [i, tab] of saved.tabs.entries()) {
-        const { cwd, ...opts } = window.OMP_PROJECT_NAV.restoreSpec(tab);
+        const { cwd, resumeTurn, ...opts } = window.OMP_PROJECT_NAV.restoreSpec(tab);
         let id;
         try {
           id = await _startProjectSession(cwd, { ...opts, activate: false, remember: false });
@@ -2066,6 +2066,15 @@
           continue;
         }
         restored.push(id);
+        // The app closed mid-turn: tell omp to carry on. Straight to this
+        // tab's process, whichever tab is in front; its bubble comes from
+        // the persisted conversation when the tab is opened.
+        if (resumeTurn) {
+          void _invokeSafe("send_command", {
+            sessionId: id,
+            json: JSON.stringify({ type: "prompt", message: window.OMP_PROJECT_NAV.RESUME_PROMPT, images: [] }),
+          });
+        }
         if (activeSessionId === null || (i === saved.active && activeSessionId === autoActive)) {
           // The bridge entry point: it skips a tab closed or respawning
           // since the spawn resolved. Guarded so a failed switch cannot

@@ -14,3 +14,7 @@
 ## Reopen closed tab (Ctrl+Shift+T)
 
 Separate from launch restore: `live.js` keeps `_closedTabs`, an in-memory stack (newest last, at most 10) that `closeSession` pushes the closing tab onto through `OMP_PROJECT_NAV.rememberClosed` (only tabs with a `sessionFile`; closing the same conversation again moves it to the top). `reopenClosedTab` (keymap `desktop.tab.reopen`) pops one and resumes it under the profile it ran with, or focuses the tab when that conversation is open again. Rollback closes (`_closeTab` directly) never land on the stack. The stack does not survive a reload or restart; older conversations stay reachable from Session history.
+
+## Continuing a turn the quit cut off
+
+`tabLayout` also saves `busy` per tab: the conversation exists on disk and its run state is `running`, `retrying` or `waiting-user` (`_layoutNow` builds it from `_sessionsView`, which knows background tabs too; `background`, jobs only, is not busy). `restoreSpec` turns it into `resumeTurn`, and `_restoreOpenTabs` sends the tab's omp one `prompt` (`OMP_PROJECT_NAV.RESUME_PROMPT`) straight through `send_command` with that tab's id, whichever tab is in front. Only as reliable as the last write: a quit that ends the webview after the exit frames mark the tabs idle saves them as idle, and a force-kill or crash saves the last live state.
