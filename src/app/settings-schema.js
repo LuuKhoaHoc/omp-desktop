@@ -55,7 +55,7 @@
         tweak("systemTheme", "toggle", "Follow the system theme", "On Omarchy, take the colours of the theme in use and the system's monospace font, and follow a theme change when the window gets focus again. The theme below keeps its layout; a font you pick under Fonts still wins. Without an Omarchy theme nothing changes.", "omarchy system sync desktop colours colors font dark light auto"),
         tweak("theme", "themes", "Theme", "Picking a theme also resets the accent to the theme's own.", "dark light colour color kiln night shift aurora phosphor daylight"),
         tweak("accent", "swatches", "Accent", "Focus rings, the active tab, links and the assistant's marks.", "color colour highlight"),
-        tweak("startScreen", "screens", "Start screen", "The animated screen behind the logo while no tab is open. It follows the theme and accent.", "welcome backdrop empty animation matrix latent embedding next token sampling agent loop orbit forward pass neural attention transformer self-attention",
+        tweak("startScreen", "screens", "Start screen", "The animated screen shown while no tab is open, and behind a conversation with no message yet. It follows the theme and accent.", "welcome backdrop empty animation matrix latent embedding next token sampling agent loop orbit forward pass neural attention transformer self-attention",
           { get options() { return screenOptions(); } }),
       ] },
       { name: "Font", rows: [

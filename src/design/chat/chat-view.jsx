@@ -63,7 +63,7 @@ const CompactRow = React.memo(function CompactRow({ msg }) {
           </span>
           <div className="tool-card-spacer" />
           {pending && (
-            <span className="chip accent" style={{ animation: "pulseDot 1.4s infinite" }}>
+            <span className="chip accent">
               <span className="dot live" />{" "}{OMP_TR("running")}
             </span>
           )}
@@ -124,7 +124,7 @@ const JobRow = React.memo(function JobRow({ msg, idx, highlighted }) {
 // (app/chat-collapse.js). `followOutput` and `submitKey` are tweaks too: the
 // first lets new output move a view at the bottom, the second is the ask
 // editor's send chord.
-function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, onAskAnswer, onAskDialogAnswer, onConfirmAsk, onCancelAsk, onGrantApproval, onStopRetry, hasProjectPath, onInspectSubagent, onOpenFile, onPreviewFile, projectRoot, foldModes, collapseAfter, collapseOverrides, onToggleCollapse, followOutput = true, submitKey = "enter", onEdit }) {
+function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, onAskAnswer, onAskDialogAnswer, onConfirmAsk, onCancelAsk, onGrantApproval, onStopRetry, hasProjectPath, onInspectSubagent, onOpenFile, onPreviewFile, projectRoot, foldModes, collapseAfter, collapseOverrides, onToggleCollapse, followOutput = true, submitKey = "enter", onEdit, startScreen, startPaused }) {
   const scrollRef   = React.useRef(null);
   const pinnedRef   = React.useRef(true);   // assume start pinned to bottom
   const prevTopRef  = React.useRef(0);
@@ -240,7 +240,12 @@ function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, 
 
   return (
     <div className="chat-wrap">
-      <div className="chat-scroll selectable" ref={scrollRef} onScroll={onScroll}>
+      {/* A conversation with no message yet shows the start screen behind
+          the (empty) transcript, as the no-tab workspace does. */}
+      {messages.length === 0 && startScreen && (
+        <window.Backdrop screen={startScreen} paused={startPaused} className="chat-empty-canvas" />
+      )}
+      <div className={`chat-scroll selectable${messages.length === 0 && startScreen ? " is-empty" : ""}`} ref={scrollRef} onScroll={onScroll}>
         <div className="chat-pad" style={_CV_PAD_STYLE}>
           {/* Note: after a trim, idx shifts for all surviving messages, causing a full
              re-render of memo'd bubbles in that notify cycle (bounded at MINIMAP_MAX -
