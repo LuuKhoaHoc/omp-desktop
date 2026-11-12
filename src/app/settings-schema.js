@@ -152,7 +152,7 @@
           { options: opts([0.75, 1, 1.25, 1.5, 2], { 0.75: "0.75×", 1: "1×", 1.25: "1.25×", 1.5: "1.5×", 2: "2×" }) }),
       ] },
       { name: "Voice to text", rows: [
-        custom("sttSettings", "Voice to text", "omp's on-device dictation behind the composer's microphone. Saved in omp's settings of the active tab's profile.", "stt dictation speech microphone whisper parakeet language vietnamese live voice model download"),
+        custom("sttSettings", "Voice to text", "omp's on-device dictation behind the composer's microphone, or OMP Desktop's native local Qwen3-ASR / Whisper Turbo engine.", "stt dictation speech microphone whisper parakeet qwen3 silero vulkan language vietnamese live voice model download"),
       ] },
     ] },
     { id: "terminal", icon: "terminal", title: "Terminal", blurb: "The shell panel under the chat. Each tab has its own shell, started in the tab's project folder.", groups: [

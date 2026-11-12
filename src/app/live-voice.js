@@ -127,7 +127,8 @@
   function stepDictation(state, event) {
     if (!event || typeof event.type !== "string") return state;
     if (event.type === "start") {
-      return state.active || !event.captureId ? state : { ...DICTATION_EMPTY, active: true, phase: "starting", captureId: event.captureId };
+      return state.active || !event.captureId ? state
+        : { ...DICTATION_EMPTY, active: true, phase: "starting", captureId: event.captureId, ...(event.engine ? { engine: event.engine } : {}) };
     }
     // The user closed the error line: an ended capture is forgotten, one
     // still open (a failed stop) only loses the message.

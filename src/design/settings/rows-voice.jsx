@@ -194,8 +194,11 @@ function _SRV_Model({ model, sp, kokoro, downloading, locked, query }) {
 }
 
 function _SRV_Dictation({ row, ctx, query }) {
-  const { SettingsRow: Row, SettingsToggle: Toggle, PathPicker } = window;
+  const { SettingsRow: Row, SettingsToggle: Toggle, SettingsSeg: Seg, PathPicker } = window;
   const sp = _SRV_useSpeech(ctx.bridge, ctx.goal?.profileId ?? null);
+  const local = window._SRL_useLocalStt(ctx.bridge);
+  const engine = local.status?.config?.engine ?? "omp";
+  const isLocal = engine === "local";
   const setting = key => sp.config?.settings.find(s => s.key === key) ?? null;
   const enabled = setting("stt.enabled");
   const language = setting("stt.language");
@@ -206,34 +209,48 @@ function _SRV_Dictation({ row, ctx, query }) {
   const downloadingId = D.downloadingId(rows, sp.busy, !!sp.progress);
   return (
     <>
-      <Row label={row.label} desc={row.desc} query={query}>
-        {enabled
-          ? <Toggle value={enabled.value === "true"} label="Voice to text" onChange={on => sp.set("stt.enabled", on)} />
-          : <span className="st-ro">{sp.error ? OMP_TR("unavailable") : OMP_TR("reading…")}</span>}
+      <Row label="Dictation engine" desc="Use omp's built-in dictation or OMP Desktop's native local engine (Qwen3-ASR 0.6B / Whisper large-v3-turbo with Silero VAD and Vulkan/CPU acceleration)." query={query}>
+        <Seg
+          value={engine}
+          label="Dictation engine"
+          options={window.OMP_LOCAL_STT.ENGINES}
+          onChange={v => local.setConfig({ engine: v })}
+        />
       </Row>
-      {language && (
-        <Row label="Spoken language" desc="The language voice to text expects. Parakeet ignores it; the Whisper models follow it." query={query}>
-          <PathPicker name={OMP_TR("Spoken language")} label={_SRV_LANGUAGES.find(l => l[0] === language.value)?.[1] ?? language.value}
-            title={language.value} rows={_SRV_rows(_SRV_LANGUAGES, language.value)} save={v => sp.set("stt.language", v)} />
-        </Row>
+      {isLocal ? (
+        <window._SRL_LocalStt local={local} query={query} />
+      ) : (
+        <>
+          <Row label={row.label} desc={row.desc} query={query}>
+            {enabled
+              ? <Toggle value={enabled.value === "true"} label="Voice to text" onChange={on => sp.set("stt.enabled", on)} />
+              : <span className="st-ro">{sp.error ? OMP_TR("unavailable") : OMP_TR("reading…")}</span>}
+          </Row>
+          {language && (
+            <Row label="Spoken language" desc="The language voice to text expects. Parakeet ignores it; the Whisper models follow it." query={query}>
+              <PathPicker name={OMP_TR("Spoken language")} label={_SRV_LANGUAGES.find(l => l[0] === language.value)?.[1] ?? language.value}
+                title={language.value} rows={_SRV_rows(_SRV_LANGUAGES, language.value)} save={v => sp.set("stt.language", v)} />
+            </Row>
+          )}
+          {rows.length > 0 && (
+            <Row label="Voice to text model" query={query} resettable={!!sp.model} onReset={() => sp.pickModel("")}
+              desc="Runs on this device; pick one to use it, the others stay downloaded. omp has no download for one model alone: the button runs `omp setup speech`, which also installs Kokoro, omp's English reading voice, while that is missing (the button then says so). A model in use that is not downloaded yet is fetched by itself the first time the microphone starts.">
+              <span className="st-ro">{rows.find(r => r.inUse)?.name}</span>
+            </Row>
+          )}
+          {rows.map(m => (
+            <_SRV_Model key={m.id} model={m} sp={sp} kokoro={kokoro} downloading={m.id === downloadingId} locked={downloadingId != null} query={query} />
+          ))}
+          {sp.config?.modelsError && <div className="st-row-error">{sp.config.modelsError}</div>}
+          {sp.error && <div className="st-row-error">{sp.error}</div>}
+        </>
       )}
-      {rows.length > 0 && (
-        <Row label="Voice to text model" query={query} resettable={!!sp.model} onReset={() => sp.pickModel("")}
-          desc="Runs on this device; pick one to use it, the others stay downloaded. omp has no download for one model alone: the button runs `omp setup speech`, which also installs Kokoro, omp's English reading voice, while that is missing (the button then says so). A model in use that is not downloaded yet is fetched by itself the first time the microphone starts.">
-          <span className="st-ro">{rows.find(r => r.inUse)?.name}</span>
-        </Row>
-      )}
-      {rows.map(m => (
-        <_SRV_Model key={m.id} model={m} sp={sp} kokoro={kokoro} downloading={m.id === downloadingId} locked={downloadingId != null} query={query} />
-      ))}
-      {sp.config?.modelsError && <div className="st-row-error">{sp.config.modelsError}</div>}
       {liveVoice && (
         <Row label="Live conversation voice" desc="The voice omp's live conversation answers in (needs a Codex login)." query={query}>
           <PathPicker name={OMP_TR("Live conversation voice")} label={liveVoice.value}
             rows={_SRV_rows(liveVoice.options.map(o => [o, o]), liveVoice.value)} save={v => sp.set("live.voice", v)} />
         </Row>
       )}
-      {sp.error && <div className="st-row-error">{sp.error}</div>}
     </>
   );
 }

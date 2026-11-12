@@ -26,6 +26,7 @@
   const DELTA = window.OMP_STREAM_DELTA;
   const LIVE = window.OMP_LIVE_VOICE;
   const DICTATION = LIVE.DICTATION;
+  const LOCAL_STT = window.OMP_LOCAL_STT;
   const { tsOf, mergeTranscript } = window.OMP_TRANSCRIPT;
 
   // ── Safe defaults so design components never crash on missing fields ──────
@@ -288,6 +289,71 @@
   // tagged `send`, so the composer sends that tab's draft once it holds the
   // text. Stops for a tab switch, Settings or a close never set it.
   let _dictationSendCapture = null;
+  let _localCaptureId = null;
+  let _localAutoSendCapture = null;
+  let _localSttStatus = null;
+  let _localSttInstall = null;
+  let _localSttEventsReady = null;
+  const _localSttSubscribers = new Set();
+  function _notifyLocalStt() {
+    const snap = { status: _localSttStatus, install: _localSttInstall };
+    for (const cb of _localSttSubscribers) {
+      try { cb(snap); } catch (e) { console.error("[live] local-stt subscriber failed:", e); }
+    }
+  }
+  function _setupLocalSttEvents() {
+    if (!window.__TAURI__) return Promise.resolve();
+    if (_localSttEventsReady) return _localSttEventsReady;
+    _localSttEventsReady = Promise.all([
+      window.__TAURI__.event.listen("local-stt://install", ev => {
+        _localSttInstall = LOCAL_STT.reduceInstallEvent(_localSttInstall, ev.payload);
+        _notifyLocalStt();
+        if (ev.payload?.done) void _refreshLocalSttStatus();
+      }),
+      window.__TAURI__.event.listen("local-stt://state", ev => {
+        const p = ev.payload;
+        if (!p || p.captureId !== _localCaptureId) return;
+        _dictationUpdate({ type: "dictation_state", captureId: p.captureId, state: p.state });
+      }),
+      window.__TAURI__.event.listen("local-stt://transcript", ev => {
+        const p = ev.payload;
+        if (!p || p.captureId !== _localCaptureId) return;
+        _dictationUpdate({ type: "dictation_transcript", captureId: p.captureId, text: p.text });
+      }),
+      window.__TAURI__.event.listen("local-stt://end", ev => {
+        const p = ev.payload;
+        if (!p || p.captureId !== _localCaptureId) return;
+        _localCaptureId = null;
+        _finishDictation({
+          type: "dictation_end",
+          captureId: p.captureId,
+          text: p.text,
+          error: p.error,
+          autoStopped: !!p.autoStopped,
+        });
+      }),
+    ]).catch(e => {
+      console.warn("[live] local-stt event listener setup failed:", e);
+    });
+    return _localSttEventsReady;
+  }
+  async function _refreshLocalSttStatus() {
+    const res = await _invokeResult("local_stt_status");
+    if (res.ok) {
+      _localSttStatus = res.value;
+      _notifyLocalStt();
+    }
+    return res;
+  }
+  async function _mutateLocalStt(cmd, args) {
+    await _setupLocalSttEvents();
+    const res = await _invokeResult(cmd, args);
+    if (res.ok) {
+      _localSttStatus = res.value;
+      _notifyLocalStt();
+    }
+    return res;
+  }
   let _nextCmdId = 1;
   // Timeout for a short interactive command a user is waiting on.
   const QUICK_CMD_TIMEOUT_MS = 15000;
@@ -819,8 +885,10 @@
     // Its extensions died with it; the backend's copy ended with the entry.
     _cancelLiveRequests();
     state.liveVoice = LIVE.apply(state.liveVoice, { type: "process_exit", error: state.exitReason });
-    if (state.dictation.active) _finishDictation({ type: "process_exit", error: state.exitReason || "The omp process ended during voice to text" });
-    _cancelDictationRequests();
+    if (state.dictation.active && !(_localCaptureId && state.dictation.captureId === _localCaptureId)) {
+      _finishDictation({ type: "process_exit", error: state.exitReason || "The omp process ended during voice to text" });
+      _cancelDictationRequests();
+    }
     state.extWidgets = EXT.EMPTY;
   }
 
@@ -1006,7 +1074,7 @@
       // A failed stop might still be recording. Do not background that tab.
       if (!stopped.ok && state.liveVoice.active) return;
     }
-    if (previous && previous !== id && (state.dictation.active || _dictationStopPending)) {
+    if (previous && previous !== id && (state.dictation.active || _dictationStartPending || _dictationStopPending)) {
       const stopped = await _dictationStop();
       if (_switchIntent !== intent || activeSessionId !== previous) return;
       if (!stopped.ok && state.dictation.active) return;
@@ -1483,7 +1551,7 @@
     }
     _respawning.add(id);
     try {
-      if (id === activeSessionId && (state.dictation.active || _dictationStopPending)) {
+      if (id === activeSessionId && (state.dictation.active || _dictationStartPending || _dictationStopPending)) {
         const stopped = await _dictationStop();
         if (!stopped.ok && state.dictation.active) return stopped;
         if (!sessionRegistry.has(id)) return { ok: false, error: "tab closed" };
@@ -3584,7 +3652,7 @@
   }
 
   function _liveStart() {
-    const refusal = _voiceStartRefusal(state.dictation.active || !!_dictationStopPending, "Voice to text");
+    const refusal = _voiceStartRefusal(state.dictation.active || !!_dictationStartPending || !!_dictationStopPending, "Voice to text");
     if (refusal) return Promise.resolve({ ok: false, error: refusal });
     if (state.liveVoice.active) {
       if (_liveStartPending && state.liveVoice.phase !== "stopping") return _liveStartPending.promise;
@@ -3710,8 +3778,10 @@
     const next = DICTATION.apply(before, event);
     if (next === before || next.active) return;
     state.dictation = next;
-    const send = before.captureId === _dictationSendCapture;
+    const send = before.captureId === _dictationSendCapture
+      || (!!event.autoStopped && before.captureId === _localAutoSendCapture);
     if (send) _dictationSendCapture = null;
+    if (before.captureId === _localAutoSendCapture) _localAutoSendCapture = null;
     if (next.text && sessionRegistry.has(activeSessionId)) {
       _dictationCompleted = [..._dictationCompleted, { sessionId: activeSessionId, captureId: before.captureId, text: next.text, send }];
     }
@@ -3719,38 +3789,109 @@
     notify();
   }
 
-  function _dictationStart() {
+  function _dictationStart(opts = {}) {
     const refusal = _voiceStartRefusal(state.liveVoice.active || !!_liveStopPending, "Live conversation");
     if (refusal) return Promise.resolve({ ok: false, error: refusal });
-    if (state.dictation.active) {
-      if (state.dictation.phase === "starting" && _dictationStartPending) return _dictationStartPending.promise;
-      return Promise.resolve({ ok: false, error: "Voice to text is already active" });
-    }
+    if (_dictationStartPending) return _dictationStartPending.promise;
+    if (state.dictation.active) return Promise.resolve({ ok: false, error: "Voice to text is already active" });
     if (_dictationStopPending) return Promise.resolve({ ok: false, error: "Voice to text is stopping" });
-    const id = activeSessionId, gen = ++_dictationGen, captureId = `capture-${_nextCmdId++}`;
-    state.dictation = DICTATION.apply(state.dictation, { type: "start", captureId });
-    const request = _sendWithResponse({ type: "dictation_start", captureId }, 0);
-    const op = { request, promise: null };
+
+    const id = activeSessionId, gen = ++_dictationGen;
+    let cancelled = false;
+    let innerCancel = null;
+    let handoffBound = false;
+    let resolveHandoff;
+    const handedOff = new Promise(resolve => { resolveHandoff = resolve; });
+    const op = {
+      request: {
+        handedOff,
+        cancel(reason) {
+          cancelled = true;
+          innerCancel?.(reason);
+        },
+      },
+      promise: null,
+    };
     _dictationStartPending = op;
     op.promise = (async () => {
       try {
-        await request;
-        if (id !== activeSessionId) return { ok: false, error: "Voice to text ended" };
-        if (gen !== _dictationGen) return { ok: true };
-        if (!state.dictation.active) return state.dictation.error ? { ok: false, error: state.dictation.error } : { ok: true };
-        return { ok: true };
-      } catch (e) {
-        const error = String(e?.message ?? e);
-        if (id === activeSessionId && gen !== _dictationGen) return { ok: true };
-        if (id === activeSessionId && !state.dictation.active && !state.dictation.error) return { ok: true };
-        if (id === activeSessionId && gen === _dictationGen && state.dictation.active) _finishDictation({ type: "start_failure", error });
-        return { ok: false, error: id === activeSessionId && state.dictation.error || error };
+        if (window.__TAURI__ && !_localSttStatus) {
+          const statusRes = await _refreshLocalSttStatus();
+          if (cancelled || id !== activeSessionId || gen !== _dictationGen || _dictationStopPending || state.dictation.active) {
+            resolveHandoff(false);
+            return { ok: false, error: cancelled || id !== activeSessionId || gen !== _dictationGen ? "Voice to text ended" : "Voice to text is already active" };
+          }
+          if (!statusRes.ok && !_localSttStatus) {
+            resolveHandoff(false);
+            return { ok: false, error: statusRes.error || "Could not read local speech settings" };
+          }
+        }
+
+        if (LOCAL_STT?.isLocalEngine(_localSttStatus)) {
+          const gate = LOCAL_STT.canStartLocalDictation(_localSttStatus);
+          if (!gate.ok) {
+            resolveHandoff(false);
+            return { ok: false, error: gate.reason };
+          }
+          await _setupLocalSttEvents();
+          if (cancelled || id !== activeSessionId || gen !== _dictationGen || _dictationStopPending || state.dictation.active) {
+            resolveHandoff(false);
+            return { ok: false, error: cancelled || id !== activeSessionId || gen !== _dictationGen ? "Voice to text ended" : "Voice to text is already active" };
+          }
+          const captureId = `local-${_nextCmdId++}`;
+          _localCaptureId = captureId;
+          _localAutoSendCapture = opts?.sendOnAutoStop ? captureId : null;
+          state.dictation = DICTATION.apply(state.dictation, { type: "start", captureId, engine: "local" });
+          notify();
+          const invokePromise = window.__TAURI__.core.invoke("local_stt_start", {
+            captureId,
+            autoStopMs: typeof opts?.autoStopMs === "number" && opts.autoStopMs > 0 ? opts.autoStopMs : null,
+          });
+          handoffBound = true;
+          invokePromise.then(() => resolveHandoff(true), () => resolveHandoff(false));
+          try {
+            await invokePromise;
+            if (id !== activeSessionId) return { ok: false, error: "Voice to text ended" };
+            if (gen !== _dictationGen) return { ok: true };
+            if (!state.dictation.active) return state.dictation.error ? { ok: false, error: state.dictation.error } : { ok: true };
+            return { ok: true };
+          } catch (e) {
+            const error = String(e?.message ?? e);
+            if (_localCaptureId === captureId) _localCaptureId = null;
+            if (_localAutoSendCapture === captureId) _localAutoSendCapture = null;
+            if (id === activeSessionId && gen !== _dictationGen) return { ok: true };
+            if (id === activeSessionId && !state.dictation.active && !state.dictation.error) return { ok: true };
+            if (id === activeSessionId && gen === _dictationGen && state.dictation.active) _finishDictation({ type: "start_failure", error });
+            return { ok: false, error: id === activeSessionId && state.dictation.error || error };
+          }
+        }
+
+        const captureId = `capture-${_nextCmdId++}`;
+        state.dictation = DICTATION.apply(state.dictation, { type: "start", captureId });
+        const request = _sendWithResponse({ type: "dictation_start", captureId }, 0);
+        innerCancel = reason => request.cancel(reason);
+        handoffBound = true;
+        request.handedOff.then(resolveHandoff, () => resolveHandoff(false));
+        notify();
+        _watchDictationDownload(id, captureId);
+        try {
+          await request;
+          if (id !== activeSessionId) return { ok: false, error: "Voice to text ended" };
+          if (gen !== _dictationGen) return { ok: true };
+          if (!state.dictation.active) return state.dictation.error ? { ok: false, error: state.dictation.error } : { ok: true };
+          return { ok: true };
+        } catch (e) {
+          const error = String(e?.message ?? e);
+          if (id === activeSessionId && gen !== _dictationGen) return { ok: true };
+          if (id === activeSessionId && !state.dictation.active && !state.dictation.error) return { ok: true };
+          if (id === activeSessionId && gen === _dictationGen && state.dictation.active) _finishDictation({ type: "start_failure", error });
+          return { ok: false, error: id === activeSessionId && state.dictation.error || error };
+        }
       } finally {
+        if (!handoffBound) resolveHandoff(false);
         if (_dictationStartPending === op) _dictationStartPending = null;
       }
     })();
-    notify();
-    _watchDictationDownload(id, captureId);
     return op.promise;
   }
 
@@ -3777,11 +3918,19 @@
 
   function _dictationStop(send = false) {
     if (_dictationStopPending) return _dictationStopPending.promise;
-    if (!state.dictation.active) return Promise.resolve({ ok: true });
+    if (!state.dictation.active) {
+      if (!_dictationStartPending) return Promise.resolve({ ok: true });
+      const pending = _dictationStartPending;
+      ++_dictationGen;
+      pending.request.cancel("Voice to text was stopped");
+      return pending.promise.then(() => ({ ok: true }), () => ({ ok: true }));
+    }
     const id = activeSessionId, captureId = state.dictation.captureId, gen = ++_dictationGen;
     // Each stop decides: a failed send-stop's tag must not carry over to a
     // retry that is not the user's (tab switch, Settings).
     _dictationSendCapture = send ? captureId : null;
+    if (!send && _localAutoSendCapture === captureId) _localAutoSendCapture = null;
+    const isLocal = _localCaptureId === captureId || state.dictation.engine === "local";
     const startHandoff = _dictationStartPending?.request.handedOff;
     _dictationStartPending?.request.cancel("Voice to text was stopped");
     state.dictation = DICTATION.apply(state.dictation, { type: "stop" });
@@ -3792,6 +3941,22 @@
         const sent = startHandoff ? await startHandoff : true;
         if (id !== activeSessionId || gen !== _dictationGen) return { ok: false, error: "Voice to text ended" };
         if (!state.dictation.active) return { ok: true };
+        if (isLocal) {
+          const finalText = sent
+            ? await window.__TAURI__.core.invoke("local_stt_stop", { captureId, cancel: false })
+            : state.dictation.text;
+          if (_localCaptureId === captureId) _localCaptureId = null;
+          if (id !== activeSessionId || gen !== _dictationGen) return { ok: false, error: "Voice to text ended" };
+          if (state.dictation.active) {
+            _finishDictation({
+              type: "dictation_end",
+              captureId,
+              text: typeof finalText === "string" ? finalText : state.dictation.text,
+              error: null,
+            });
+          }
+          return { ok: true };
+        }
         const data = sent ? await (op.request = _sendWithResponse({ type: "dictation_stop" }, 120000)) : { text: state.dictation.text };
         if (id !== activeSessionId || gen !== _dictationGen) return { ok: false, error: "Voice to text ended" };
         if (state.dictation.active) {
@@ -3839,8 +4004,8 @@
     // The × on a voice panel's error line.
     liveDismiss: () => _voiceUpdate({ type: "dismiss" }),
     dictationDismiss: () => _dictationUpdate({ type: "dismiss" }),
-    dictationStart: _dictationStart,
-    stopActiveVoice() { return state.dictation.active || _dictationStopPending ? _dictationStop() : state.liveVoice.active || _liveStopPending ? _livePause() : Promise.resolve({ ok: true }); },
+    dictationStart: (opts) => _dictationStart(opts),
+    stopActiveVoice() { return state.dictation.active || _dictationStartPending || _dictationStopPending ? _dictationStop() : state.liveVoice.active || _liveStopPending ? _livePause() : Promise.resolve({ ok: true }); },
     dictationStop: ({ send = false } = {}) => _dictationStop(send),
     ackDictation(captureIds) {
       const ids = new Set(captureIds);
@@ -4107,6 +4272,17 @@
     onTtsInstall(cb) {
       return _ttsInstalls().subscribe(cb);
     },
+    /** Desktop-native local STT (`local_stt.rs`, Qwen3-ASR / Whisper Turbo). */
+    localSttStatus() { return _refreshLocalSttStatus(); },
+    localSttState() { return { status: _localSttStatus, install: _localSttInstall }; },
+    onLocalStt(cb) {
+      _localSttSubscribers.add(cb);
+      return () => _localSttSubscribers.delete(cb);
+    },
+    localSttSetConfig(patch) { return _mutateLocalStt("local_stt_set_config", { patch }); },
+    localSttInstallRuntime() { return _mutateLocalStt("local_stt_install_runtime"); },
+    localSttInstallModel(modelId) { return _mutateLocalStt("local_stt_install_model", { modelId }); },
+    localSttDeleteModel(modelId) { return _mutateLocalStt("local_stt_delete_model", { modelId }); },
     /** One piece of speech: `{ ok, value: { mime, data } }`, `data` the
      *  audio file in base64. */
     ttsSpeak({ engine, voice, speed, text, profile }) {
@@ -5115,7 +5291,7 @@
       if (!sessionRegistry.has(id) || _closingVoiceTabs.has(id)) return false;
       _closingVoiceTabs.add(id);
       try {
-        if (id === activeSessionId && (state.dictation.active || _dictationStopPending || state.liveVoice.active)) {
+        if (id === activeSessionId && (state.dictation.active || _dictationStartPending || _dictationStopPending || state.liveVoice.active)) {
           const stopped = await window.OMP_BRIDGE.stopActiveVoice();
           if (!stopped.ok && id === activeSessionId && (state.dictation.active || state.liveVoice.active)) return false;
           if (!sessionRegistry.has(id)) return false;
@@ -5315,6 +5491,8 @@
     // The approval-mode view, alongside: the status bar and the restart
     // plan read it, and spawns never wait for it (Rust resolves the mode).
     void _refreshApprovalModes();
+    void _setupLocalSttEvents();
+    void _refreshLocalSttStatus();
     _refreshProfiles()
       .catch(e => console.error("[live] startup profile load failed:", e))
       // Tab ids are never reused across a webview reload: anything Rust still
