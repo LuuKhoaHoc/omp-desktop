@@ -357,6 +357,11 @@
 .wp-chip button { all: unset; cursor: pointer; padding: 0 4px; color: var(--fg-3); }
 .wp-chip button:hover { color: var(--fg); }
 .wp-chip button:focus-visible { color: var(--fg); outline: 2px solid var(--accent); border-radius: 3px; }
+.wp-chip[data-reorder-id] { cursor: grab; touch-action: none; user-select: none; }
+.wp-chip.reorder-src { opacity: 0.55; }
+.wp-chip.reorder-src > * { opacity: 1; }
+[data-reorder-axis="wrap"].drop-before::after { top: 0; bottom: 0; left: -4px; width: 2px; border-radius: 1px; }
+[data-reorder-axis="wrap"].drop-after::after { top: 0; bottom: 0; right: -4px; width: 2px; border-radius: 1px; }
 .wp-edit { height: 28px; padding: 0 10px; gap: 6px; font-size: var(--d-text-sm); }
 /* Comment threads */
 .wp-notes { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }

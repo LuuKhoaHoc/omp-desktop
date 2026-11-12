@@ -158,7 +158,7 @@ function _WP_ViewForm({ initial, conns, onSave, onCancel, onDelete, onEditConn }
       {v.kind === "issues" && platform !== "linear" && (
         <div className="wp-field"><span>{OMP_TR("Board columns")} <em>{OMP_TR("optional")}</em></span>
           <_WPF_Multi values={cols(v.columns)} onChange={a => set("columns", a.join(", "))} choices={labels} placeholder={OMP_TR("Pick labels")} ordered
-            hint={OMP_TR("Labels shown as columns between Open and Closed, in this order (‹ › to reorder).")} /></div>
+            hint={OMP_TR("Labels shown as columns between Open and Closed, in this order (drag or ‹ › to reorder).")} /></div>
       )}
       <_WPF_Foot problems={problems} test={test} onTest={runTest} onCancel={onCancel} onDelete={onDelete} />
     </form>

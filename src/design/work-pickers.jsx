@@ -98,11 +98,18 @@ function _WPF_Multi({ values, onChange, choices, placeholder, hint, ordered }) {
   const drop = v => onChange(values.filter(x => x !== v));
   const shift = (i, d) => { const n = [...values]; [n[i], n[i + d]] = [n[i + d], n[i]]; onChange(n); };
   const nameOf = v => choices.list.find(o => o.value === v)?.label;
+  const canDrag = Boolean(ordered && values.length > 1);
+  const reorder = window.useDragReorder((_list, srcId, targetId, after) => {
+    const next = window.OMP_DRAG_REORDER?.reorderList?.(values, srcId, targetId, after);
+    if (next) onChange(next);
+  });
   return (
     <div className="wp-pick">
-      <div className="wp-chips" onMouseDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.querySelector("input")?.focus(); } }}>
+      <div className="wp-chips" onPointerDown={canDrag ? reorder.onPointerDown : undefined}
+        onMouseDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.querySelector("input")?.focus(); } }}>
         {values.map((v, i) => (
-          <span key={v} className="wp-chip" title={nameOf(v) ?? v}>
+          <span key={v} className={`wp-chip${canDrag ? reorder.dropClass("chips", v) : ""}`}
+            {...(canDrag ? reorder.itemProps("chips", v, "wrap") : {})} title={nameOf(v) ?? v}>
             {ordered && i > 0 && <button type="button" aria-label={OMP_TR("move {name} left", { name: v })} onClick={() => shift(i, -1)}>‹</button>}
             <span>{v}</span>
             {ordered && i < values.length - 1 && <button type="button" aria-label={OMP_TR("move {name} right", { name: v })} onClick={() => shift(i, 1)}>›</button>}

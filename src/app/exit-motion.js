@@ -69,6 +69,12 @@
     };
   }
 
+  /** Folding a project cluster removes its `.tab` children while the
+   *  cluster stays; ghosting them would paint shrinking copies over sibling
+   *  tabs sliding left. */
+  const skipFoldedRemoval = (parent, node) =>
+    Boolean(parent?.classList?.contains("is-folded") && node?.classList?.contains("tab"));
+
   function install(doc) {
     const win = doc.defaultView;
     const rects = new WeakMap();
@@ -119,9 +125,9 @@
         }
         for (const node of r.removedNodes) {
           if (node.nodeType !== 1 || node.isConnected || node.classList.contains("motion-ghost") || quiet()) continue;
+          if (skipFoldedRemoval(r.target, node)) continue;
           for (const el of outermost(node)) ghost(el, r.target, r.nextSibling);
         }
-        r.addedNodes.forEach(track);
       }
     }).observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"], attributeOldValue: true });
 
@@ -129,6 +135,6 @@
     track(doc.body);
   }
 
-  window.OMP_EXIT_MOTION = { EXIT_SELECTOR, SWITCH_QUIET_MS, outermost, ghostStyle, switching, quietSwitch, install };
+  window.OMP_EXIT_MOTION = { EXIT_SELECTOR, SWITCH_QUIET_MS, outermost, ghostStyle, skipFoldedRemoval, switching, quietSwitch, install };
   if (typeof document !== "undefined" && document.body && typeof ResizeObserver !== "undefined") install(document);
 })();

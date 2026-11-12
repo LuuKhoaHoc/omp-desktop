@@ -30,7 +30,8 @@ function check(label, fn) {
 // A minimal element: classes only, enough for matches / querySelectorAll
 // over a class-list selector.
 function el(cls, ...children) {
-  const node = { cls: new Set(cls.split(" ").filter(Boolean)), children, parentElement: null };
+  const clsSet = new Set(cls.split(" ").filter(Boolean));
+  const node = { cls: clsSet, classList: { contains: c => clsSet.has(c) }, children, parentElement: null };
   for (const c of children) c.parentElement = node;
   const hit = sel => sel.split(",").some(s => node.cls.has(s.trim().slice(1)));
   node.matches = hit;
@@ -124,6 +125,13 @@ check("quietSwitch: a second switch before the first ended keeps it quiet for it
   assert.equal(doc.timers.size, 1, "one timer: the first cannot end the second's quiet early");
   doc.runTimers();
   assert.equal(M.switching(doc), false);
+});
+
+check("skipFoldedRemoval skips .tab ghosts only when removed from a folded cluster", () => {
+  assert.equal(M.skipFoldedRemoval(el("tab-cluster is-folded"), el("tab")), true);
+  assert.equal(M.skipFoldedRemoval(el("tab-cluster"), el("tab")), false);
+  assert.equal(M.skipFoldedRemoval(el("tab-cluster is-folded"), el("tab-cluster-new")), false);
+  assert.equal(M.skipFoldedRemoval(null, el("tab")), false);
 });
 
 console.log(`exit-motion: ${passed} checks passed`);

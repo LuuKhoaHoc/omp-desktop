@@ -58,4 +58,39 @@ check("an item missing from the list never gets a slot", () => {
   assert.equal(D.dropSlot([], "a", 10), null);
 });
 
+// Two wrapped rows of two chips each:
+// row 0 (y 0..24):   a [0,100)   b [110,210)
+// row 1 (y 30..54):  c [0,100)   d [110,210)
+const wrapped = [
+  { id: "a", left: 0, right: 100, top: 0, bottom: 24 },
+  { id: "b", left: 110, right: 210, top: 0, bottom: 24 },
+  { id: "c", left: 0, right: 100, top: 30, bottom: 54 },
+  { id: "d", left: 110, right: 210, top: 30, bottom: 54 },
+];
+
+check("dropSlotWrap picks the row under y, not row 0's x overlap", () => {
+  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 20, 42), { targetId: "c", after: false });
+  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 180, 42), { targetId: "d", after: true });
+  assert.deepEqual(D.dropSlotWrap(wrapped, "d", 20, 12), { targetId: "a", after: false });
+});
+
+check("dropSlotWrap stays on the pointer's row at row end vs next row start", () => {
+  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 190, 12), { targetId: "b", after: true });
+  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 20, 42), { targetId: "c", after: false });
+});
+
+check("dropSlotWrap skips adjacent no-ops across row boundaries and handles outside y", () => {
+  assert.equal(D.dropSlotWrap(wrapped, "b", 20, 42), null);
+  assert.equal(D.dropSlotWrap(wrapped, "c", 190, 12), null);
+  assert.deepEqual(D.dropSlotWrap(wrapped, "d", 20, -20), { targetId: "a", after: false });
+  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 190, 100), { targetId: "d", after: true });
+});
+
+check("reorderList moves items before/after target and rejects unknown ids", () => {
+  assert.deepEqual(D.reorderList(["a", "b", "c", "d"], "a", "c", true), ["b", "c", "a", "d"]);
+  assert.deepEqual(D.reorderList(["a", "b", "c", "d"], "d", "b", false), ["a", "d", "b", "c"]);
+  assert.equal(D.reorderList(["a", "b"], "missing", "a", false), null);
+  assert.equal(D.reorderList(["a", "b"], "a", "missing", false), null);
+});
+
 console.log(`drag-reorder: ${passed} checks passed`);

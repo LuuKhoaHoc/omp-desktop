@@ -26,7 +26,7 @@ existed become a connection plus one Issues view on first load.
 | Project / Group / Repository / Team | `group/project` (or id), a group path, `owner/name`, Linear team key |
 | Whose (GitLab) | Issues: assigned to me / team / all. MRs: mine / to review / team / all |
 | Team usernames | For "team": issues assigned to, or MRs opened by, any of them (one request per person) |
-| Board columns | Issues: labels used as columns between Open and Closed |
+| Board columns | Issues: labels used as columns between Open and Closed (drag or `‹ ›` to order) |
 | Branch | Pipelines: one ref only (empty: every ref, merge requests included) |
 
 Edit the open view from **Edit view** in the panel head (or "✎ Edit this view…"
