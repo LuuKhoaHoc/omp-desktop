@@ -8,6 +8,7 @@
 const { Icon: _IP_Icon } = window;
 const _IP_POLL_MS = 4000;
 const _IP_STATUS = ["untested", "pass", "fail", "blocked"];
+const _IP_EMPTY_ARR = [];
 
 function _ipStatusLabel(s) {
   if (s === "all") return OMP_TR("all");
@@ -273,8 +274,10 @@ function InsightsPanel({ projectPath, onAsk }) {
       .catch(e => live && setErr(String(e)));
     reload.current = load;
     load();
-    const id = setInterval(load, _IP_POLL_MS);
-    return () => { live = false; clearInterval(id); reload.current = null; };
+    const onVis = () => { if (!document.hidden) load(); };
+    document.addEventListener("visibilitychange", onVis);
+    const id = setInterval(() => { if (!document.hidden) load(); }, _IP_POLL_MS);
+    return () => { live = false; clearInterval(id); document.removeEventListener("visibilitychange", onVis); reload.current = null; };
   }, [projectPath]);
   const reload = React.useRef(null);
   const remove = React.useCallback(file => {
@@ -282,9 +285,9 @@ function InsightsPanel({ projectPath, onAsk }) {
       .then(() => reload.current?.(), e => setErr(String(e)));
   }, [projectPath]);
 
-  const diagrams = data?.diagrams ?? [];
-  const sets = data?.testcases ?? [];
-  const docs = data?.docs ?? [];
+  const diagrams = data?.diagrams ?? _IP_EMPTY_ARR;
+  const sets = data?.testcases ?? _IP_EMPTY_ARR;
+  const docs = data?.docs ?? _IP_EMPTY_ARR;
   const nCases = sets.reduce((n, s) => n + (Array.isArray(s.data?.cases) ? s.data.cases.length : 0), 0);
   const tabs = [
     { id: "diagrams", label: OMP_TR("Diagrams"), n: diagrams.length },

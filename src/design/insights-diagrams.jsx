@@ -70,29 +70,41 @@ function _ipSkillPrompt(skill) {
 function _ipCopy(text) { navigator.clipboard?.writeText(text).catch(() => {}); }
 const _IP_ZOOMS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 
-function _ipUseDiagram({ kind, source, data, error }) {
-  const [out, setOut] = React.useState(error ? { err: error } : null);
+function _ipUseDiagram({ kind, source, data, error, enabled = true }) {
+  const [out, setOut] = React.useState(() => (error ? { err: error } : null));
+  const renderedKeyRef = React.useRef(null);
+  const key = `${kind}\0${error ?? ""}\0${source ?? ""}\0${data ?? ""}`;
   React.useEffect(() => {
-    if (error) return setOut({ err: error });
+    if (error) { renderedKeyRef.current = key; setOut({ err: error }); return; }
+    if (!enabled) return;
+    if (renderedKeyRef.current === key) return;
     let live = true;
     try {
       if (kind === "mermaid") {
         setOut(null);
-        _ipRender(source).then(r => live && setOut({ mermaid: r.svg }), e => live && setOut({ err: String(e?.message ?? e) }));
-      } else if (kind === "png") setOut({ img: `data:image/png;base64,${data}` });
-      else if (kind === "svg") setOut({ img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}` });
-      else if (kind === "excalidraw") setOut({ img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(window.OMP_EXCALIDRAW.toSvg(JSON.parse(source)).svg)}` });
-      else if (kind === "html") setOut({ html: source });
-      else setOut({ err: `unknown kind ${kind}` });
-    } catch (e) { setOut({ err: String(e?.message ?? e) }); }
+        _ipRender(source).then(
+          r => { if (live) { renderedKeyRef.current = key; setOut({ mermaid: r.svg }); } },
+          e => { if (live) { renderedKeyRef.current = key; setOut({ err: String(e?.message ?? e) }); } },
+        );
+      } else if (kind === "png") {
+        renderedKeyRef.current = key; setOut({ img: `data:image/png;base64,${data}` });
+      } else if (kind === "svg") {
+        renderedKeyRef.current = key; setOut({ img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}` });
+      } else if (kind === "excalidraw") {
+        renderedKeyRef.current = key; setOut({ img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(window.OMP_EXCALIDRAW.toSvg(JSON.parse(source)).svg)}` });
+      } else if (kind === "html") {
+        renderedKeyRef.current = key; setOut({ html: source });
+      } else {
+        renderedKeyRef.current = key; setOut({ err: `unknown kind ${kind}` });
+      }
+    } catch (e) { renderedKeyRef.current = key; setOut({ err: String(e?.message ?? e) }); }
     return () => { live = false; };
-  }, [kind, source, data, error]);
+  }, [kind, source, data, error, enabled, key]);
   return out;
 }
 
-function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete, isOpen = true, onToggle }) {
+const _IP_Diagram = React.memo(function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete, isOpen = true, onToggle }) {
   const Delete = window._IP_Delete;
-  const out = _ipUseDiagram({ kind, source, data, error });
   const [localOpen, setLocalOpen] = React.useState(isOpen);
   const [zoom, setZoom] = React.useState(null);
   const [max, setMax] = React.useState(false);
@@ -103,9 +115,10 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete, is
   const drag = React.useRef(null);
   const graph = React.useRef(null);
   const open = max || (onToggle ? isOpen : localOpen);
+  const out = _ipUseDiagram({ kind, source, data, error, enabled: open });
   const toggle = () => {
     if (max) return;
-    if (onToggle) onToggle();
+    if (onToggle) onToggle(file);
     else setLocalOpen(v => !v);
   };
 
@@ -116,9 +129,10 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete, is
   }, [copied]);
 
   React.useLayoutEffect(() => {
+    if (!open || showSrc) { graph.current = null; return; }
     const svg = out?.mermaid && view.current?.querySelector(".ip-mmd svg");
     graph.current = svg ? { svg, ...window.OMP_MERMAID_SCHEMATIC.decorate(svg) } : null;
-  }, [out?.mermaid, showSrc]);
+  }, [open, out?.mermaid, showSrc]);
 
   const onOver = e => {
     const g = graph.current;
@@ -128,14 +142,14 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete, is
   };
 
   React.useLayoutEffect(() => {
+    if (!open || showSrc) return;
     const el = view.current?.querySelector("svg, img");
     if (!el) return;
     const natural = el.tagName === "IMG" ? el.naturalWidth : (el.viewBox?.baseVal?.width || el.getBBox?.().width || 0);
     el.style.maxWidth = zoom == null ? "100%" : "none";
     el.style.width = zoom == null || !natural ? "" : `${Math.round(natural * zoom)}px`;
     el.style.height = "auto";
-  });
-
+  }, [open, zoom, out, showSrc]);
   window._wpUseDialog(cardRef, max, () => setMax(false), { inertRoot: true });
 
   const step = dir => setZoom(z => {
@@ -154,8 +168,8 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete, is
     view.current.scrollTop = d.t - (e.clientY - d.y);
   };
 
-  const title = _ipDiagramTitle(source, file);
-  const kindLabel = kind === "mermaid" ? window.OMP_MERMAID_SCHEMATIC.diagramType(source) : kind;
+  const title = React.useMemo(() => _ipDiagramTitle(source, file), [source, file]);
+  const kindLabel = React.useMemo(() => (kind === "mermaid" ? window.OMP_MERMAID_SCHEMATIC.diagramType(source) : kind), [kind, source]);
   const text = kind !== "png" && source != null;
   const zoomable = out && (out.mermaid || out.img);
 
@@ -215,14 +229,16 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete, is
             title={max ? OMP_TR("Close fullscreen (Esc)") : OMP_TR("Fullscreen")} onClick={() => setMax(v => !v)}>
             {max ? OMP_TR("Close") : OMP_TR("Expand")}
           </button>
-          {onDelete && !max && Delete && <Delete label={file} onDelete={onDelete} />}
+          {onDelete && !max && Delete && <Delete label={file} onDelete={() => onDelete(`diagrams/${file}`)} />}
         </div>
       </figcaption>
       <div className="ip-diagram-collapse">
-        <div className="ip-diagram-inner">
-          {out?.err && <div className="wp-note err"><_IPD_Icon name="warn" size={12} /> {file}: {out.err}</div>}
-          {canvas}
-        </div>
+        {open && (
+          <div className="ip-diagram-inner">
+            {out?.err && <div className="wp-note err"><_IPD_Icon name="warn" size={12} /> {file}: {out.err}</div>}
+            {canvas}
+          </div>
+        )}
       </div>
     </figure>
   );
@@ -236,7 +252,7 @@ function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete, is
     );
   }
   return card;
-}
+});
 
 /** "New diagram" menu: drafts a prompt for the picked skill into the composer. */
 function _IP_NewDiagram({ onAsk }) {
@@ -282,26 +298,25 @@ function _IP_NewDiagram({ onAsk }) {
 
 function _IP_Diagrams({ diagrams, onAsk, onDelete }) {
   const [q, setQ] = React.useState("");
-  const [collapsed, setCollapsed] = React.useState(() => new Set());
+  const [expanded, setExpanded] = React.useState(() => new Set());
   const needle = q.trim().toLowerCase();
-  const shown = needle
+  const shown = React.useMemo(() => (needle
     ? diagrams.filter(d => `${_ipDiagramTitle(d.source, d.file)} ${d.file} ${d.kind}`.toLowerCase().includes(needle))
-    : diagrams;
+    : diagrams), [diagrams, needle]);
 
-  const allCollapsed = shown.length > 0 && shown.every(d => collapsed.has(d.file));
-  const toggleOne = file => setCollapsed(prev => {
+  const allCollapsed = shown.length > 0 && shown.every(d => !expanded.has(d.file));
+  const toggleOne = React.useCallback(file => setExpanded(prev => {
     const next = new Set(prev);
     if (next.has(file)) next.delete(file);
     else next.add(file);
     return next;
-  });
-  const toggleAll = () => setCollapsed(prev => {
+  }), []);
+  const toggleAll = () => setExpanded(prev => {
     const next = new Set(prev);
-    if (allCollapsed) { for (const d of shown) next.delete(d.file); }
-    else { for (const d of shown) next.add(d.file); }
+    if (allCollapsed) { for (const d of shown) next.add(d.file); }
+    else { for (const d of shown) next.delete(d.file); }
     return next;
   });
-
   return (
     <div className="ip-diagrams">
       <div className="ip-filter">
@@ -319,8 +334,8 @@ function _IP_Diagrams({ diagrams, onAsk, onDelete }) {
         {onAsk && <_IP_NewDiagram onAsk={onAsk} />}
       </div>
       {shown.map(d => (
-        <_IP_Diagram key={d.file} {...d} isOpen={!collapsed.has(d.file)} onToggle={() => toggleOne(d.file)}
-          onDelete={onDelete && (() => onDelete(`diagrams/${d.file}`))} />
+        <_IP_Diagram key={d.file} file={d.file} kind={d.kind} source={d.source} data={d.data} error={d.error}
+          isOpen={expanded.has(d.file)} onToggle={toggleOne} onDelete={onDelete} />
       ))}
       {!diagrams.length && <div className="wp-empty-line pad">{OMP_TR("No diagrams yet. Pick a skill under \"New diagram\"; files land in .omp/insights/diagrams/.")}</div>}
       {diagrams.length > 0 && !shown.length && (
