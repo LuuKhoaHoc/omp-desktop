@@ -35,11 +35,20 @@ function hintFor(actionId, fallback) {
 function hintKeyFor(actionId, fallback) {
   return window.OMP_KEYMAP ? window.OMP_KEYMAP.hintKeyFor(actionId) : fallback;
 }
+function _CMP_formatPaletteTip(tip, bridgeHint) {
+  const isDefault = window.OMP_PLATFORM?.isDefaultPaletteTip
+    ? window.OMP_PLATFORM.isDefaultPaletteTip(tip)
+    : (!tip || /^type \/ to give orders(?: · .+ opens the bridge)?$/.test(tip));
+  if (!isDefault) return OMP_TR(tip);
+  return bridgeHint
+    ? OMP_TR("type / to give orders · {key} opens the bridge", { key: bridgeHint })
+    : OMP_TR("type / to give orders");
+}
 
 // ── The composer (input + plan/steer modes + send) ────────────────────
 // `submitKey` ("enter" | "ctrl+enter") and `pasteCollapseLines` come from the
 // tweaks (Settings › Composer); the defaults match TWEAK_DEFAULTS.
-function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePlan, planBlocked = "", goalMode = false, goalTint = false, onToggleGoal, goalBlocked = "", goalStrip = null, onOpenCmd, onOpenModel, currentModel, thinking, onLoadThinkingLevels, onSetThinking, isStreaming, backgroundWork = false, onAbort, onApprove, annotationCount = 0, microcopy, onFollowUp, draftInsert, promptHistory = [], promptInsert, queue, queueSending, onRemoveQueued, onPromoteQueued, onSendQueuedNow, browserChips = [], onRemoveBrowserChip, quoteChips = [], onRemoveQuote, onBrowserChipClick, fileChips = [], onRemoveFileChip, onFileChipClick, submitKey = "enter", pasteCollapseLines = 5, liveVoice, liveError, onLiveAction, codexLogin = null, voiceSpectrum = null, dictation, dictationError, onDictationAction, dictationCompleted, onAckDictation, sessionPills = null }) {
+function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePlan, planBlocked = "", goalMode = false, goalTint = false, onToggleGoal, goalBlocked = "", goalStrip = null, onOpenCmd, onOpenModel, currentModel, thinking, thinkingAuto = false, onLoadThinkingLevels, onSetThinking, fastMode = null, onSetFastMode, isStreaming, backgroundWork = false, onAbort, onApprove, annotationCount = 0, microcopy, onFollowUp, draftInsert, promptHistory = [], promptInsert, queue, queueSending, onRemoveQueued, onPromoteQueued, onSendQueuedNow, browserChips = [], onRemoveBrowserChip, quoteChips = [], onRemoveQuote, onBrowserChipClick, fileChips = [], onRemoveFileChip, onFileChipClick, submitKey = "enter", pasteCollapseLines = 5, liveVoice, liveError, onLiveAction, codexLogin = null, voiceSpectrum = null, dictation, dictationError, onDictationAction, onDismissVoiceError, dictationCompleted, onAckDictation, handsFree = null, readAloud = null, sessionPills = null }) {
   // Drafts are per tab (issue #28). The composer stays mounted across tab
   // switches and keeps one draft per session id (app/session-ui.js
   // DRAFT_IDLE): text, pending image attachments (sent alongside the next
@@ -104,7 +113,6 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
   // onKey steps it via recallInDraft.
   const listRef = React.useRef(null);
   const attachCounterRef = React.useRef(0);
-  const fileInputRef     = React.useRef(null);
   // Files dropped anywhere on the window (Tauri's native drop) light the
   // prompt box while dragged.
   const [dropActive, setDropActive] = React.useState(false);
@@ -471,16 +479,34 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
   const removeAttachment = (attId) =>
     updateDraft(sessionId, d => ({ ...d, attachments: d.attachments.filter(a => a.id !== attId) }));
 
-  // Files dropped from the OS file manager go in at the caret as `@path`
-  // mentions; omp reads them itself at send (text, folders, and images as
-  // image input). Tauri's native drop (`dragDropEnabled`) is the only way
-  // to learn a dropped file's path; the page never sees those drops.
+  // Files dropped from the OS file manager, or picked with the Attach button,
+  // go in at the caret as `@path` mentions; omp reads them itself at send
+  // (text, folders, and images as image input). Tauri's native drop
+  // (`dragDropEnabled`) and Rust's file dialog are the only ways to learn a
+  // file's path; the page never sees those drops, and an <input type=file>
+  // hands out contents, not paths.
   const dropInsertRef = React.useRef(null);
   dropInsertRef.current = (paths) => {
     const ta = taRef.current;
     const at = ta ? ta.selectionStart : text.length;
-    const before = at > 0 && !/\s/.test(text[at - 1]) ? " " : "";
-    spliceDraft({ start: at, end: ta ? ta.selectionEnd : at }, `${before}${window.OMP_MENTIONS.mentionsForPaths(paths)} `);
+    spliceDraft({ start: at, end: ta ? ta.selectionEnd : at }, window.OMP_MENTIONS.mentionsAt(text, at, paths));
+  };
+  // One dialog at a time. It is not modal on Linux: a pick that comes back
+  // after a tab switch goes to the end of the draft of the tab it was
+  // started in (a tab closed meanwhile gets nothing).
+  const pickingRef = React.useRef(false);
+  const pickFiles = async () => {
+    if (pickingRef.current) return;
+    pickingRef.current = true;
+    const target = sessionId;
+    try {
+      const paths = await window.OMP_BRIDGE.pickAttachments(target);
+      if (paths.length === 0) return;
+      if (sessionIdRef.current === target) dropInsertRef.current(paths);
+      else updateOpenDraft(target, d => ({ ...d, text: d.text + window.OMP_MENTIONS.mentionsAt(d.text, d.text.length, paths), historyNav: null }));
+    } finally {
+      pickingRef.current = false;
+    }
   };
   React.useEffect(() => {
     const webview = window.__TAURI__?.webview?.getCurrentWebview?.();
@@ -588,7 +614,7 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
 
   // Live keymap hints — computed once per render, reused across the
   // placeholder, title, kbd chips and footer so they can never disagree.
-  const bridgeHint    = hintFor("desktop.commands.open", "⌘K");
+  const bridgeHint    = hintFor("desktop.commands.open", window.OMP_PLATFORM?.defaultBridgeHint?.() ?? "Ctrl+K");
   const bridgeKeyHint = hintKeyFor("desktop.commands.open", "K");
   const abortHint = hintFor("app.interrupt", "⎋");
   const cycleThinkingHint = hintFor("app.thinking.cycle", "⇧Tab");
@@ -606,8 +632,9 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
       )}
       {/* Goal mode (goal-strip.jsx): built by app-live.jsx, keyed by tab. */}
       {goalStrip}
-      <LiveVoicePanel voice={liveVoice} error={liveError} onAction={onLiveAction} dictationActive={!!dictation?.active} codexLogin={codexLogin} />
-      <DictationPanel dictation={dictation} error={dictationError} onAction={onDictationAction} />
+      <LiveVoicePanel voice={liveVoice} error={liveError} onAction={onLiveAction} onDismiss={() => onDismissVoiceError("live")} dictationActive={!!dictation?.active} codexLogin={codexLogin} />
+      <DictationPanel dictation={dictation} error={dictationError} onAction={onDictationAction} onDismiss={() => onDismissVoiceError("dictation")} handsFree={handsFree} />
+      <ReadAloudPanel readAloud={readAloud} />
 
       {showSlash && (
         <div className="slash-pop" ref={listRef}>
@@ -679,19 +706,15 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
       {voiceSpectrum && <VoiceSpectrum source={voiceSpectrum} />}
 
       <div className="composer-row">
-        <button className="btn ghost composer-tool" title={OMP_TR("attach image")} onClick={() => fileInputRef.current?.click()}>
-          <Icon name="image" size={13} /><span className="composer-tool-label">{OMP_TR("Image")}</span>
+        {/* One button for every kind of file: the native dialog gives paths,
+            which go in as mentions; omp reads an image path as an image.
+            Thumbnails come from a paste. */}
+        <button className="btn ghost composer-tool" title={OMP_TR("attach files or images: their paths go into the message and the agent reads them")} onClick={pickFiles}>
+          <Icon name="file" size={13} /><span className="composer-tool-label">{OMP_TR("Attach")}</span>
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          style={{ display: "none" }}
-          onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }}
-        />
         <VoiceModeButton key={sessionId} live={liveVoice} dictation={dictation} codexLogin={codexLogin} onLiveAction={onLiveAction} onDictationAction={onDictationAction} />
         <div className="composer-input">
+          <ComposerHighlight text={text} />
           <textarea
             ref={taRef}
             rows="1"
@@ -702,7 +725,7 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
                 ? (microcopy?.planTip ? OMP_TR(microcopy.planTip) : OMP_TR("describe what to build, or give feedback on the plan…"))
                 : isStreaming
                   ? (microcopy?.streamingTip ? OMP_TR(microcopy.streamingTip) : undefined)
-                  : (microcopy?.paletteTip ? OMP_TR(microcopy.paletteTip) : `${OMP_TR("what should we ship?")}  ·  ${OMP_TR("/ for commands")}${bridgeHint ? `  ·  ${bridgeHint} ${OMP_TR("for the bridge")}` : ""}`)
+                  : _CMP_formatPaletteTip(microcopy?.paletteTip, bridgeHint)
             }
             value={text}
             onChange={(e) => { setText(e.target.value); setCaret(e.target.selectionStart); }}
@@ -716,6 +739,19 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
             aria-activedescendant={showMention ? `mention-row-${mentionActiveIdx}` : undefined}
           />
         </div>
+        {/* Which key does what, beside the buttons it concerns: no row of
+            its own. Abort only while there is a run to abort, and only when
+            bound; a narrow composer drops the whole hint (the buttons'
+            titles carry the keys). */}
+        <span className="composer-keys mono" aria-hidden="true">
+          {[
+            [sendHints.send, isStreaming && !steerable ? null : goalMode ? OMP_TR("start goal") : isStreaming ? OMP_TR("steer") : OMP_TR("send")],
+            [sendHints.newline, isStreaming ? null : OMP_TR("newline")],
+            [abortHint, isStreaming ? OMP_TR("abort") : null],
+          ].filter(([key, what]) => key && what).map(([key, what]) => (
+            <span key={what} className="composer-key"><kbd>{key}</kbd>{what}</span>
+          ))}
+        </span>
         <button className="btn outlined composer-bridge composer-tool" title={bridgeHint ? `open command bridge (${bridgeHint})` : "open command bridge"}
           onClick={onOpenCmd}>
           <Icon name="command" size={13} /><span className="composer-tool-label">{OMP_TR("Commands")}</span>
@@ -762,8 +798,9 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
           <span style={{ color: "var(--fg-2)" }}>{currentModel?.name}</span>
           <Icon name="chev" size={10} color="var(--fg-4)" />
         </button>
-        <ThinkingMenu key={sessionId} model={currentModel} level={thinking}
+        <ThinkingMenu key={sessionId} model={currentModel} level={thinking} auto={thinkingAuto}
           cycleHint={cycleThinkingHint} onLoad={onLoadThinkingLevels} onSet={onSetThinking} />
+        <FastModePill key={`fast:${sessionId}`} mode={fastMode} onSet={onSetFastMode} />
         <button className={`composer-pill${planMode ? " on" : ""}`} onClick={onTogglePlan}
           disabled={!!planBlocked && !planMode} title={planBlocked && !planMode ? OMP_TR(planBlocked) : OMP_TR("plan mode: the agent writes a plan first")}
           aria-pressed={!!planMode}>
@@ -786,16 +823,6 @@ function Composer({ sessionId, sessionIds, onSend, onPick, planMode, onTogglePla
             {OMP_TR("background job running · the agent resumes when it finishes")}
           </span>
         )}
-        <span className="mono" style={{ color: "var(--fg-4)", fontSize: "var(--d-text-xs)" }}>
-          {[
-            ...(isStreaming && steerable
-              ? [goalMode ? `${sendHints.send} ${OMP_TR("start goal")}` : `${sendHints.send} ${OMP_TR("steer")}`]
-              : [goalMode ? `${sendHints.send} ${OMP_TR("start goal")}` : `${sendHints.send} ${OMP_TR("send")}`, `${sendHints.newline} ${OMP_TR("newline")}`]),
-            // Dropped entirely when unbound rather than showing a keyless
-            // "abort" segment that advertises a shortcut that isn't there.
-            ...(abortHint ? [`${abortHint} ${OMP_TR("abort")}`] : []),
-          ].join(" · ")}
-        </span>
       </div>
     </div>
   );
@@ -988,6 +1015,7 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
   const groups  = {};
   cmdHits.forEach((c) => { (groups[c.group] = groups[c.group] || []).push(c); });
   const activeModelName = models.find((m) => m.id === currentModelId)?.name ?? "–";
+  const bridgeHint = hintFor("desktop.commands.open", window.OMP_PLATFORM?.defaultBridgeHint?.() ?? "Ctrl+K");
 
   return (
     <div className="bridge-scrim" onClick={onClose}>
@@ -1038,7 +1066,7 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
           <span className="kbd">↑↓</span> {OMP_TR("navigate")}
           <span className="kbd">↵</span> {OMP_TR("run")}
           <span className="kbd">{OMP_TR("esc")}</span> {OMP_TR("close")}
-          <span style={{ marginLeft: "auto", color: "var(--fg-4)" }}>{OMP_TR(window.OMP_DATA.microcopy.paletteTip)}</span>
+          <span style={{ marginLeft: "auto", color: "var(--fg-4)" }}>{_CMP_formatPaletteTip(window.OMP_DATA?.microcopy?.paletteTip, bridgeHint)}</span>
         </div>
       </div>
     </div>

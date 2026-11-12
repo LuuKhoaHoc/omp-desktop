@@ -1,14 +1,17 @@
 /* thinking-menu.jsx — the composer's thinking pill and its level menu (#10).
    The levels are omp's own list for the tab's current model
    (`get_available_thinking_levels`, `off` first), fetched each time the
-   menu opens and again when the model changes while it is open. A pick is
-   `set_thinking_level`; the pill shows the level omp reports applied
-   (live.js, `thinking_level_changed`), so a pick omp clamps shows what omp
-   chose. Cycling stays on the keymap (`app.thinking.cycle`) and the
-   `/thinking` palette entry. composer.jsx renders this by its global name,
-   keyed by tab: a tab switch remounts it, closed, with nothing in flight. */
+   menu opens and again when the model changes while it is open; omp's
+   `auto` selector, which that list leaves out, is a row of its own
+   (constants.js thinkingMenuRows). A pick is `set_thinking_level`; the
+   pill shows the level omp reports applied (live.js,
+   `thinking_level_changed`), so a pick omp clamps shows what omp chose,
+   and `auto` beside the level auto resolved to. Cycling stays on the
+   keymap (`app.thinking.cycle`) and the `/thinking` palette entry.
+   composer.jsx renders this by its global name, keyed by tab: a tab switch
+   remounts it, closed, with nothing in flight. */
 
-const { Icon: _TM_Icon, THINKING_LEVELS: _TM_LEVELS } = window;
+const { Icon: _TM_Icon, THINKING_LEVELS: _TM_LEVELS, thinkingMenuRows: _TM_rows } = window;
 
 /** Filled bars (0–3) for a thinking level: the pill shows bars, the
  *  tooltip and the menu keep the word. Unknown levels read as medium. */
@@ -21,7 +24,7 @@ function _TM_bars(level) {
   return 2;
 }
 
-function ThinkingMenu({ model, level, cycleHint, onLoad, onSet }) {
+function ThinkingMenu({ model, level, auto = false, cycleHint, onLoad, onSet }) {
   const [open, setOpen] = React.useState(false);
   // { key, levels } or { key, error }, tagged with the model it was fetched
   // for: shown only while that still matches, so a model switch never shows
@@ -61,8 +64,12 @@ function ThinkingMenu({ model, level, cycleHint, onLoad, onSet }) {
   // Arrows, Home and End move between the levels; Tab closes the menu.
   const onPopKey = e => window.menuKeyNav(e, popRef.current, '[role="menuitemradio"]', close);
 
-  // Sent even for the ticked level: in `auto` mode the tick is only what
-  // auto resolved to, and picking it is how the level gets pinned.
+  // What is ticked and named: the `auto` selector while it is on (`level`
+  // is then only what auto resolved to), else the level.
+  const selected = auto ? "auto" : level;
+  const label = auto ? `auto (${level})` : level;
+
+  // Sent even for the ticked row: omp answers with the level it applies.
   const pick = value => run(() => onSet(value), e => e?.timedOut
     ? "omp has not answered yet; the level may still change"
     : `not applied: ${e?.message ?? e}`);
@@ -70,12 +77,13 @@ function ThinkingMenu({ model, level, cycleHint, onLoad, onSet }) {
   return (
     <div className="thinking-menu" ref={rootRef}>
       <button ref={triggerRef} className="composer-pill" aria-haspopup="menu" aria-expanded={open}
-        title={`thinking: ${level}${cycleHint ? ` (${cycleHint} cycles)` : ""}`} aria-label={`thinking level: ${level}`}
+        title={`thinking: ${label}${cycleHint ? ` (${cycleHint} cycles)` : ""}`} aria-label={`thinking level: ${label}`}
         onClick={() => (open ? close() : setOpen(true))}>
         <_TM_Icon name="thinking" size={13} color="var(--fg-3)" />
         <span className="thinking-bars" aria-hidden="true">
           {[1, 2, 3].map(i => <i key={i} className={i <= _TM_bars(level) ? "f" : ""} />)}
         </span>
+        {auto && <span className="thinking-auto mono" aria-hidden="true">auto</span>}
       </button>
       {open && (
         <div ref={popRef} className={`thinking-pop${busy ? " busy" : ""}`} role="menu" aria-label={OMP_TR("thinking level")} onKeyDown={onPopKey}>
@@ -85,12 +93,12 @@ function ThinkingMenu({ model, level, cycleHint, onLoad, onSet }) {
           ) : shown.error ? (
             <div className="thinking-pop-note error" role="none">{OMP_TR("could not load the levels:")} {shown.error}</div>
           ) : (<>
-            {shown.levels.map(l => (
-              <button key={l} className={`thinking-item${l === level ? " active" : ""}`}
-                role="menuitemradio" aria-checked={l === level} aria-disabled={busy || undefined}
+            {_TM_rows(shown.levels).map(l => (
+              <button key={l} className={`thinking-item${l === selected ? " active" : ""}`}
+                role="menuitemradio" aria-checked={l === selected} aria-disabled={busy || undefined}
                 onClick={() => pick(l)}>
                 <span className="thinking-item-mark">
-                  {l === level && <_TM_Icon name="check" size={10} color="var(--accent)" />}
+                  {l === selected && <_TM_Icon name="check" size={10} color="var(--accent)" />}
                 </span>
                 <span className="thinking-item-name mono">{l}</span>
                 {_TM_LEVELS[l] && <span className="thinking-item-hint">{OMP_TR(_TM_LEVELS[l].hint)}</span>}

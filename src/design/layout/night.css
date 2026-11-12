@@ -3,20 +3,24 @@
    phosphor / daylight render exactly as upstream; kiln's own surfaces are
    layout/kiln.css.
    Rules: one accent (sodium) for running / waiting / primary / edited; no
-   glows or gradients; hairlines instead of boxed cards; chat set for long
+   glows; hairlines instead of boxed cards (night's own rail is the
+   exception: glass cards over a colour wash); chat set for long
    reading (≈ 15px, 1.65, ~76ch column). Nothing is hidden: only spacing,
    colour and shape change. `!important` only where components set inline
    styles (tool tags, glyph borders). */
 
 /* ── Base type ─────────────────────────────────────────────────────────── */
 /* Larger steps than upstream's (10.5–13.5px read thin in Inter on Linux),
-   and a 450 body weight so hairline strokes survive grey-on-graphite. */
-:is(.theme-night, .theme-kiln).density-cozy    { --d-text: 0.9063rem; --d-text-sm: 0.8125rem; --d-text-xs: 0.75rem;   --d-text-lg: 1rem; }
-:is(.theme-night, .theme-kiln).density-compact { --d-text: 0.875rem;  --d-text-sm: 0.7813rem; --d-text-xs: 0.7188rem; --d-text-lg: 0.9375rem; }
-:is(.theme-night, .theme-kiln).density-dense   { --d-text: 0.8125rem; --d-text-sm: 0.75rem;   --d-text-xs: 0.6875rem; --d-text-lg: 0.875rem; }
+   small text most of all, and a 480 body / 500 code weight: thin strokes
+   vanish on a dark ground, worst on Linux's grayscale antialiasing. */
+:is(.theme-night, .theme-kiln).density-cozy    { --d-text: 0.9063rem; --d-text-sm: 0.8438rem; --d-text-xs: 0.8125rem; --d-text-lg: 1rem; }
+:is(.theme-night, .theme-kiln).density-compact { --d-text: 0.875rem;  --d-text-sm: 0.8125rem; --d-text-xs: 0.7813rem; --d-text-lg: 0.9375rem; }
+:is(.theme-night, .theme-kiln).density-dense   { --d-text: 0.8125rem; --d-text-sm: 0.7813rem; --d-text-xs: 0.75rem;   --d-text-lg: 0.875rem; }
 :is(.theme-night, .theme-kiln) body,
-body:is(.theme-night, .theme-kiln) { font-feature-settings: normal; letter-spacing: 0; font-weight: 450; }
+body:is(.theme-night, .theme-kiln) { font-feature-settings: normal; letter-spacing: 0; font-weight: 480; }
 :is(.theme-night, .theme-kiln) .mono { font-feature-settings: normal; }
+:is(.theme-night, .theme-kiln) :is(.mono, kbd, .kbd, code) { font-weight: 500; }
+:is(.theme-night, .theme-kiln) :is(kbd, .kbd) { font-size: max(0.6875rem, 0.85em); }
 :is(.theme-night, .theme-kiln) ::selection { background: rgba(227, 168, 87, 0.28); }
 :is(.theme-night, .theme-kiln) :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 :is(.theme-night, .theme-kiln) ::-webkit-scrollbar-thumb { background: var(--line); }
@@ -64,9 +68,9 @@ body:is(.theme-night, .theme-kiln) { font-feature-settings: normal; letter-spaci
   line-height: 1.68;
 }
 :is(.theme-night, .theme-kiln) .ass-text { color: var(--fg); max-width: 76ch; }
-:is(.theme-night, .theme-kiln) .ass-text code,
-:is(.theme-night, .theme-kiln) .ass-text :not(pre) > code { color: var(--accent); background: var(--bg-surface); border-radius: 4px; padding: 1px 5px; font-size: 0.86em; }
-:is(.theme-night, .theme-kiln) .ass-text pre { background: var(--bg-surface); border: 1px solid var(--line-soft); border-radius: 10px; }
+:is(.theme-night, .theme-kiln) :is(.ass-text, .user-text) code,
+:is(.theme-night, .theme-kiln) :is(.ass-text, .user-text) :not(pre) > code { color: var(--accent); background: var(--bg-surface); border-radius: 4px; padding: 1px 5px; font-size: 0.86em; }
+:is(.theme-night, .theme-kiln) :is(.ass-text, .user-text) pre { background: var(--bg-surface); border: 1px solid var(--line-soft); border-radius: 10px; }
 :is(.theme-night, .theme-kiln).mono-chat .ass-text,
 :is(.theme-night, .theme-kiln).mono-chat .user-text,
 .mono-chat:is(.theme-night, .theme-kiln) .ass-text { font-family: var(--font-mono); font-size: var(--d-text-sm); }
@@ -161,11 +165,13 @@ body:is(.theme-night, .theme-kiln) { font-feature-settings: normal; letter-spaci
 :is(.theme-night, .theme-kiln) .composer.plan-on .composer-row { border-color: rgba(227, 168, 87, 0.45); }
 :is(.theme-night, .theme-kiln) .composer-row:focus-within { border-color: var(--line-bright); box-shadow: 0 0 0 4px rgba(231, 227, 218, 0.03); }
 :is(.theme-night, .theme-kiln) .composer-input { order: -1; flex: 1 0 100%; padding: 2px 4px 8px; }
-:is(.theme-night, .theme-kiln) .composer-input textarea {
+:is(.theme-night, .theme-kiln) .composer-input textarea,
+:is(.theme-night, .theme-kiln) .composer-hl {
   font-family: var(--font-chat);
   font-size: calc(var(--d-text) * 1.12);
-  line-height: 1.6; min-height: 26px;
+  line-height: 1.6;
 }
+:is(.theme-night, .theme-kiln) .composer-input textarea { min-height: 26px; }
 :is(.theme-night, .theme-kiln) .composer-row > .btn.icon,
 :is(.theme-night, .theme-kiln) .composer-row > .btn.outlined,
 :is(.theme-night, .theme-kiln) .composer-row > button:not(.btn.primary):not(.btn.danger) {
@@ -174,7 +180,13 @@ body:is(.theme-night, .theme-kiln) { font-feature-settings: normal; letter-spaci
 }
 :is(.theme-night, .theme-kiln) .composer-row > button:hover:not(:disabled) { background: var(--bg-hover); color: var(--fg); }
 /* Push the trailing group (bridge, steer/abort/approve, send) to the right. */
-:is(.theme-night, .theme-kiln) .composer-row > .composer-input + button { margin-left: auto; }
+:is(.theme-night, .theme-kiln) .composer-row > .composer-bridge { margin-left: auto; }
+/* The textarea has its own line here, so the key hint stays as long as the
+   tools keep their words, and it is what pushes the group then. */
+@container (min-width: 560px) {
+  :is(.theme-night, .theme-kiln) .composer-row > .composer-keys { display: inline-flex; margin-left: auto; }
+  :is(.theme-night, .theme-kiln) .composer-row > .composer-keys + .composer-bridge { margin-left: 0; }
+}
 :is(.theme-night, .theme-kiln) .composer-row .btn.primary {
   height: 32px; min-width: 32px; padding: 0 12px; border-radius: 10px; gap: 6px;
 }
@@ -206,6 +218,29 @@ body:is(.theme-night, .theme-kiln) { font-feature-settings: normal; letter-spaci
 :is(.theme-night, .theme-kiln) .rail-card-head { color: var(--fg-3); font-weight: 500; }
 :is(.theme-night, .theme-kiln) .token-gauge,
 :is(.theme-night, .theme-kiln) .radar { filter: saturate(0.6); }
+
+/* Night: the rail's cards are glass. The window is opaque, so the rail
+   carries its own colour wash for the cards to blur. */
+.theme-night .rail {
+  gap: 10px; padding: 10px 10px 12px;
+  background:
+    radial-gradient(420px 320px at 100% 0%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 70%),
+    radial-gradient(380px 360px at 0% 100%, color-mix(in oklab, var(--cyan) 18%, transparent), transparent 70%),
+    var(--bg-surface);
+}
+.theme-night .rail .rail-card.glass {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--bg-elevated) 58%, transparent),
+    color-mix(in oklab, var(--bg-surface) 66%, transparent)
+  );
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid color-mix(in oklab, var(--fg) 9%, transparent);
+  border-radius: var(--r-2);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--fg) 8%, transparent), 0 8px 24px -16px rgba(0, 0, 0, 0.6);
+  padding: 12px 14px;
+}
 
 /* ── Status bar ────────────────────────────────────────────────────────── */
 :is(.theme-night, .theme-kiln) .status { background: var(--bg-window); border-top-color: var(--line-soft); color: var(--fg-4); }

@@ -413,9 +413,10 @@ input, textarea { font: inherit; color: inherit; background: transparent; border
   0% { background-position: -200% 0; animation-timing-function: steps(12); }
   100% { background-position: 200% 0; }
 }
+/* Opacity only: a size change in four steps read as a stutter. */
 @keyframes pulseDot {
-  0%, 100% { opacity: 1; transform: scale(1); animation-timing-function: steps(4); }
-  50% { opacity: 0.55; transform: scale(0.8); animation-timing-function: steps(4); }
+  0%, 100% { opacity: 1; animation-timing-function: steps(4); }
+  50% { opacity: 0.55; animation-timing-function: steps(4); }
 }
 @keyframes typeBlink {
   0%, 50% { opacity: 1; }
@@ -431,8 +432,13 @@ input, textarea { font: inherit; color: inherit; background: transparent; border
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.fade-up { animation: fadeUp 320ms var(--ease-out) both; }
-.slide-in { animation: slideIn 360ms var(--ease-out) both; }
+/* `backwards`, not `both`: the end keyframe is the element's own style, and
+   a forwards fill keeps the finished animation in effect for good, so every
+   transcript row stays a compositing unit of its own (measured: a column
+   resize over 160 rows painted in 82 ms without it, 148 ms with it).
+   `backwards` still holds the start through an `animation-delay`. */
+.fade-up { animation: fadeUp 320ms var(--ease-out) backwards; }
+.slide-in { animation: slideIn 360ms var(--ease-out) backwards; }
 
 /* shimmer skeleton for streaming text */
 .shimmer-text {

@@ -3,8 +3,8 @@
 
 /* ── Tauri native mode ────────────────────────────────────────────────────────
    The design prototype renders a floating window (14px gap, rounded corners,
-   drop shadow) intended to be viewed inside a browser. Inside a Tauri app with
-   decorations:false the WebView IS the window — that framing must disappear.
+   drop shadow) intended to be viewed inside a browser. Inside a Tauri app the
+   WebView IS the window — that framing must disappear.
 
    live.js adds `tauri-native` to <html> at startup when __TAURI__ is present. */
 
@@ -26,7 +26,7 @@
 }
 
 /* ── Windows 11-style window controls ─────────────────────────────────────────
-   Rendered by WindowChrome (IS_WIN branch) inside .chrome-right.
+   Rendered by WindowChrome (windows controls branch) inside .chrome-right.
    46 × 38 px matches Windows 11 standards; bleed to window edge.             */
 
 .win-controls {

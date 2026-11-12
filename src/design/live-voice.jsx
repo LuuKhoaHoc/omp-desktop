@@ -1,5 +1,15 @@
 /* Live voice controls and captions for the active tab. */
-function LiveVoicePanel({ voice, error, onAction, dictationActive, codexLogin = null }) {
+// A panel's error line, with the × that clears it (and the panel with it,
+// when the error was all it showed).
+function VoiceError({ text, onDismiss }) {
+  return <div className="live-voice-error" role="alert">
+    <span>{text}</span>
+    <button className="btn icon ghost" onClick={onDismiss} title={OMP_TR("dismiss")} aria-label={OMP_TR("dismiss")}>
+      <window.Icon name="close" size={10} />
+    </button>
+  </div>;
+}
+function LiveVoicePanel({ voice, error, onAction, onDismiss, dictationActive, codexLogin = null }) {
   const active = !!voice?.active;
   const paused = !!voice?.paused;
   const phase = voice?.phase ?? "idle";
@@ -39,7 +49,7 @@ function LiveVoicePanel({ voice, error, onAction, dictationActive, codexLogin = 
             aria-label={OMP_TR("End live conversation")}>{OMP_TR("end")}</button>
         </> : null}
       </div>
-      {(error || voice?.error) && <div className="live-voice-error" role="alert">{OMP_TR(error || voice.error)}</div>}
+      {(error || voice?.error) && <VoiceError text={OMP_TR(error || voice.error)} onDismiss={onDismiss} />}
       {transcripts.length > 0 && <ol ref={captionsRef} className="live-voice-captions" aria-label={OMP_TR("Live voice captions")}>
         {transcripts.map(item => <li key={`${item.role}-${item.turn}`}>
           <span className="live-voice-role">{item.role === "user" ? "you" : "assistant"}</span>
@@ -75,21 +85,47 @@ function VoiceModeButton({ live, dictation, codexLogin = null, onLiveAction, onD
   </>;
 }
 
-function DictationPanel({ dictation, error, onAction }) {
-  if (!dictation?.active && !dictation?.error && !error) return null;
+// `handsFree` (`{ armed, reads, end() }`): hands-free conversation is on for
+// this tab, so the panel stays between captures and says what it waits for,
+// and whether the reply is read aloud first (Settings › Voice decides that;
+// hands-free never turns it on by itself).
+function DictationPanel({ dictation, error, onAction, onDismiss, handsFree = null }) {
+  const armed = !!handsFree?.armed;
+  if (!dictation?.active && !dictation?.error && !error && !armed) return null;
   const phase = dictation?.phase ?? "idle";
+  // omp fetches a model that is not on disk before the microphone opens.
+  const fetching = dictation?.active && phase === "starting" ? window.OMP_LIVE_VOICE.DICTATION.downloadLine(dictation.download) : null;
+  const activePhase = fetching
+    ? `${OMP_TR("downloading the voice to text model (first use)")} · ${fetching.name} · ${fetching.totalMb ? `${fetching.mb} / ~${fetching.totalMb} MB` : `${fetching.mb} MB`}`
+    : phase === "stopping" ? "transcribing" : phase;
   return <section className="live-voice" aria-label={OMP_TR("Voice to text")}>
     <div className="live-voice-head">
-      <span className="live-voice-title">{OMP_TR("voice to text")}</span>
-      <span className="live-voice-phase" role="status">{phase === "stopping" ? "transcribing" : phase}</span>
+      <span className="live-voice-title">{armed ? OMP_TR("hands-free") : OMP_TR("voice to text")}</span>
+      <span className="live-voice-phase" role="status">{dictation?.active ? activePhase : !armed ? phase : handsFree.reads ? OMP_TR("listens again after the reply") : OMP_TR("listens again after the reply; read aloud is off")}</span>
       <span className="live-voice-spacer" />
+      {armed && !dictation?.active && <button className="btn outlined" onClick={handsFree.end}>{OMP_TR("end")}</button>}
       {dictation?.active && <button className="btn outlined" onClick={() => onAction("stop")} disabled={phase === "stopping"}>
         {phase === "starting" ? "cancel" : "stop"}
       </button>}
     </div>
-    {(error || dictation?.error) && <div className="live-voice-error" role="alert">{error || dictation.error}</div>}
+    {(error || dictation?.error) && <VoiceError text={error || dictation.error} onDismiss={onDismiss} />}
     {dictation?.active && dictation.text && <div className="dictation-preview" aria-label={OMP_TR("Dictation preview")}>{dictation.text}</div>}
   </section>;
 }
 
-Object.assign(window, { LiveVoicePanel, VoiceModeButton, DictationPanel });
+// Shown while a reply is read aloud (app/use-read-aloud.jsx), and for the
+// reason the last one could not be.
+function ReadAloudPanel({ readAloud }) {
+  if (!readAloud?.speaking && !readAloud?.error) return null;
+  return <section className="live-voice" aria-label={OMP_TR("Read aloud")}>
+    {readAloud.speaking && <div className="live-voice-head">
+      <span className="live-voice-title">{OMP_TR("read aloud")}</span>
+      <span className="live-voice-phase" role="status">{OMP_TR("speaking")}</span>
+      <span className="live-voice-spacer" />
+      <button className="btn outlined" onClick={readAloud.stop}>{OMP_TR("stop")}</button>
+    </div>}
+    {readAloud.error && <VoiceError text={readAloud.error} onDismiss={readAloud.dismiss} />}
+  </section>;
+}
+
+Object.assign(window, { LiveVoicePanel, VoiceModeButton, DictationPanel, ReadAloudPanel });

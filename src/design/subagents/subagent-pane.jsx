@@ -7,7 +7,7 @@
 
 const { Icon: _SAP_Icon, OMP_SUBAGENTS: _SAP, SaDot: _SAP_Dot, SaToolChip: _SAP_ToolChip,
   SaElapsed: _SAP_Elapsed, SaContextTube: _SAP_Tube, saHueStyle: _SAP_hue, saLeafName: _SAP_leaf,
-  saToolMeta: _SAP_toolMeta, useSaNow: _SAP_useNow, SubagentInspector: _SAP_Inspector } = window;
+  saToolMeta: _SAP_toolMeta, saModelName: _SAP_model, useSaNow: _SAP_useNow, SubagentInspector: _SAP_Inspector } = window;
 
 // Lane window grows with the session's first spawn (so early runs are not
 // squeezed into the right edge of a fixed minute), clamped to [20s, 2m].
@@ -95,6 +95,7 @@ function SaAgentRow({ agent: a, depth, now, onSelect }) {
         <span>{window.formatTokens(p?.tokens ?? 0)} tok</span>
         <span>{_SAP.fmtCost(p?.cost ?? 0)}</span>
         <_SAP_Tube progress={p} />
+        {p?.resolvedModel && <span className="sa-row-model" title={p.resolvedModel}>{_SAP_model(p.resolvedModel)}</span>}
       </div>
     </button>
   );

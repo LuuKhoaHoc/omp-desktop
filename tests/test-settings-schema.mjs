@@ -37,7 +37,7 @@ function check(label, fn) {
 
 check("sections in page order, separator before approvals", () => {
   assert.deepEqual(S.SECTIONS.map(s => s.id),
-    ["appearance", "layout", "chat", "composer", "rail", "terminal", "browser", "agent", "session", "remote", "approvals", "shortcuts"]);
+    ["appearance", "layout", "chat", "composer", "rail", "voice", "terminal", "browser", "agent", "session", "remote", "approvals", "shortcuts"]);
   assert.deepEqual(S.SECTIONS.filter(s => s.sep).map(s => s.id), ["approvals"]);
   for (const s of S.SECTIONS) assert.ok(s.icon && s.title && s.blurb && s.groups.length, s.id);
 });
@@ -57,7 +57,7 @@ check("every tweak row names a TWEAK_DEFAULTS key whose default is valid", () =>
 
 check("custom rows name the renderers the page expects", () => {
   assert.deepEqual(S.rows().filter(r => r.kind === "custom").map(r => r.type).sort(),
-    ["agentModels", "approvalMode", "approvalRules", "chromium", "fonts", "goalContinue", "modelRoles", "remoteCert", "remoteDevices", "remotePair", "remotePush", "remoteServer", "shell", "shortcuts", "startupProfile", "terminalHeight", "version", "widgets", "widths"]);
+    ["agentModels", "approvalMode", "approvalRules", "chromium", "fonts", "goalContinue", "modelRoles", "remoteCert", "remoteDevices", "remotePair", "remotePush", "remoteServer", "shell", "shortcuts", "startupProfile", "sttSettings", "terminalHeight", "ttsEngine", "version", "widgets", "widths"]);
   for (const r of S.rows().filter(r => r.kind === "custom")) for (const k of r.keys ?? []) assert.ok(k in D, k);
 });
 
@@ -173,11 +173,11 @@ check("resetRows resets only the given rows (the search matches)", () => {
 
 check("search matches label, desc text and keywords, grouped in page order", () => {
   const r = S.search("font", vals());
-  assert.deepEqual(r.groups.flatMap(g => g.rows.map(x => x.id)), ["custom:fonts", "fontSize", "monoChat"]);
-  assert.equal(r.total, 3);
-  assert.equal(r.bySection.appearance, 3);
+  assert.deepEqual(r.groups.flatMap(g => g.rows.map(x => x.id)), ["systemTheme", "custom:fonts", "fontSize", "monoChat"]);
+  assert.equal(r.total, 4);
+  assert.equal(r.bySection.appearance, 4);
   assert.equal(r.bySection.chat, 0);
-  assert.deepEqual(r.groups.map(g => [g.sectionId, g.sectionTitle, g.groupName]), [["appearance", "Appearance", "Font"], ["appearance", "Appearance", "Text"]]);
+  assert.deepEqual(r.groups.map(g => [g.sectionId, g.sectionTitle, g.groupName]), [["appearance", "Appearance", "Theme"], ["appearance", "Appearance", "Font"], ["appearance", "Appearance", "Text"]]);
   assert.equal(S.search("POWERSHELL", vals()).groups[0].src, "terminal.json", "keywords, case-insensitive");
   assert.equal(S.search("/compact", vals()).total, 1, "desc text with backticks stripped");
   assert.deepEqual(S.search("   ", vals()), { total: 0, bySection: Object.fromEntries(S.SECTIONS.map(s => [s.id, 0])), groups: [] });

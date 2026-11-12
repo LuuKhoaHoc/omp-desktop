@@ -4,7 +4,7 @@
    manager pane on that agent. */
 
 const { Icon: _SAR_Icon, OMP_SUBAGENTS: _SAR, SaDot: _SAR_Dot, SaToolChip: _SAR_ToolChip,
-  SaElapsed: _SAR_Elapsed, saHueStyle: _SAR_hue, useSaNow: _SAR_useNow } = window;
+  SaElapsed: _SAR_Elapsed, saHueStyle: _SAR_hue, saModelName: _SAR_model, useSaNow: _SAR_useNow } = window;
 
 const SA_RAIL_MAX_ROWS = 5;
 
@@ -42,7 +42,7 @@ function SubagentRailCard({ agents, paneOpen, onOpen, onTogglePane }) {
           <div className="sa-rail-list">
             {rows.map(a => (
               <button key={a.id} className="sa-rail-row" style={_SAR_hue(a)} onClick={() => onOpen(a.id)}
-                title={a.description ?? a.task ?? a.id}>
+                title={[a.description ?? a.task ?? a.id, a.progress?.resolvedModel && _SAR_model(a.progress.resolvedModel)].filter(Boolean).join("\n")}>
                 <_SAR_Dot status={a.status} />
                 <span className="sa-name">{a.id}</span>
                 <_SAR_Elapsed agent={a} now={now} />

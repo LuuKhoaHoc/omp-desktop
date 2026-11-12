@@ -54,14 +54,22 @@
     return { text: newText, caret: start + insertText.length };
   }
 
-  // Dropped paths as `@` mentions omp reads itself (any file, folder or
-  // image): one per path, quoted when it holds whitespace, as omp's
-  // mention pattern `@"…"` / `@'…'` / `@token` reads them.
+  // Picked or dropped paths as `@` mentions omp reads itself (any file,
+  // folder or image): one per path, quoted when it holds whitespace, as
+  // omp's mention pattern `@"…"` / `@'…'` / `@token` reads them.
   function mentionsForPaths(paths) {
     return paths.map(p => (!/\s/.test(p) ? `@${p}` : !p.includes('"') ? `@"${p}"` : `@'${p}'`)).join(" ");
   }
 
+  // What goes into `text` at offset `at` for those paths: their mentions,
+  // a space after them, and one before when `at` follows a word (an `@`
+  // glued to a word is no mention to omp).
+  function mentionsAt(text, at, paths) {
+    const before = at > 0 && !/\s/.test(text[at - 1]) ? " " : "";
+    return `${before}${mentionsForPaths(paths)} `;
+  }
+
   Object.assign(window, {
-    OMP_MENTIONS: { parseMentionQuery, applyMention, mentionsForPaths },
+    OMP_MENTIONS: { parseMentionQuery, applyMention, mentionsForPaths, mentionsAt },
   });
 })();

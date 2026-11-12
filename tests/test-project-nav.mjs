@@ -345,4 +345,32 @@ check("restoreSpec opens a fresh, unnamed tab on the folder when there is no con
   assert.deepEqual(spec, { cwd: "/a", resume: null, name: null, profile: "default" });
 });
 
+// ── Listed order and "go to tab N" digits ─────────────────────────────────
+
+check("listedTabs follows the sidebar: projects in bar order, members newest first", () => {
+  // Registry order interleaves two projects; a2 is /a's newest conversation.
+  const tabs = [tab("a1", "/a"), tab("b1", "/b"), tab("a2", "/a"), tab("loose", null), tab("a3", "/a")];
+  assert.deepEqual(N.listedTabs(tabs).map(t => t.id), ["a3", "a2", "a1", "b1", "loose"]);
+});
+
+check("tabDigits numbers the first nine listed tabs, and no more", () => {
+  const tabs = [tab("a1", "/a"), tab("b1", "/b"), tab("a2", "/a")];
+  assert.deepEqual([...N.tabDigits(tabs)], [["a2", 1], ["a1", 2], ["b1", 3]]);
+  const many = Array.from({ length: 11 }, (_, i) => tab(`t${i}`, `/p${i}`));
+  const digits = N.tabDigits(many);
+  assert.equal(digits.size, 9);
+  assert.equal(digits.get("t8"), 9);
+  assert.equal(digits.has("t9"), false);
+});
+
+check("groupDigits: one digit, a range, a range cut at nine, or nothing", () => {
+  const tabs = [tab("s", "/s"), ...Array.from({ length: 7 }, (_, i) => tab(`a${i}`, "/a")), ...Array.from({ length: 3 }, (_, i) => tab(`b${i}`, "/b")), tab("z", "/z")];
+  const digits = N.tabDigits(tabs);
+  const [s, a, b, z] = N.groupTabs(tabs);
+  assert.equal(N.groupDigits(s, digits), "1");
+  assert.equal(N.groupDigits(a, digits), "2–8");
+  assert.equal(N.groupDigits(b, digits), "9", "only its newest member is within reach");
+  assert.equal(N.groupDigits(z, digits), "");
+});
+
 console.log(`project-nav: ${passed} checks passed`);

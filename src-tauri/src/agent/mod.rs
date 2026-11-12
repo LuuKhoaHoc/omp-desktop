@@ -106,6 +106,8 @@ const ALLOWED_COMMAND_TYPES: &[&str] = &[
     // and the one picked.
     "get_available_thinking_levels",
     "set_thinking_level",
+    // The composer's fast mode pill.
+    "set_fast_mode",
     "compact",
     "new_session",
     "export_html",

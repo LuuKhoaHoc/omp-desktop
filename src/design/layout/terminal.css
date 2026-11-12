@@ -52,6 +52,21 @@
 }
 .tab-new-btn:hover, .tab-new-btn[aria-expanded="true"] { background: var(--bg-hover); color: var(--fg); }
 .tab-new-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
-.tab-new .tab-group-pop { min-width: 200px; }
+.tab-new { flex: none; }
+.tab-new .tab-group-pop { top: 100%; left: 0; min-width: 200px; cursor: default; }
+.tab-group-item {
+  appearance: none; border: 0; background: transparent;
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: var(--r-1);
+  font-size: var(--d-text-sm); color: var(--fg-2);
+  text-align: left; cursor: pointer;
+}
+.tab-group-item:hover { color: var(--fg); background: var(--bg-hover); }
+/* Not a `.btn`: same missing-focus-ring fix as .profile-item. */
+.tab-group-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.tab-group-item .tab-name { flex: 1; }
+.tab-group-dot { width: 10px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
+.tab-new.tab-new-header { padding: 0; }
 .tab-new-hint { margin-left: auto; color: var(--fg-4); font-size: var(--d-text-xs); }
 .tab.term-tab .tab-name { font-family: var(--font-mono); }

@@ -1,6 +1,8 @@
-//! Bounded child-process runs, shared by widget plugins (`widgets/run.rs`)
-//! and the PR lookup's `gh` calls (`pr_automation/gh.rs`): [`collect`] runs
-//! a spawned child to its exit under a deadline with capped output.
+//! Bounded child-process runs, shared by widget plugins (`widgets/run.rs`),
+//! the PR lookup's `gh` calls (`pr_automation/gh.rs`) and the speech engines
+//! (`tts.rs`): [`collect`] runs a spawned child to its exit under a deadline
+//! with capped output, [`collect_streamed`] does the same for a child that
+//! reports progress on stdout for as long as it runs.
 //!
 //! A blocking `read` cannot observe the deadline while the child is idle, so
 //! the pipes are drained on dedicated threads whose results come back over
@@ -9,7 +11,7 @@
 
 use std::collections::VecDeque;
 use std::io::Read;
-use std::process::{Child, ExitStatus};
+use std::process::{Child, ChildStdout, ExitStatus};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
@@ -52,14 +54,60 @@ pub fn collect(
     deadline: Instant,
     started: impl FnOnce(&mut Child) -> Result<(), String>,
 ) -> Result<Finished, WaitError> {
+    // The reader thread raises the flag, this thread polls it.
+    let overflow = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&overflow);
+    run(
+        child,
+        supervisor,
+        stderr_keep,
+        deadline,
+        &overflow,
+        move |pipe| spawn_drain(pipe, stdout_cap, Some(flag)),
+        started,
+    )
+}
+
+/// [`collect`] for a child that prints progress for as long as it runs (a
+/// download's rewritten status line): stdout has no cap and none of it is
+/// kept (`Finished::stdout` is empty); every chunk read goes to `sink`, on
+/// the reader thread. The deadline is the only bound.
+pub fn collect_streamed(
+    child: &mut Child,
+    supervisor: &ProcessSupervisor,
+    stderr_keep: usize,
+    deadline: Instant,
+    sink: impl FnMut(&[u8]) + Send + 'static,
+) -> Result<Finished, WaitError> {
+    run(
+        child,
+        supervisor,
+        stderr_keep,
+        deadline,
+        &AtomicBool::new(false),
+        |pipe| spawn_feed(pipe, sink),
+        |_| Ok(()),
+    )
+}
+
+/// What a pipe's reader thread hands back: the bytes it kept.
+type Drained = Receiver<std::io::Result<Vec<u8>>>;
+
+fn run(
+    child: &mut Child,
+    supervisor: &ProcessSupervisor,
+    stderr_keep: usize,
+    deadline: Instant,
+    overflow: &AtomicBool,
+    read_stdout: impl FnOnce(ChildStdout) -> Result<Drained, String>,
+    started: impl FnOnce(&mut Child) -> Result<(), String>,
+) -> Result<Finished, WaitError> {
     let (Some(out_pipe), Some(err_pipe)) = (child.stdout.take(), child.stderr.take()) else {
         terminate(supervisor, child);
         return Err(WaitError::Failed("stdout or stderr pipe missing".into()));
     };
-    let overflow = Arc::new(AtomicBool::new(false));
     let setup = (|| {
-        // The reader thread raises the flag, this thread polls it.
-        let stdout_rx = spawn_drain(out_pipe, stdout_cap, Some(Arc::clone(&overflow)))?;
+        let stdout_rx = read_stdout(out_pipe)?;
         let stderr_rx = spawn_drain(err_pipe, stderr_keep, None)?;
         started(child)?;
         Ok((stdout_rx, stderr_rx))
@@ -68,7 +116,7 @@ pub fn collect(
         terminate(supervisor, child);
         WaitError::Failed(e)
     })?;
-    let status = wait_for_exit(child, supervisor, &overflow, deadline)?;
+    let status = wait_for_exit(child, supervisor, overflow, deadline)?;
     supervisor.kill_tree();
     let stdout = recv_until(&stdout_rx, deadline)
         .ok_or(WaitError::TimedOut)?
@@ -98,7 +146,7 @@ fn spawn_drain(
     mut pipe: impl Read + Send + 'static,
     keep: usize,
     overflow: Option<Arc<AtomicBool>>,
-) -> Result<Receiver<std::io::Result<Vec<u8>>>, String> {
+) -> Result<Drained, String> {
     let (tx, rx) = mpsc::channel();
     std::thread::Builder::new()
         .name("child-drain".to_string())
@@ -126,6 +174,31 @@ fn spawn_drain(
                 }
             };
             let _ = tx.send(result); // the receiver is gone after a timeout; nobody wants the bytes then
+        })
+        .map_err(|e| format!("could not start reader thread: {e}"))?;
+    Ok(rx)
+}
+
+/// Read `pipe` to its end on a thread, handing every chunk to `sink` and
+/// keeping nothing.
+fn spawn_feed(
+    mut pipe: impl Read + Send + 'static,
+    mut sink: impl FnMut(&[u8]) + Send + 'static,
+) -> Result<Drained, String> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::Builder::new()
+        .name("child-feed".to_string())
+        .spawn(move || {
+            let mut chunk = [0u8; 8192];
+            let result = loop {
+                match pipe.read(&mut chunk) {
+                    Ok(0) => break Ok(Vec::new()),
+                    Ok(n) => sink(&chunk[..n]),
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(e) => break Err(e),
+                }
+            };
+            let _ = tx.send(result); // the receiver is gone after a timeout
         })
         .map_err(|e| format!("could not start reader thread: {e}"))?;
     Ok(rx)
@@ -160,10 +233,7 @@ fn wait_for_exit(
 }
 
 /// Result of a drain thread, or `None` if it has not finished by `deadline`.
-fn recv_until(
-    rx: &Receiver<std::io::Result<Vec<u8>>>,
-    deadline: Instant,
-) -> Option<std::io::Result<Vec<u8>>> {
+fn recv_until(rx: &Drained, deadline: Instant) -> Option<std::io::Result<Vec<u8>>> {
     rx.recv_timeout(deadline.saturating_duration_since(Instant::now()))
         .ok()
 }
@@ -214,5 +284,21 @@ mod tests {
         input.extend_from_slice(b"END");
         let rx = spawn_drain(std::io::Cursor::new(input), 5, None).expect("thread");
         assert_eq!(rx.recv().expect("result").expect("read"), b"aaEND");
+    }
+
+    #[test]
+    fn a_feed_hands_every_byte_to_the_sink_and_keeps_none() {
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+        let mut input = vec![b'a'; 20_000];
+        input.extend_from_slice(b"END");
+        let rx = spawn_feed(std::io::Cursor::new(input), move |chunk| {
+            sink.lock().expect("lock").extend_from_slice(chunk);
+        })
+        .expect("thread");
+        assert_eq!(rx.recv().expect("result").expect("read"), Vec::<u8>::new());
+        let seen = std::mem::take(&mut *seen.lock().expect("lock"));
+        assert_eq!(seen.len(), 20_003);
+        assert!(seen.ends_with(b"END"));
     }
 }

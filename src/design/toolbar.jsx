@@ -43,13 +43,13 @@ function ToolButton({ icon, title, onClick, pressed, disabled, color, size = 16,
 }
 
 // ── Header ────────────────────────────────────────────────────────────
-/** nav: { sidebarOpen, onToggleSidebar, onNewChat, onHistory } */
+/** nav: { sidebarOpen, onToggleSidebar, newTab: { project, onChat, onTerminal }, onHistory } */
 function HeaderStart({ nav }) {
   return (
     <div className="hd-cluster">
       <ToolButton icon="sidebar" title={_tbTip("project sidebar", "desktop.sidebar.toggle")}
         pressed={nav.sidebarOpen} onClick={nav.onToggleSidebar} />
-      <ToolButton icon="plus" title={_tbTip("new conversation", "desktop.chat.new")} onClick={nav.onNewChat} />
+      <window.NewTabMenu header chatChord={_tbChord("desktop.chat.new")} {...nav.newTab} />
       {/* The sidebar's footer holds history; with it closed, the header does. */}
       {!nav.sidebarOpen && (
         <ToolButton icon="clock" title={_tbTip("conversation history", "desktop.history.open")} onClick={nav.onHistory} />

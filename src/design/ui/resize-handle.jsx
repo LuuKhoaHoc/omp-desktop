@@ -6,11 +6,12 @@
    Enter resets), double-click resets. `edge` is the side of the pane it
    sits on; `value` is the width shown, labelled while dragging or focused.
    `onSize(px)` gets an unclamped width from a key, the caller bounds and
-   saves it. Placement is the caller's class (layout/stage.css). */
+   saves it. Placement is the caller's class (layout/stage.css) and
+   `style` (the sidebar handle's width variable). */
 
 const { nudge: _RH_nudge } = window.OMP_LAYOUT_WIDTHS;
 
-function ResizeHandle({ edge, label, className = "", drag, value, min, max, onSize, onReset }) {
+function ResizeHandle({ edge, label, className = "", style, drag, value, min, max, onSize, onReset }) {
   const onKeyDown = (e) => {
     const to = _RH_nudge(e.key, e.shiftKey, edge, { value, min, max });
     if (to == null) return;
@@ -21,6 +22,7 @@ function ResizeHandle({ edge, label, className = "", drag, value, min, max, onSi
   return (
     <div
       className={`pane-resize edge-${edge} ${className}${drag.size != null ? " dragging" : ""}`}
+      style={style}
       role="separator"
       aria-orientation="vertical"
       aria-label={label}

@@ -92,6 +92,30 @@
     return [...group.tabs].reverse();
   }
 
+  /** Every tab in the order the sidebar and the chip dropdowns list them:
+   *  projects in tab-bar order, each project's members newest first. The
+   *  order "go to tab N" and next / previous tab count in. */
+  function listedTabs(tabs) {
+    return groupTabs(tabs).flatMap(membersNewestFirst);
+  }
+
+  /** The "go to tab N" digit of each tab that has one: `Map<id, 1..9>`
+   *  over the first nine of `listedTabs`. */
+  function tabDigits(tabs) {
+    const digits = new Map();
+    listedTabs(tabs).slice(0, 9).forEach((tab, i) => digits.set(tab.id, i + 1));
+    return digits;
+  }
+
+  /** The digits of a project shown as one row or chip: "3", or "3–5" (its
+   *  members are contiguous in `listedTabs`); "" when none has a digit. */
+  function groupDigits(group, digits) {
+    const own = group.tabs.map(t => digits.get(t.id)).filter(Boolean);
+    if (!own.length) return "";
+    const lo = Math.min(...own), hi = Math.max(...own);
+    return lo === hi ? String(lo) : `${lo}–${hi}`;
+  }
+
   /** Ids of `groups` flattened in order, each group's members contiguous.
    *  `null` when that equals `tabs`' own order: nothing to write back. */
   function changedOrder(tabs, groups) {
@@ -263,6 +287,9 @@
     groupRunState,
     groupTarget,
     membersNewestFirst,
+    listedTabs,
+    tabDigits,
+    groupDigits,
     moveGroup,
     moveMember,
     shiftGroup,

@@ -41,11 +41,10 @@ function _wpSaveAll({ conns, views }) {
  *  with a clear message instead of pretending. */
 async function _wpRun(req) {
   const inv = window.__TAURI__?.core?.invoke;
-  if (!inv) throw new Error("Work needs the desktop app (no Tauri bridge here).");
+  if (!inv) throw new Error(OMP_TR("Work needs the desktop app (no Tauri bridge here)."));
   if (req.kind === "cli") return inv("work_cli", { tool: req.tool, args: req.args, stdin: null });
   return inv("work_http", { url: req.url, method: req.method, auth: req.auth, tokenEnv: req.tokenEnv, body: req.body ?? null });
 }
-
 function _wpAgo(iso) {
   const t = Date.parse(iso ?? "");
   if (!t) return "";
@@ -83,97 +82,151 @@ function _WP_Drawer({ ticket, client, columns, onClose, onSaved }) {
       const edit = { title, body, ...extra };
       if (dirtyLabels && !isLinear) edit.labels = labelList;
       const t = await client.save(ticket, edit);
-      onSaved(t); setNote("Saved.");
+      onSaved(t); setNote("saved");
     } catch (e) { setErr(e); } finally { setBusy(false); }
   };
   const send = async () => {
     if (!comment.trim()) return;
     setBusy(true); setErr(null);
-    try { await client.comment(ticket, comment.trim()); setComment(""); setNote("Comment posted."); loadNotes(); }
+    try { await client.comment(ticket, comment.trim()); setComment(""); setNote("commented"); loadNotes(); }
     catch (e) { setErr(e); } finally { setBusy(false); }
   };
+  const panelRef = React.useRef(null);
+  const titleRef = React.useRef(null);
+  const Key = window._WP_Key;
+  window._wpUseDialog(panelRef, true, onClose);
+  React.useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el || typeof CSS === "undefined" || CSS.supports?.("field-sizing", "content")) return undefined;
+    const fit = () => { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; };
+    fit();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [title, ticket.id]);
   React.useEffect(() => { if (!note) return; const id = setTimeout(() => setNote(null), 2400); return () => clearTimeout(id); }, [note]);
   return (
-    <aside className="wp-drawer" aria-label={`ticket ${ticket.key}`}
-      onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); if (dirty) save(); } }}>
+    <aside ref={panelRef} tabIndex={-1} role="dialog" className="wp-drawer" aria-label={OMP_TR("ticket {key}", { key: ticket.key })}
+      onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); if (dirty) save(); } }}>
       <div className="wp-drawer-head">
-        <span className="wp-key mono">{ticket.key}</span>
+        <Key k={ticket.key} full={ticket.raw?.references?.full} />
         <span className={`wp-state ${ticket.state}`}>{ticket.stateName || ticket.state}</span>
         <span style={{ flex: 1 }} />
-        {ticket.url && <button className="btn icon ghost" title="open in browser" aria-label="open in browser" onClick={() => window.OMP_BRIDGE?.openExternalUrl?.(ticket.url) ?? window.__TAURI__?.core?.invoke("open_url_external", { url: ticket.url })}><_WP_Icon name="external" size={13} /></button>}
-        <button className="btn icon ghost" title="close (Esc)" aria-label="close" onClick={onClose}><_WP_Icon name="close" size={13} /></button>
+        {ticket.url && <button type="button" className="btn icon ghost" title={OMP_TR("open in browser")} aria-label={OMP_TR("open in browser")} onClick={() => window.OMP_BRIDGE?.openExternalUrl?.(ticket.url) ?? window.__TAURI__?.core?.invoke("open_url_external", { url: ticket.url })}><_WP_Icon name="external" size={13} /></button>}
+        <button type="button" className="btn icon ghost" title={OMP_TR("close (Esc)")} aria-label={OMP_TR("close")} onClick={onClose}><_WP_Icon name="close" size={13} /></button>
       </div>
       <div className="wp-drawer-body">
-        <textarea className="wp-title-input" rows={1} value={title} aria-label="title" onChange={e => setTitle(e.target.value.replace(/\n/g, " "))} />
+        <textarea ref={titleRef} className="wp-title-input" rows={1} value={title} aria-label={OMP_TR("title")} onChange={e => setTitle(e.target.value.replace(/\n/g, " "))} />
         <div className="wp-meta">
           {ticket.assignees.length > 0 && <span><_WP_Icon name="agent" size={11} /> {ticket.assignees.join(", ")}</span>}
-          {ticket.updatedAt && <span><_WP_Icon name="clock" size={11} /> updated {_wpAgo(ticket.updatedAt)} ago</span>}
+          {ticket.updatedAt && <span><_WP_Icon name="clock" size={11} /> {OMP_TR("updated {ago} ago", { ago: _wpAgo(ticket.updatedAt) })}</span>}
         </div>
         {!isLinear && (
-          <label className="wp-field compact"><span>Labels</span>
-            <input value={labels} onChange={e => setLabels(e.target.value)} placeholder="comma-separated" /></label>
+          <label className="wp-field compact"><span>{OMP_TR("Labels")}</span>
+            <input value={labels} onChange={e => setLabels(e.target.value)} placeholder={OMP_TR("comma-separated")} /></label>
         )}
         <div className="wp-tabs" role="tablist">
-          <button role="tab" aria-selected={tab === "preview"} className={tab === "preview" ? "on" : ""} onClick={() => setTab("preview")}>Preview</button>
-          <button role="tab" aria-selected={tab === "edit"} className={tab === "edit" ? "on" : ""} onClick={() => setTab("edit")}>Edit</button>
-          {body !== ticket.body && <span className="wp-dirty">edited</span>}
+          <button role="tab" aria-selected={tab === "preview"} className={tab === "preview" ? "on" : ""} onClick={() => setTab("preview")}>{OMP_TR("Preview")}</button>
+          <button role="tab" aria-selected={tab === "edit"} className={tab === "edit" ? "on" : ""} onClick={() => setTab("edit")}>{OMP_TR("Edit")}</button>
+          {body !== ticket.body && <span className="wp-dirty">{OMP_TR("edited")}</span>}
         </div>
         {tab === "edit"
-          ? <textarea className="wp-body-input mono" value={body} onChange={e => setBody(e.target.value)} aria-label="description (markdown)" />
-          : <div className="wp-body-preview">{body.trim() ? <_WP_Markdown text={body} /> : <span className="wp-empty-line">No description.</span>}</div>}
+          ? <textarea className="wp-body-input mono" value={body} onChange={e => setBody(e.target.value)} aria-label={OMP_TR("description (markdown)")} />
+          : <div className="wp-body-preview">{body.trim() ? <_WP_Markdown text={body} /> : <span className="wp-empty-line">{OMP_TR("No description.")}</span>}</div>}
         {client.hasNotes && <window._WPR_Notes threads={threads} error={notesErr} />}
         {err && (
           <div className="wp-note err"><_WP_Icon name="warn" size={12} /> {String(err.message ?? err)}
-            {err.conflict && <button className="btn ghost" onClick={() => onSaved(err.conflict)}>Load latest</button>}
+            {err.conflict && <button className="btn ghost" onClick={() => onSaved(err.conflict)}>{OMP_TR("Load latest")}</button>}
           </div>
         )}
         <div className="wp-comment">
-          <textarea value={comment} rows={2} placeholder="Write a comment (markdown)…" onChange={e => setComment(e.target.value)}
+          <textarea value={comment} rows={2} placeholder={OMP_TR("Write a comment (markdown)…")} onChange={e => setComment(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } }} />
-          <button className="btn outlined" disabled={!comment.trim() || busy} onClick={send} title="post comment (Ctrl+Enter)">Comment</button>
+          <button className="btn outlined" disabled={!comment.trim() || busy} onClick={send} title={OMP_TR("post comment (Ctrl+Enter)")}>{OMP_TR("Comment")}</button>
         </div>
       </div>
       <div className="wp-drawer-foot">
-        {note && <span className="wp-ok">{note}</span>}
+        {note && <span className="wp-ok">{note === "saved" ? OMP_TR("Saved.") : OMP_TR("Comment posted.")}</span>}
         <span style={{ flex: 1 }} />
         {!isLinear && (ticket.state === "open"
-          ? <button className="btn ghost" disabled={busy} onClick={() => save({ state: "closed" })}>Close ticket</button>
-          : <button className="btn ghost" disabled={busy} onClick={() => save({ state: "open" })}>Reopen</button>)}
+          ? <button className="btn ghost" disabled={busy} onClick={() => save({ state: "closed" })}>{OMP_TR("Close ticket")}</button>
+          : <button className="btn ghost" disabled={busy} onClick={() => save({ state: "open" })}>{OMP_TR("Reopen")}</button>)}
         {isLinear && columns.length > 0 && (
-          <select className="wp-select" value={ticket.column} disabled={busy} aria-label="state"
+          <select className="wp-select" value={ticket.column} disabled={busy} aria-label={OMP_TR("state")}
             onChange={async e => { setBusy(true); try { onSaved(await client.move(ticket, e.target.value)); } catch (x) { setErr(x); } finally { setBusy(false); } }}>
             {columns.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
-        <button className="btn ghost" disabled={!dirty || busy} onClick={() => { setTitle(ticket.title); setBody(ticket.body); setLabels(ticket.labels.join(", ")); }}>Discard</button>
-        <button className="btn primary" disabled={!dirty || busy} onClick={() => save()} title="save (Ctrl+S)">{busy ? "Saving…" : "Save"}</button>
+        <button className="btn ghost" disabled={!dirty || busy} onClick={() => { setTitle(ticket.title); setBody(ticket.body); setLabels(ticket.labels.join(", ")); }}>{OMP_TR("Discard")}</button>
+        <button className="btn primary" disabled={!dirty || busy} onClick={() => save()} title={OMP_TR("save (Ctrl+S)")}>{busy ? OMP_TR("Saving…") : OMP_TR("Save")}</button>
       </div>
     </aside>
   );
 }
-
 // ── Board + list ──────────────────────────────────────────────────────────
+const _WP_PRI_RE = /^(?:p[0-3]|priority(?:\s*(?:::|:|-|\/)\s*\S+)?|critical|urgent|blocker|high|medium|low)$/i;
+function _wpPriorityTone(label) {
+  const l = String(label).toLowerCase();
+  if (/p0|p1|critical|urgent|blocker|high/.test(l)) return "high";
+  if (/p2|medium/.test(l)) return "med";
+  return "";
+}
+function _wpPriorityLabel(label) {
+  const s = String(label ?? "").replace(/^priority\s*(?:::|:|-|\/)\s*/i, "").trim() || String(label ?? "");
+  return s === s.toUpperCase() && s.length > 3 ? s[0] + s.slice(1).toLowerCase() : s;
+}
+function _wpColMeta(col) {
+  const raw = String(col ?? "");
+  const cleaned = raw.replace(/^(?:status\s*(?:-|::|:|\/)\s*)/i, "").trim() || raw;
+  const label = cleaned === cleaned.toUpperCase() && cleaned.length > 3
+    ? cleaned.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+    : cleaned;
+  const low = raw.toLowerCase();
+  const tone = /block|reject|fail|hold|stuck/.test(low) ? "blocked"
+    : /done|close|resolv|merg|complete|ship/.test(low) ? "done"
+    : /assign|progress|doing|active|review|test|qa|wip/.test(low) ? "active"
+    : "idle";
+  return { label, tone };
+}
+function _wpSplitLabels(labels, columns) {
+  const visible = labels.filter(l => !columns.includes(l));
+  const pri = visible.find(l => _WP_PRI_RE.test(l.trim())) ?? null;
+  const rest = pri ? visible.filter(l => l !== pri) : visible;
+  return { pri, rest };
+}
+
 function _WP_Card({ t, active, onOpen, onMove, columns }) {
+  const [dragging, setDragging] = React.useState(false);
+  const Key = window._WP_Key, Assignee = window._WP_Assignee;
+  const { pri, rest } = _wpSplitLabels(t.labels, columns);
   return (
-    <div className={`wp-card${active ? " on" : ""}`} draggable tabIndex={0} role="button" aria-label={`${t.key} ${t.title}`}
-      onDragStart={e => { e.dataTransfer.setData("text/omp-ticket", t.id); e.dataTransfer.effectAllowed = "move"; }}
+    <button type="button" className={`wp-card${active ? " on" : ""}${dragging ? " dragging" : ""}`}
+      draggable aria-label={`${t.key} ${t.title}`}
+      onDragStart={e => { setDragging(true); e.dataTransfer.setData("text/omp-ticket", t.id); e.dataTransfer.effectAllowed = "move"; }}
+      onDragEnd={() => setDragging(false)}
       onClick={() => onOpen(t)}
       onKeyDown={e => {
-        if (e.key === "Enter") onOpen(t);
         if (e.altKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
           e.preventDefault();
           const i = columns.indexOf(t.column) + (e.key === "ArrowRight" ? 1 : -1);
           if (i >= 0 && i < columns.length) onMove(t, columns[i]);
         }
       }}>
-      <div className="wp-card-title">{t.title}</div>
-      <div className="wp-card-meta">
-        <span className="mono">{t.key}</span>
-        {t.labels.filter(l => !columns.includes(l)).slice(0, 2).map(l => <span className="wp-label" key={l}>{l}</span>)}
-        <span style={{ flex: 1 }} />
-        {t.assignees[0] && <span className="wp-who">{t.assignees[0]}</span>}
-      </div>
-    </div>
+      <span className="wp-card-top">
+        <Key k={t.key} full={t.raw?.references?.full} />
+        {pri && <span className={`wp-pri ${_wpPriorityTone(pri)}`} title={pri}>{_wpPriorityLabel(pri)}</span>}
+      </span>
+      <span className="wp-card-title">{t.title}</span>
+      {(rest.length > 0 || t.assignees[0]) && (
+        <span className="wp-card-foot">
+          <span className="wp-card-labels">
+            {rest.slice(0, 2).map(l => <span className="wp-label" key={l} title={l}>{l}</span>)}
+          </span>
+          {t.assignees[0] && <Assignee name={t.assignees[0]} />}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -183,14 +236,20 @@ function _WP_Board({ tickets, columns, activeId, onOpen, onMove }) {
     <div className="wp-board">
       {columns.map(col => {
         const items = tickets.filter(t => t.column === col);
+        const meta = _wpColMeta(col);
         return (
           <section key={col} className={`wp-col${over === col ? " over" : ""}`} aria-label={col}
-            onDragOver={e => { e.preventDefault(); setOver(col); }} onDragLeave={() => setOver(o => (o === col ? null : o))}
+            onDragOver={e => { e.preventDefault(); if (over !== col) setOver(col); }}
+            onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(o => (o === col ? null : o)); }}
             onDrop={e => { e.preventDefault(); setOver(null); const t = tickets.find(x => x.id === e.dataTransfer.getData("text/omp-ticket")); if (t && t.column !== col) onMove(t, col); }}>
-            <header className="wp-col-head"><span>{col}</span><span className="wp-count">{items.length}</span></header>
+            <header className="wp-col-head" title={col}>
+              <span className={`wp-col-dot ${meta.tone}`} aria-hidden="true" />
+              <span className="wp-col-name">{meta.label}</span>
+              <span className="wp-col-count">{items.length}</span>
+            </header>
             <div className="wp-col-body">
               {items.map(t => <_WP_Card key={t.id} t={t} active={t.id === activeId} onOpen={onOpen} onMove={onMove} columns={columns} />)}
-              {items.length === 0 && <div className="wp-col-empty">Drop here</div>}
+              {items.length === 0 && <div className="wp-col-empty">{over === col ? OMP_TR("Release to move here") : OMP_TR("No tickets")}</div>}
             </div>
           </section>
         );
@@ -200,14 +259,15 @@ function _WP_Board({ tickets, columns, activeId, onOpen, onMove }) {
 }
 
 function _WP_List({ tickets, activeId, onOpen }) {
+  const Key = window._WP_Key;
   return (
     <div className="wp-list" role="list">
       {tickets.map(t => (
         <button key={t.id} role="listitem" className={`wp-row${t.id === activeId ? " on" : ""}`} onClick={() => onOpen(t)}>
           <span className={`wp-dot ${t.state}`} aria-label={t.state} />
-          <span className="wp-key mono" title={t.raw?.references?.full ?? t.key}>{t.key}</span>
+          <Key k={t.key} full={t.raw?.references?.full} />
           <span className="wp-row-title">{t.title}</span>
-          <span className="wp-row-col">{t.column}</span>
+          <span className="wp-row-col" title={t.column}>{_wpColMeta(t.column).label}</span>
           <span className="wp-row-ago mono">{_wpAgo(t.updatedAt)}</span>
         </button>
       ))}
@@ -221,8 +281,9 @@ const _wpNewView = connId => ({ id: `v${Date.now().toString(36)}`, connId, name:
 
 function WorkPanel() {
   const W = window.OMP_WORK, V = window.OMP_WORK_VIEWS, R = window.OMP_WORK_REVIEW;
-  const { _WP_ConnectionForm: ConnForm, _WP_ViewForm: ViewForm, _WP_MrList: MrList, _WP_PipeList: PipeList,
-    _WP_MrDrawer: MrDrawer, _WP_PipeDrawer: PipeDrawer } = window;
+  const { _WP_ConnectionForm: ConnForm, _WP_ViewForm: ViewForm, _WP_ViewMenu: ViewMenu,
+    _WP_AssigneeFilter: AssigneeFilter, _WP_LabelFilter: LabelFilter,
+    _WP_MrList: MrList, _WP_PipeList: PipeList, _WP_MrDrawer: MrDrawer, _WP_PipeDrawer: PipeDrawer } = window;
   const [{ conns, views }, setStore] = React.useState(_wpLoad);
   const [activeId, setActiveId] = React.useState(() => localStorage.getItem(_WP_ACTIVE) ?? "");
   const [layout, setLayout] = React.useState(() => localStorage.getItem(_WP_LAYOUT) ?? "board");
@@ -232,8 +293,9 @@ function WorkPanel() {
   const [state, setState] = React.useState({ loading: false, error: null });
   const [open, setOpen] = React.useState(null);
   const [q, setQ] = React.useState("");
+  const [whoFilter, setWhoFilter] = React.useState("");
+  const [labelFilter, setLabelFilter] = React.useState("");
   const [showClosed, setShowClosed] = React.useState(false);
-  // A pre-views active id is a connection's: its migrated view has that connId.
   const view = views.find(v => v.id === activeId) ?? views.find(v => v.connId === activeId) ?? views[0] ?? null;
   const target = React.useMemo(() => (view ? V.resolve(view, conns) : null), [view, conns]); // eslint-disable-line
   const kind = target?.kind ?? "issues";
@@ -245,7 +307,7 @@ function WorkPanel() {
     try { const list = await client.list(); setItems(list); setColumns(kind === "issues" ? client.columns() : []); setState({ loading: false, error: null }); }
     catch (e) { setState({ loading: false, error: String(e?.message ?? e) }); }
   }, [client]); // eslint-disable-line
-  React.useEffect(() => { setItems([]); setOpen(null); refresh(); }, [refresh]);
+  React.useEffect(() => { setItems([]); setOpen(null); setWhoFilter(""); setLabelFilter(""); refresh(); }, [refresh]);
   React.useEffect(() => { localStorage.setItem(_WP_LAYOUT, layout); }, [layout]);
 
   const persist = next => { setStore(next); _wpSaveAll(next); };
@@ -262,23 +324,22 @@ function WorkPanel() {
     const prev = t;
     setItems(list => list.map(x => (x.id === t.id ? { ...x, column: col } : x))); // optimistic
     try { replace(await client.move(t, col)); }
-    catch (e) { replace(prev); setState(s => ({ ...s, error: `Move failed: ${String(e?.message ?? e)}` })); }
+    catch (e) { replace(prev); setState(s => ({ ...s, error: OMP_TR("Move failed: {err}", { err: String(e?.message ?? e) }) })); }
   };
-
   if (editing || !target) {
     const ev = editing?.view, ec = editing?.conn;
     return (
       <div className="wp-panel">
-        <div className="wp-head"><span className="wp-head-title">Work</span></div>
+        <div className="wp-head"><span className="wp-head-title">{OMP_TR("Work")}</span></div>
         <div className="wp-scroll">
           {!editing && (
             <div className="wp-empty">
-              <div className="wp-empty-title">{conns.length ? "Add a view" : "Connect a tracker"}</div>
+              <div className="wp-empty-title">{conns.length ? OMP_TR("Add a view") : OMP_TR("Connect a tracker")}</div>
               <p>{conns.length
-                ? "A view shows issues, merge requests or pipelines from a project or a whole group: yours, your team's or everyone's."
-                : "GitLab (cloud or self-hosted), GitHub or Linear. Use the CLI you are already signed in to, or an API token kept in an environment variable."}</p>
+                ? OMP_TR("A view shows issues, merge requests or pipelines from a project or a whole group: yours, your team's or everyone's.")
+                : OMP_TR("GitLab (cloud or self-hosted), GitHub or Linear. Use the CLI you are already signed in to, or an API token kept in an environment variable.")}</p>
               <button className="btn primary" onClick={() => setEditing(conns.length ? { view: _wpNewView(conns[0].id) } : { conn: null })}>
-                <_WP_Icon name="plus" size={12} /> {conns.length ? "Add view" : "Add connection"}</button>
+                <_WP_Icon name="plus" size={12} /> {conns.length ? OMP_TR("Add view") : OMP_TR("Add connection")}</button>
             </div>
           )}
           {editing && "conn" in editing && <ConnForm key={ec?.id ?? "new"} initial={ec} onSave={saveConn} onCancel={() => setEditing(editing.back ?? null)}
@@ -294,46 +355,61 @@ function WorkPanel() {
   const needle = q.trim().toLowerCase();
   const text = t => (kind === "issues" ? `${t.key} ${t.title} ${t.labels.join(" ")} ${t.assignees.join(" ")}`
     : kind === "mrs" ? `${t.key} ${t.title} ${t.author} ${t.source} ${t.statusLabel}` : `${t.key} ${t.ref} ${t.status} ${t.sha}`);
-  const shown = items.filter(t => (!needle || text(t).toLowerCase().includes(needle))
+  const matchesWho = t => !whoFilter
+    || (whoFilter === "__none__" ? kind === "issues" && !(t.assignees?.length)
+    : kind === "mrs" ? t.author === whoFilter : (t.assignees ?? []).includes(whoFilter));
+  const shown = items.filter(t => matchesWho(t)
+    && (!labelFilter || (t.labels ?? []).includes(labelFilter))
+    && (!needle || text(t).toLowerCase().includes(needle))
     && (kind !== "issues" || layout === "board" || showClosed || t.state === "open"));
   const boardCols = target.platform === "linear" ? columns : columns.filter(c => showClosed || c !== W.CLOSED);
-  const noun = { issues: "tickets", mrs: "merge requests", pipelines: "pipelines" }[kind];
-
+  const filteredOut = items.length > 0 && shown.length === 0 && (needle || whoFilter || labelFilter);
+  const onlyClosedHidden = kind === "issues" && layout === "list" && !showClosed && items.length > 0 && shown.length === 0 && !filteredOut;
   return (
     <div className={`wp-panel${open ? " has-drawer" : ""}`}>
       <div className="wp-head">
-        <select className="wp-select wp-conn" value={view.id} aria-label="view"
-          onChange={e => {
-            const v = e.target.value;
-            if (v === "+view") setEditing({ view: _wpNewView(target.connId) });
-            else if (v === "+edit") setEditing({ view });
-            else if (v === "+conn") setEditing({ conn: null });
-            else activate(v);
-          }}>
-          {conns.map(c => (
-            <optgroup key={c.id} label={c.name}>
-              {views.filter(v => v.connId === c.id).map(v => <option key={v.id} value={v.id}>{v.name} · {V.KINDS[v.kind]}</option>)}
-            </optgroup>
-          ))}
-          <option value="+edit">✎ Edit this view…</option>
-          <option value="+view">+ New view…</option>
-          <option value="+conn">+ Add connection…</option>
-        </select>
+        <ViewMenu view={view} views={views} conns={conns} onSelect={activate}
+          onEditView={() => setEditing({ view })}
+          onNewView={() => setEditing({ view: _wpNewView(target.connId) })}
+          onAddConn={() => setEditing({ conn: null })} />
         {kind === "issues" && (
-          <div className="wp-seg small" role="radiogroup" aria-label="layout">
-            <button role="radio" aria-checked={layout === "board"} className={layout === "board" ? "on" : ""} title="board" aria-label="board" onClick={() => setLayout("board")}><_WP_Icon name="grid" size={13} /></button>
-            <button role="radio" aria-checked={layout === "list"} className={layout === "list" ? "on" : ""} title="list" aria-label="list" onClick={() => setLayout("list")}><_WP_Icon name="layers" size={13} /></button>
+          <div className="wp-seg small" role="radiogroup" aria-label={OMP_TR("layout")}>
+            <button role="radio" aria-checked={layout === "board"} className={layout === "board" ? "on" : ""} title={OMP_TR("Board view")} aria-label={OMP_TR("board")} onClick={() => setLayout("board")}>
+              <_WP_Icon name="grid" size={12} /><span className="wp-seg-lbl">{OMP_TR("Board")}</span>
+            </button>
+            <button role="radio" aria-checked={layout === "list"} className={layout === "list" ? "on" : ""} title={OMP_TR("List view")} aria-label={OMP_TR("list")} onClick={() => setLayout("list")}>
+              <_WP_Icon name="layers" size={12} /><span className="wp-seg-lbl">{OMP_TR("List")}</span>
+            </button>
           </div>
         )}
         <span style={{ flex: 1 }} />
-        {kind === "issues" && <button className={`btn icon ghost${showClosed ? " on" : ""}`} title={showClosed ? "hide closed" : "show closed"} aria-pressed={showClosed} aria-label="show closed" onClick={() => setShowClosed(v => !v)}><_WP_Icon name="check" size={13} /></button>}
-        <button className="btn icon ghost" title="refresh" aria-label="refresh" disabled={state.loading} onClick={refresh}><_WP_Icon name="refresh" size={13} /></button>
-        <button className="btn ghost wp-edit" title="edit this view: what it shows, from where, whose" onClick={() => setEditing({ view })}><_WP_Icon name="edit" size={12} /> Edit view</button>
+        <button className="btn icon ghost" title={OMP_TR("Refresh")} aria-label={OMP_TR("refresh")} disabled={state.loading} onClick={refresh}>
+          <span className={state.loading ? "wp-spin" : ""} style={{ display: "inline-flex" }}><_WP_Icon name="refresh" size={13} /></span>
+        </button>
+        <button className="btn ghost wp-edit" title={OMP_TR("Edit this view: what it shows, from where, whose")} onClick={() => setEditing({ view })}>
+          <_WP_Icon name="edit" size={12} /><span className="wp-edit-lbl">{OMP_TR("Edit view")}</span>
+        </button>
       </div>
-      <div className="wp-search">
-        <_WP_Icon name="search" size={12} />
-        <input value={q} placeholder={`Filter ${items.length} ${noun}`} onChange={e => setQ(e.target.value)} aria-label={`filter ${noun}`} />
-        {state.loading && <span className="wp-loading">loading…</span>}
+      <div className="wp-filterbar">
+        <div className="wp-search">
+          <_WP_Icon name="search" size={12} />
+          <input value={q}
+            placeholder={kind === "mrs" ? OMP_TR("Filter {n} merge requests…", { n: items.length }) : kind === "pipelines" ? OMP_TR("Filter {n} pipelines…", { n: items.length }) : OMP_TR("Filter {n} tickets…", { n: items.length })}
+            onChange={e => setQ(e.target.value)}
+            aria-label={kind === "mrs" ? OMP_TR("filter merge requests") : kind === "pipelines" ? OMP_TR("filter pipelines") : OMP_TR("filter tickets")} />
+          {q && <button type="button" className="wp-search-clear" aria-label={OMP_TR("clear filter")} onClick={() => setQ("")}><_WP_Icon name="close" size={11} /></button>}
+          {state.loading && <span className="wp-loading">{OMP_TR("syncing…")}</span>}
+        </div>
+        <AssigneeFilter items={items} kind={kind} value={whoFilter} onChange={setWhoFilter} />
+        <LabelFilter items={items} columns={columns} kind={kind} value={labelFilter} onChange={setLabelFilter} />
+        {kind === "issues" && (
+          <button type="button" className={`wp-filter-btn${showClosed ? " on" : ""}`}
+            aria-pressed={showClosed} title={showClosed ? OMP_TR("Hide closed tickets") : OMP_TR("Show closed tickets")}
+            onClick={() => setShowClosed(v => !v)}>
+            <_WP_Icon name="check" size={11} />
+            <span>{OMP_TR("Closed")}</span>
+          </button>
+        )}
       </div>
       {state.error && <div className="wp-note err wp-banner"><_WP_Icon name="warn" size={12} /> {state.error}</div>}
       <div className="wp-scroll">
@@ -341,8 +417,25 @@ function WorkPanel() {
           : kind === "pipelines" ? <PipeList items={shown} activeId={open?.id} onOpen={setOpen} />
           : layout === "board" ? <_WP_Board tickets={shown} columns={boardCols} activeId={open?.id} onOpen={setOpen} onMove={move} />
           : <_WP_List tickets={shown} activeId={open?.id} onOpen={setOpen} />}
-        {!state.loading && !state.error && items.length === 0 && <div className="wp-empty-line pad">No {noun} here yet.</div>}
+        {!state.loading && !state.error && items.length === 0 && (
+          <div className="wp-empty-line pad">
+            {kind === "mrs" ? OMP_TR("No merge requests in this view yet.") : kind === "pipelines" ? OMP_TR("No pipelines in this view yet.") : OMP_TR("No tickets in this view yet.")}
+          </div>
+        )}
+        {!state.loading && filteredOut && (
+          <div className="wp-empty-line pad">
+            {kind === "mrs" ? OMP_TR("No merge requests match the active filter.") : kind === "pipelines" ? OMP_TR("No pipelines match the active filter.") : OMP_TR("No tickets match the active filter.")}{" "}
+            <button type="button" className="btn ghost small" onClick={() => { setQ(""); setWhoFilter(""); setLabelFilter(""); }}>{OMP_TR("Clear filters")}</button>
+          </div>
+        )}
+        {!state.loading && onlyClosedHidden && (
+          <div className="wp-empty-line pad">
+            {OMP_TR("All {n} tickets are closed.", { n: items.length })}{" "}
+            <button type="button" className="btn ghost small" onClick={() => setShowClosed(true)}>{OMP_TR("Show closed tickets")}</button>
+          </div>
+        )}
       </div>
+      {open && <div className="wp-drawer-scrim" onClick={() => setOpen(null)} aria-hidden="true" />}
       {open && kind === "issues" && <_WP_Drawer ticket={open} client={client} columns={columns} onClose={() => setOpen(null)} onSaved={replace} />}
       {open && kind === "mrs" && <MrDrawer mr={open} client={client} onClose={() => setOpen(null)} onChanged={replace} />}
       {open && kind === "pipelines" && <PipeDrawer pipe={open} client={client} onClose={() => setOpen(null)} onChanged={replace} />}

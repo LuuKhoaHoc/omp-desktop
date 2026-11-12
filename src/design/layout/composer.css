@@ -36,7 +36,9 @@
 .live-voice-head label { display: inline-flex; align-items: center; gap: 4px; }
 .live-voice-head meter { width: 48px; height: 8px; accent-color: var(--accent); }
 .live-voice-spacer { flex: 1; }
-.live-voice-error { margin-top: 6px; color: var(--rose); overflow-wrap: anywhere; }
+.live-voice-error { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; color: var(--rose); overflow-wrap: anywhere; }
+.live-voice-error > span { flex: 1; min-width: 0; }
+.live-voice-error > .btn { flex: none; margin: -3px -2px 0 0; color: var(--fg-3); }
 .live-voice-captions { list-style: none; padding: 0; margin: 6px 0 0; max-height: 120px; overflow-y: auto; }
 .live-voice-captions li { display: flex; gap: 8px; padding: 3px 0; color: var(--fg-2); overflow-wrap: anywhere; }
 .live-voice-role { flex: none; min-width: 4.5em; color: var(--fg-3); font-family: var(--font-mono); }
@@ -137,17 +139,66 @@
   .composer-tool, .composer-bridge.composer-tool { padding: 0; min-width: 30px; justify-content: center; }
   .composer-tool-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 }
+/* Key hints inside the prompt box, before its trailing buttons. */
+.composer-keys {
+  align-self: center; flex: none;
+  display: inline-flex; gap: 10px; padding: 0 4px;
+  font-size: var(--d-text-xs); color: var(--fg-4); white-space: nowrap;
+  user-select: none;
+}
+.composer-key { display: inline-flex; align-items: baseline; gap: 4px; }
+.composer-key kbd { font: inherit; color: var(--fg-3); }
+/* On one line with the textarea it would take the draft's room. */
+@container (max-width: 860px) { .composer-keys { display: none; } }
 .composer-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.composer-input { flex: 1; padding: 4px 4px 4px 4px; }
+.composer-input { flex: 1; padding: 4px 4px 4px 4px; position: relative; }
+/* The textarea and its coloured copy (composer-highlight.jsx) must wrap and
+   space their text alike. The copy is cut into runs, and kerning, a ligature
+   or a contextual alternate never crosses a run's edge, while the textarea
+   shapes its text as one run: in WebKitGTK the two drifted up to 5px apart
+   on one line. With those off, a glyph's advance does not depend on its
+   neighbours. `text-rendering` is named because engines disagree on whether
+   a textarea inherits it. */
+.composer-input textarea, .composer-hl {
+  font: inherit; font-size: var(--d-text);
+  line-height: 1.5;
+  padding: 2px;
+  font-kerning: none; font-variant-ligatures: none; text-rendering: auto;
+}
+/* The draft is drawn by the coloured copy above the textarea
+   (composer-highlight.jsx): the textarea's own glyphs are transparent, its
+   caret and selection stay. */
 .composer-input textarea {
   width: 100%;
   min-height: 22px; max-height: 180px;
   overflow-y: hidden;
   resize: none;
-  font: inherit; font-size: var(--d-text);
-  color: var(--fg);
-  line-height: 1.5;
+  color: transparent; caret-color: var(--fg);
 }
+.composer-input textarea::selection { color: transparent; background: color-mix(in oklab, var(--accent) 32%, transparent); }
+/* The copy: placed on the textarea's client box by composer-highlight.jsx,
+   with the textarea's font (the shared rule above and the theme rules that
+   name both), its padding and the text properties a textarea does not
+   inherit. A kind below may change colour and decoration only: anything
+   that changes a glyph's advance (weight, style, size, family, padding)
+   moves the text off the caret. Bold is a stroke for that reason. */
+.composer-hl {
+  position: absolute; box-sizing: border-box;
+  overflow: hidden; pointer-events: none; user-select: none;
+  white-space: pre-wrap; overflow-wrap: break-word;
+  letter-spacing: normal; word-spacing: normal;
+  text-align: start; text-indent: 0; text-transform: none;
+  color: var(--fg);
+}
+.cmh-mark { color: var(--fg-4); }
+.cmh-heading { color: var(--accent); -webkit-text-stroke: 0.4px; }
+.cmh-strong { -webkit-text-stroke: 0.4px; }
+.cmh-em { color: var(--lilac); }
+.cmh-strike { color: var(--fg-3); text-decoration: line-through; }
+.cmh-code { color: var(--lime); background: color-mix(in oklab, var(--fg) 7%, transparent); border-radius: 3px; }
+.cmh-link { color: var(--cyan); text-decoration: underline; text-underline-offset: 2px; }
+.cmh-url, .cmh-quote { color: var(--fg-3); }
+.cmh-list { color: var(--accent); }
 .composer-input textarea::placeholder { color: var(--fg-4); }
 .composer-input textarea:focus-visible { outline: none; }
 

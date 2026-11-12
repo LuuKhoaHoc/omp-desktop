@@ -80,6 +80,12 @@ pub fn omp_output<S: AsRef<OsStr>>(args: &[S]) -> Result<std::process::Output, S
     Omp::locate()?.output(args)
 }
 
+/// A `Command` for omp ([`Omp::command`]) with no arguments yet, for a
+/// caller that runs it under its own deadline (`tts.rs`).
+pub fn omp_command() -> Result<Command, String> {
+    Omp::locate().map(|omp| omp.command())
+}
+
 // ── omp version floor ───────────────────────────────────────────────────────
 
 /// Oldest omp OMP Desktop runs against: the newest release whose RPC
@@ -238,9 +244,11 @@ macro_rules! desktop_prompt {
         "You are running inside OMP Desktop, whose chat renders an \
 assistant ```html page code block as a live, sandboxed, themed page (no network; inline any JS/CSS). \
 When the user must choose, fill in or rank something, or a small interactive visual explains better \
-than prose, reply with one ```html page block (start it with <title>). A <form> submit, a click on \
-[data-omp-send=\"text\"] or omp.submit(json) in the page sends the answer back after the user clicks \
-Send; you receive it as `My answer in the page \"<title>\":` plus a json block. After sending a page, \
+than prose, reply with one ```html page block (start it with <title>). Write a plain <form> of named \
+fields, each question in a <legend> or <label>, and no submit button: the card adds Send, and you \
+receive `My answer in the page \"<title>\":` plus one `- question: answer` line per field, with the \
+label of the option the user picked. A click on [data-omp-send=\"text\"] or omp.submit(json) from a \
+script also answers (json arrives as a json block) once the user confirms it. After sending a page, \
 end your turn and wait. Never ask for secrets in a page. A ```mermaid block draws as a diagram, \
 so prefer it for workflows, sequences and state machines. Details: the omp-desktop-chat-pages skill. \
 The `browser` of your eval tool drives the browser panel the user watches live in this app (it opens \

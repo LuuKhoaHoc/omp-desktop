@@ -5,7 +5,10 @@
 
 /* ── Shared bits ────────────────────────────────────────────────────── */
 .sa-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--fg-5); }
-.sa-dot.running  { background: var(--accent); animation: pulseDot 1.4s ease-in-out infinite; }
+/* No pulse on the running marks (dot, tool chip, swimlane bar): several
+   agents kept a dozen stepped loops going at once, which read as a
+   stutter and kept the compositor busy. The clocks tick instead. */
+.sa-dot.running  { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 25%, transparent); }
 .sa-dot.pending  { background: transparent; box-shadow: inset 0 0 0 1px var(--fg-4); }
 .sa-dot.completed { background: var(--fg-3); }
 .sa-dot.failed   { background: var(--rose); }
@@ -25,7 +28,7 @@
   color: var(--sa-tool);
   font-family: var(--font-mono); font-size: var(--d-text-xs);
 }
-.sa-tool.running { animation: pulseDot 1.6s ease-in-out infinite; }
+.sa-tool.running { border-color: color-mix(in oklab, var(--sa-tool) 60%, var(--line)); }
 .sa-elapsed { font-family: var(--font-mono); font-size: var(--d-text-xs); color: var(--fg-4); flex: none; font-variant-numeric: tabular-nums; }
 .sa-muted { color: var(--fg-4); }
 .sa-empty { font-size: var(--d-text-xs); color: var(--fg-4); line-height: 1.5; }
@@ -89,7 +92,7 @@
 .sa-lane-track { position: relative; height: 10px; border-radius: 3px; background: var(--line-soft); overflow: hidden; transition: background 120ms; }
 .sa-lane-span { position: absolute; top: 0; bottom: 0; background: color-mix(in oklab, var(--sa-hue) 16%, transparent); }
 .sa-lane-tick { position: absolute; top: 2px; bottom: 2px; width: 3px; margin-left: -1px; border-radius: 1px; box-shadow: 0 0 4px currentColor; }
-.sa-lane-run { position: absolute; top: 1px; bottom: 1px; border-radius: 2px; opacity: 0.85; animation: pulseDot 1.6s ease-in-out infinite; }
+.sa-lane-run { position: absolute; top: 1px; bottom: 1px; border-radius: 2px; opacity: 0.85; }
 .sa-lane-axis { display: flex; justify-content: space-between; padding-left: 80px; font-family: var(--font-mono); font-size: var(--d-text-xs); color: var(--fg-5); }
 
 .sa-filters { display: flex; gap: 4px; flex-wrap: wrap; }
@@ -135,7 +138,10 @@
 .sa-args { color: var(--fg-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--d-text-xs); }
 .sa-intent { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--d-text-xs); }
 .sa-row-err { font-family: var(--font-mono); font-size: var(--d-text-xs); color: var(--rose); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sa-row-foot { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: var(--d-text-xs); color: var(--fg-4); }
+/* Wraps: the agent's model, last, drops to a line of its own in a narrow
+   pane instead of being cut. */
+.sa-row-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px; font-family: var(--font-mono); font-size: var(--d-text-xs); color: var(--fg-4); white-space: nowrap; }
+.sa-row-model { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--fg-3); }
 
 /* ── Inspector ──────────────────────────────────────────────────────── */
 .sa-insp { flex: 1; min-height: 0; display: flex; flex-direction: column; animation: fadeUp 220ms var(--ease-out) both; }

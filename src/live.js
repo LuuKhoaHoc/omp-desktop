@@ -41,7 +41,14 @@
     microcopy: {
       empty:        "Hand me a project. I'll set the table.",
       streamingTip: "Press ⎋ to interrupt — your cursor is in the room.",
-      paletteTip:   "type / to give orders · ⌘K opens the bridge",
+      paletteTip:   (() => {
+        const hintKey = (window.OMP_KEYMAP && typeof window.OMP_KEYMAP.hintFor === "function")
+          ? window.OMP_KEYMAP.hintFor("desktop.commands.open")
+          : (window.OMP_PLATFORM?.defaultBridgeHint?.() ?? "Ctrl+K");
+        return window.OMP_PLATFORM?.paletteTipFor
+          ? window.OMP_PLATFORM.paletteTipFor(hintKey)
+          : (hintKey ? `type / to give orders · ${hintKey} opens the bridge` : "type / to give orders");
+      })(),
       planTip:      "describe what to build, or give feedback on the plan…",
       todoEmpty:    "no plan yet. think out loud below.",
       radarHint:    "agent has been busy — last 60 seconds",
@@ -58,6 +65,11 @@
     isStreaming:    false,
     model:          null,
     thinkingLevel:  null,
+    // omp's `auto` selector is on: `thinkingLevel` is what it resolved to.
+    thinkingAuto:   false,
+    // `{ enabled, active }` as get_state reports omp's fast mode (the
+    // priority service tier of the model's provider); null until then.
+    fastMode:       null,
     ctx:            { ...DEFAULT_DATA.ctx },
     kanban:         [],
     planMeta:       { ...DEFAULT_DATA.planMeta },
@@ -279,6 +291,9 @@
   let _nextCmdId = 1;
   // Timeout for a short interactive command a user is waiting on.
   const QUICK_CMD_TIMEOUT_MS = 15000;
+  // How long a restored tab is shown before its model list is refetched
+  // (`_initFetch`).
+  const MODELS_REFRESH_DELAY_MS = 1000;
 
   /**
    * Send a command and return a Promise that resolves with the response data
@@ -393,6 +408,8 @@
       isStreaming:     state.isStreaming,
       model:           state.model,
       thinkingLevel:   state.thinkingLevel,
+      thinkingAuto:    state.thinkingAuto,
+      fastMode:        state.fastMode,
       ctx:             state.ctx,
       kanban:          state.kanban,
       planMeta:        state.planMeta,
@@ -814,6 +831,8 @@
       isStreaming:   false,
       model:         null,
       thinkingLevel: null,
+      thinkingAuto:  false,
+      fastMode:      null,
       ctx:           { ...DEFAULT_DATA.ctx },
       kanban:        [],
       planMeta:      { ...DEFAULT_DATA.planMeta },
@@ -867,6 +886,8 @@
       isStreaming:   state.isStreaming,
       model:         state.model,
       thinkingLevel: state.thinkingLevel,
+      thinkingAuto:  state.thinkingAuto,
+      fastMode:      state.fastMode,
       ctx:           { ...state.ctx },
       kanban:        state.kanban,
       planMeta:      state.planMeta,
@@ -915,6 +936,8 @@
       isStreaming:   snap.isStreaming,
       model:         snap.model,
       thinkingLevel: snap.thinkingLevel,
+      thinkingAuto:  snap.thinkingAuto ?? false,
+      fastMode:      snap.fastMode ?? null,
       ctx:           snap.ctx,
       kanban:        snap.kanban,
       planMeta:      snap.planMeta,
@@ -1373,6 +1396,15 @@
       ready,
     };
   }
+
+  // Speech engine installs under way (`OMP_TTS.installTracker`), and the
+  // listener for their progress lines; both made at first use.
+  let _ttsInstallTracker = null;
+  const _ttsInstalls = () => (_ttsInstallTracker ??= window.OMP_TTS.installTracker());
+  let _ttsInstallEvents = null;
+  // Whose install it is: Kokoro and the dictation models land in a
+  // profile's own omp folders, Edge TTS is one program for the machine.
+  const _ttsInstallOwner = (engine, profile) => (engine === "kokoro" ? profile ?? "" : "");
 
   /** Detach the active session's listeners and clear all per-session state,
    *  leaving no active session. Must run before re-activating a respawned
@@ -2176,6 +2208,8 @@
         state.model  = _buildModelEntry(data);
         state.models = state.models.map(m => ({ ...m, current: m.id === data.id }));
         notify();
+        // Fast mode is per provider family: the new model's comes with get_state.
+        _send({ type: "get_state" });
       }
 
     } else if (command === "cycle_model") {
@@ -2184,13 +2218,17 @@
         state.model  = _buildModelEntry(data.model);
         state.models = state.models.map(m => ({ ...m, current: m.id === data.model.id }));
         notify();
+        _send({ type: "get_state" }); // the new model's fast mode, as above
       }
 
     } else if (command === "cycle_thinking_level") {
-      // data is { level: Effort } | null. null means thinking not supported
+      // data is { level: selector } | null. null means thinking not supported
       // by the current model — omp leaves the level unchanged in that case.
+      // `auto` is a selector, not a level: the level it starts from arrived
+      // just before this response, as `thinking_level_changed`.
       if (data?.level != null) {
-        state.thinkingLevel = data.level;
+        state.thinkingAuto = data.level === "auto";
+        if (!state.thinkingAuto) state.thinkingLevel = data.level;
         notify();
       }
 
@@ -2300,11 +2338,14 @@
     // composer's menu (the only confirmation `set_thinking_level` gets, and
     // omp may clamp the pick), a cycle, a typed `/effort <level>`, a model switch
     // re-clamping the level, `auto` resolving per turn. The effective
-    // level, like get_state's.
+    // level, like get_state's; `configured` names the selector when it is
+    // not that level, which is how `auto` shows.
     if (type === "thinking_level_changed") {
       const level = _effectiveThinking(ev.thinkingLevel);
-      if (level !== state.thinkingLevel) {
+      const auto = ev.configured === "auto";
+      if (level !== state.thinkingLevel || auto !== state.thinkingAuto) {
         state.thinkingLevel = level;
+        state.thinkingAuto = auto;
         notify();
       }
       return;
@@ -2866,6 +2907,14 @@
     return level ?? "off";
   }
 
+  // omp's fast mode as the UI holds it. The object in `state` is kept when
+  // nothing changed, so a repeated get_state re-renders no one.
+  function _fastModeOf(enabled, active) {
+    const next = { enabled: enabled === true, active: active === true };
+    const cur = state.fastMode;
+    return cur && cur.enabled === next.enabled && cur.active === next.active ? cur : next;
+  }
+
   function _applyRpcState(rpcState) {
     if (!rpcState) return;
     state.rpcState      = rpcState;
@@ -2882,7 +2931,10 @@
       streamingBubble = null;
       state.messages = state.messages.filter(m => !m.streaming);
     }
+    // The effective level only: whether `auto` picked it is known from
+    // `thinking_level_changed` (get_state has no selector field).
     state.thinkingLevel = _effectiveThinking(rpcState.thinkingLevel);
+    state.fastMode = _fastModeOf(rpcState.fastModeEnabled, rpcState.fastModeActive);
     // The queue as of this get_state; later `queue_update`s follow it in
     // the same stream, so the last one written wins.
     state.queue = QUEUE.fromSnapshot(rpcState.queuedMessages, state.queue);
@@ -3031,7 +3083,16 @@
         if (!sessionPrefs.autoRetry) _send({ type: "set_auto_retry", enabled: false });
         _send({ type: "get_state" });
         _send({ type: "get_messages" });
-        _send({ type: "get_available_models" });
+        // A restored tab already shows a model list: the refetch (~2 MiB to
+        // decode) waits until the tab has been shown for a moment, so it
+        // stays out of the switch and a run of switches never pays it. A
+        // tab without a list (new, respawned) asks at once.
+        if (state.models.length === 0) _send({ type: "get_available_models" });
+        else {
+          setTimeout(() => {
+            if (_switchGen === gen && sessionContext === conversation) _send({ type: "get_available_models" });
+          }, MODELS_REFRESH_DELAY_MS);
+        }
         _send({ type: "get_available_commands" });
         // Subscription level is per process and survives tab switches, but a
         // respawned process starts at "off" — so (re)assert it every time.
@@ -3220,7 +3281,7 @@
     if (!window.__TAURI__) return;
     const { getCurrentWindow } = window.__TAURI__.window;
     const win  = getCurrentWindow();
-    const isWin = navigator.userAgent.includes("Windows") || navigator.platform.startsWith("Win");
+    const controls = window.OMP_PLATFORM?.windowControlsKind?.() ?? "none";
 
     // Drag: delegate from document so it works regardless of React render timing.
     // startDragging() must be called synchronously within the mousedown handler.
@@ -3233,13 +3294,13 @@
       win.startDragging().catch(() => {});
     });
 
-    if (isWin) {
+    if (controls === "windows") {
       document.addEventListener("click", e => {
         if (e.target.closest(".win-min"))        win.minimize();
         else if (e.target.closest(".win-max"))   win.isMaximized().then(m => m ? win.unmaximize() : win.maximize());
         else if (e.target.closest(".win-close")) void _requestQuit();
       });
-    } else {
+    } else if (controls === "macos") {
       document.addEventListener("click", e => {
         const t = e.target.closest(".light");
         if (!t) return;
@@ -3684,7 +3745,29 @@
       }
     })();
     notify();
+    _watchDictationDownload(id, captureId);
     return op.promise;
+  }
+
+  // omp downloads a dictation model that is not on disk before it opens the
+  // microphone and sends no frame meanwhile: the capture stays "starting"
+  // for minutes. Rust reads what has arrived since the capture began
+  // (`stt_download_progress`); the reading lives in `state.dictation`.
+  function _watchDictationDownload(id, captureId) {
+    if (!window.__TAURI__) return;
+    const sinceMs = Date.now() - 2000; // file times and this clock may differ a little
+    const profile = sessionRegistry.get(id)?.profile ?? null;
+    const waiting = () => id === activeSessionId && state.dictation.active
+      && state.dictation.captureId === captureId && state.dictation.phase === "starting";
+    const timer = setInterval(async () => {
+      if (!waiting()) { clearInterval(timer); return; }
+      const found = await _invokeSafe("stt_download_progress", { profile, sinceMs }, null);
+      if (!found || !waiting()) return;
+      const next = DICTATION.apply(state.dictation, { type: "download", captureId, id: found.id, bytes: found.bytes });
+      if (next === state.dictation) return;
+      state.dictation = next;
+      notify();
+    }, 1500);
   }
 
   function _dictationStop(send = false) {
@@ -3748,6 +3831,9 @@
     livePause: _livePause,
     liveStop: () => _liveStop(),
     liveMute: _liveMute,
+    // The × on a voice panel's error line.
+    liveDismiss: () => _voiceUpdate({ type: "dismiss" }),
+    dictationDismiss: () => _dictationUpdate({ type: "dismiss" }),
     dictationStart: _dictationStart,
     stopActiveVoice() { return state.dictation.active || _dictationStopPending ? _dictationStop() : state.liveVoice.active || _liveStopPending ? _livePause() : Promise.resolve({ ok: true }); },
     dictationStop: ({ send = false } = {}) => _dictationStop(send),
@@ -3977,6 +4063,50 @@
     setModelConfig(profile, scope, name, value) {
       return _invokeResult("model_config_set", { profile, scope, name, value });
     },
+    /** omp's voice settings of `profile` (`speech_config_get`):
+     *  `{ ok, value: { settings: [{ key, value, kind, options }], models:
+     *  [{ name, ready, status }], modelsError } }`. */
+    speechConfig(profile) {
+      return _invokeResult("speech_config_get", { profile });
+    },
+    /** Set one of those settings; `value` is the settings re-read. */
+    setSpeechConfig(profile, key, value) {
+      return _invokeResult("speech_config_set", { profile, key, value: String(value) });
+    },
+    /** The desktop's look (Rust system_theme): `{ ok, value: { name, light,
+     *  colors, fontMono } }`. */
+    systemTheme() {
+      return _invokeResult("system_theme", {});
+    },
+    /** The speech engines that read replies aloud (src-tauri tts.rs):
+     *  `{ ok, value: [{ id, installed, detail }] }`. */
+    ttsStatus(profile) {
+      return _invokeResult("tts_status", { profile });
+    },
+    /** Install engine `engine` on this machine (minutes); `value` is the
+     *  status of every engine afterwards. One run per engine: a call while
+     *  one is under way joins it. */
+    ttsInstall(engine, profile) {
+      _ttsInstallEvents ??= _listen("tts://install", p => _ttsInstalls().report(p.engine, p));
+      // Listening first, so the run's first line is not missed.
+      return _ttsInstalls().start(engine, _ttsInstallOwner(engine, profile), () => _ttsInstallEvents.ready
+        .then(() => _invokeResult("tts_install", { engine, profile })));
+    },
+    /** `engine`'s install for `profile` as Settings shows it: `{ progress,
+     *  error }` (`OMP_TTS.installTracker` `state`). */
+    ttsInstallState(engine, profile) {
+      return _ttsInstalls().state(engine, _ttsInstallOwner(engine, profile));
+    },
+    /** Call `cb` whenever an install starts, reports or ends. Returns the
+     *  unsubscribe. */
+    onTtsInstall(cb) {
+      return _ttsInstalls().subscribe(cb);
+    },
+    /** One piece of speech: `{ ok, value: { mime, data } }`, `data` the
+     *  audio file in base64. */
+    ttsSpeak({ engine, voice, speed, text, profile }) {
+      return _invokeResult("tts_speak", { engine, voice, speed, text, profile });
+    },
     goalContinuation(profile) {
       return _invokeResult("goal_continuation_get", { profile });
     },
@@ -4042,16 +4172,27 @@
     cycleModel()       { _send({ type: "cycle_model" }); },
     cycleThinking()    { _send({ type: "cycle_thinking_level" }); },
     /** The thinking levels the active tab's model supports, `off` first:
-     *  omp's own list, which leaves out its `auto` selector. */
+     *  omp's own list, which leaves out its `auto` selector (the menu adds
+     *  it for a model that has levels). */
     async thinkingLevels() {
       const data = await _sendWithResponse({ type: "get_available_thinking_levels" }, QUICK_CMD_TIMEOUT_MS);
       return Array.isArray(data?.levels) ? data.levels.filter(l => typeof l === "string") : [];
     },
-    /** Applies a level from `thinkingLevels()` to the active tab. The
-     *  response carries nothing; the level omp applied (it may clamp the
-     *  pick) arrives before it, as `thinking_level_changed`. */
+    /** Applies a level from `thinkingLevels()`, or the `auto` selector, to
+     *  the active tab. The response carries nothing; the level omp applied
+     *  (it may clamp the pick) arrives before it, as `thinking_level_changed`. */
     setThinkingLevel(level) {
       return _sendWithResponse({ type: "set_thinking_level", level }, QUICK_CMD_TIMEOUT_MS);
+    },
+    /** Turns omp's fast mode on or off for the active tab. Resolves once
+     *  omp applied it; rejects with omp's reason when the tab's model has
+     *  no fast mode. */
+    async setFastMode(enabled) {
+      const id = activeSessionId;
+      const data = await _sendWithResponse({ type: "set_fast_mode", enabled: !!enabled }, QUICK_CMD_TIMEOUT_MS);
+      if (activeSessionId !== id) return; // the reply belongs to a tab since left
+      state.fastMode = _fastModeOf(data?.enabled, data?.active);
+      notify();
     },
     compact() {
       const id  = "cmpct-" + (_nextCmdId++);
@@ -4362,6 +4503,14 @@
       if (!activeSessionId) return Promise.resolve(null);
       return _invokeResult("project_file_read", { sessionId: activeSessionId, path });
     },
+    /** Save the files panel's edit of a project file: `{ok, value: {status:
+     *  "saved", size} | {status: "changed"}}` or `{ok: false, error}`; null
+     *  with no tab. `base` is the text the editor loaded (Rust writes only
+     *  while the file still holds it); null overwrites. */
+    writeProjectFile(path, base, text) {
+      if (!activeSessionId) return Promise.resolve(null);
+      return _invokeResult("project_file_write", { sessionId: activeSessionId, path, base, text });
+    },
 
     /** Stage a file's changes (`git add`). */
     async workspaceAccept(relPath) {
@@ -4666,6 +4815,12 @@
      *  covers a lost ack. */
     browserFrameAck(sid, seq) {
       return _invokeResult("browser_frame_ack", { sessionId: sid, seq });
+    },
+    /** The CSS cursor keyword the page wants at `(x, y)` (page CSS px):
+     *  `{ok, value}` | `{ok: false, error}`. Quiet: asked at pointer rate,
+     *  and a page that went away just keeps the last cursor. */
+    browserCursor(sid, x, y) {
+      return _invokeResult("browser_cursor", { sessionId: sid, x, y });
     },
     browserAnnotate(sid, on) {
       return _invokeSafe("browser_annotate", { sessionId: sid, on });
@@ -5051,6 +5206,13 @@
      *  null when cancelled or the pick is unusable (logged). */
     async pickFolder() {
       return _invokeSafe("open_project", undefined, null);
+    },
+
+    /** The composer's Attach button: the native file dialog, opened in the
+     *  tab's project folder. The picked paths; [] when cancelled or a pick
+     *  is unusable (logged). */
+    async pickAttachments(sessionId) {
+      return _invokeSafe("pick_attachments", { sessionId }, []);
     },
 
     /** List project-relative file/dir paths matching `query`, for the

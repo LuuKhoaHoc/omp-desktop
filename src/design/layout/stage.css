@@ -1,9 +1,21 @@
 /* Stage layout + session column ──────────────────────────────────── */
 
 /* ── Stage layout ────────────────────────────────────────────────────── */
-/* Column widths come from app/use-pane-widths.jsx as variables on
-   `.workspace`, set for every shown column from the first render; the
-   fallbacks only repeat OMP_LAYOUT_WIDTHS.PANES' defaults. */
+/* Column widths come from app/use-pane-widths.jsx as variables, set for
+   every shown column from the first render on the element that sizes with
+   them: the split pane's and the side column's on `.stage`, the sidebar's
+   on `.project-sidebar` and its handle. They are registered as
+   non-inherited: an ordinary custom property set on `.stage` (or on
+   `.workspace`, where they used to be) is inherited by the whole
+   transcript, and every step of a resize drag restyled each message
+   (WebKitGTK 2.54, 160 messages: 206 ms per step). Not on `.workspace`
+   with `inherit` here: WebKit leaves such a child at the initial value.
+   The `var()` fallbacks only repeat OMP_LAYOUT_WIDTHS.PANES' defaults. */
+@property --w-sidebar { syntax: "<length>"; inherits: false; initial-value: 220px; }
+@property --w-split { syntax: "<length>"; inherits: false; initial-value: 320px; }
+@property --w-rail { syntax: "<length>"; inherits: false; initial-value: 280px; }
+@property --w-tree { syntax: "<length>"; inherits: false; initial-value: 540px; }
+@property --w-files { syntax: "<length>"; inherits: false; initial-value: 760px; }
 .stage {
   flex: 1;
   min-width: 0;

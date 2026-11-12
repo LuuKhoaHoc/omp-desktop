@@ -60,9 +60,12 @@ cancelling stays in the browser.
 
 ## Using it
 
-- **Board / list** toggle in the panel header. Drag a card to another column,
+- **View switcher** in the panel head opens a grouped menu of connections and
+  views; **Board / list** toggles the layout. Drag a card to another column,
   or focus it and press `Alt+←` / `Alt+→`. Moving changes the column label
   (GitLab/GitHub) or the workflow state (Linear); Closed closes the ticket.
+- **Quick filters**: search text plus **Assignee** / **Author**, **Label**,
+  and **Closed** toggles narrow the active view without altering its saved query.
 - **Drawer**: click a ticket. Edit title, labels and the markdown body
   (Preview / Edit), close or reopen, comment (`Ctrl+Enter`). `Ctrl+S` saves.
 - A save first re-reads the ticket. If it changed on the server since you

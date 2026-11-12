@@ -1,0 +1,283 @@
+/* insights.css — Insights panel (fork): header tabs, actionable empty
+   state, collapsible diagrams with floating zoom controls, test case
+   runner and document analysis. Theme tokens only. */
+
+.ip-head { gap: 10px; padding: 0 12px 0 14px; }
+.ip-brand { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; color: var(--fg); flex: none; }
+.ip-brand .ui-icon { color: var(--accent); }
+.ip-head-sep { width: 1px; height: 16px; background: var(--line); flex: none; }
+.ip-tabs { flex-wrap: nowrap; }
+.ip-tabs button { gap: 6px; font-weight: 500; transition: background 140ms var(--ease-out), color 140ms var(--ease-out); }
+
+.ip-scroll { padding: 14px 14px 36px; min-width: 0; overflow-x: hidden; }
+.ip-tab-stage { min-height: 0; min-width: 0; max-width: 100%; }
+/* ── Actionable Empty State ────────────────────────────────────────────── */
+.ip-empty-shell {
+  max-width: 540px; margin: 24px auto; padding: 4px 6px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.ip-empty-hero { display: flex; align-items: flex-start; gap: 12px; }
+.ip-empty-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-window); border: 1px solid var(--line); color: var(--accent);
+}
+.ip-empty-copy { min-width: 0; }
+.ip-empty-copy h3 { margin: 0 0 4px; font-size: var(--d-text-lg); font-weight: 600; color: var(--fg); }
+.ip-empty-copy p { margin: 0; font-size: var(--d-text-sm); color: var(--fg-3); line-height: 1.55; }
+
+.ip-action-list {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line-soft); border-radius: 12px;
+  background: var(--bg-window); overflow: hidden;
+}
+.ip-action-item + .ip-action-item { border-top: 1px solid var(--line-soft); }
+.ip-action-row {
+  all: unset; box-sizing: border-box; width: 100%; cursor: pointer;
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  transition: background 140ms var(--ease-out);
+}
+.ip-action-row:hover { background: var(--bg-hover); }
+.ip-action-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ip-action-row:disabled,
+.ip-diagram-toggle:disabled { opacity: 0.55; cursor: not-allowed; }
+.ip-action-row:disabled:hover,
+.ip-diagram-toggle:disabled:hover { background: transparent; }
+.ip-action-row:disabled:hover .ip-action-ico { color: var(--fg-2); border-color: var(--line-soft); }
+.ip-action-row:disabled:hover .ip-action-go { transform: none; color: var(--fg-3); }
+.ip-action-ico {
+  width: 30px; height: 30px; border-radius: 8px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-surface); border: 1px solid var(--line-soft); color: var(--fg-2);
+}
+.ip-action-row:hover .ip-action-ico { color: var(--accent); border-color: var(--line); }
+.ip-action-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ip-action-name { font-size: var(--d-text-sm); font-weight: 600; color: var(--fg); }
+.ip-action-desc { font-size: var(--d-text-xs); color: var(--fg-3); line-height: 1.45; }
+.ip-action-go { color: var(--fg-3); flex: none; transition: transform 140ms var(--ease-out), color 140ms var(--ease-out); }
+.ip-action-row:hover .ip-action-go { transform: translateX(2px); color: var(--fg); }
+.ip-skill-drawer {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px; padding: 10px 14px 12px; background: var(--bg-surface);
+  border-top: 1px solid var(--line-soft);
+}
+.ip-skill-chip {
+  all: unset; box-sizing: border-box; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 10px;
+  border-radius: 8px; border: 1px solid var(--line-soft); background: var(--bg-window);
+  transition: border-color 140ms var(--ease-out), background 140ms var(--ease-out);
+}
+.ip-skill-chip:hover { border-color: var(--line-bright); background: var(--bg-hover); }
+.ip-skill-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ip-skill-chip-head { display: flex; align-items: center; gap: 6px; font-size: var(--d-text-sm); font-weight: 500; color: var(--fg); }
+.ip-skill-chip-hint { font-size: var(--d-text-xs); color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ip-empty-foot { display: flex; align-items: center; gap: 10px; }
+
+/* ── Shared source & filter strips ─────────────────────────────────────── */
+.ip-filter { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ip-filter input {
+  flex: 1; min-width: 140px; height: 30px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg-input);
+  color: var(--fg); padding: 0 10px; font: inherit; font-size: var(--d-text-sm);
+}
+.ip-filter input::placeholder { color: var(--fg-3); opacity: 1; }
+.ip-filter input:focus { border-color: var(--line-bright); }
+.ip-filter input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--line-bright); }
+.ip-sources { flex-wrap: wrap; row-gap: 6px; }
+.ip-source-seg { flex-wrap: wrap; max-width: 100%; }
+.ip-source-seg button { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-sources .btn.small,
+.ip-diagram .btn.small,
+.ip-new .btn.small,
+.ip-collapse-all { height: 28px; padding: 0 9px; font-size: var(--d-text-xs); gap: 5px; }
+.ip-collapse-all .ui-icon { transition: transform 160ms var(--ease-out); }
+.ip-collapse-all.is-collapsed .ui-icon { transform: rotate(-90deg); }
+.btn.small.danger { color: var(--rose); border-color: color-mix(in oklab, var(--rose) 50%, transparent); }
+
+/* ── Collapsible Diagram Cards ─────────────────────────────────────────── */
+.ip-diagrams { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 100%; }
+.ip-card {
+  margin: 0; border-radius: 12px; background: var(--bg-window);
+  border: 1px solid var(--line-soft); min-width: 0;
+}
+.ip-card.ip-diagram {
+  overflow: hidden;
+  transition: border-color 140ms var(--ease-out);
+}
+.ip-card.ip-diagram:hover { border-color: var(--line-bright); }
+.ip-card-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-height: 40px;
+  padding: 5px 10px 5px 6px;
+  background: color-mix(in oklab, var(--bg-surface) 48%, var(--bg-window));
+  border-bottom: 1px solid var(--line-soft);
+  transition: border-color 160ms var(--ease-out);
+}
+.ip-card.ip-diagram.collapsed .ip-card-head { border-bottom-color: transparent; }
+
+.ip-diagram-toggle {
+  all: unset; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  flex: 1 1 180px; min-width: 0; min-height: 28px; padding: 4px 8px; border-radius: 7px;
+  transition: background 120ms var(--ease-out);
+}
+.ip-diagram-toggle:hover { background: var(--bg-hover); }
+.ip-diagram-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.ip-diagram.max .ip-diagram-toggle:disabled { opacity: 1; }
+.ip-chev {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--fg-3); flex: none;
+  transition: transform 180ms var(--ease-out);
+}
+.ip-card.ip-diagram.collapsed .ip-chev { transform: rotate(-90deg); }
+.ip-diagram-name {
+  color: var(--fg); font-size: var(--d-text-sm); font-weight: 500;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ip-kind {
+  color: var(--fg-3); font-family: var(--font-mono); font-size: var(--d-text-xs);
+  font-weight: 400; padding: 1px 6px; border-radius: 5px;
+  background: color-mix(in oklab, var(--fg) 5%, transparent); flex: none;
+}
+.ip-card-actions { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 4px; flex: none; margin-left: auto; }
+
+.ip-diagram-collapse { min-width: 0; }
+.ip-card.ip-diagram.collapsed .ip-diagram-collapse { display: none; }
+.ip-diagram-inner { min-width: 0; padding: 10px 12px 12px; }
+.ip-card.ip-diagram:not(.collapsed) .ip-diagram-inner { animation: motion-fade var(--motion-fast) var(--ease-out); }
+.ip-diagram-inner > .wp-note.err { margin-bottom: 8px; }
+
+.ip-view-wrap { position: relative; min-width: 0; max-width: 100%; overflow: hidden; }
+.ip-view { overflow: auto; max-height: 560px; max-width: 100%; padding: 8px 0; cursor: grab; touch-action: none; }
+.ip-view:active { cursor: grabbing; }
+.ip-view.fit .ip-mmd { width: 100%; min-width: 0; }
+.ip-view.fit svg, .ip-view.fit img { margin: 0 auto; max-width: 100%; }
+.ip-view img, .ip-view svg { display: block; user-select: none; }
+.ip-frame { width: 100%; height: 480px; border: 0; border-radius: 8px; background: var(--bg-surface); display: block; }
+.ip-src {
+  margin: 0; padding: 10px 12px; border-radius: 8px;
+  background: var(--bg-input); border: 1px solid var(--line-soft);
+  color: var(--fg-2); font-size: var(--d-text-xs); line-height: 1.6;
+  overflow: auto; max-height: 360px; white-space: pre;
+}
+
+/* Floating zoom controls on canvas */
+.ip-zoom-float {
+  position: absolute; right: 10px; bottom: 10px; z-index: 3;
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+  border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+  opacity: 0.9; transition: opacity 140ms var(--ease-out);
+}
+.ip-view-wrap:hover .ip-zoom-float,
+.ip-zoom-float:focus-within { opacity: 1; }
+.ip-zoom-float button {
+  all: unset; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  height: 24px; min-width: 24px; padding: 0 6px; border-radius: 6px;
+  color: var(--fg-2); font-size: var(--d-text-xs);
+  transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
+}
+.ip-zoom-float button:hover { background: var(--bg-hover); color: var(--fg); }
+.ip-zoom-float button:focus-visible { background: var(--bg-hover); color: var(--fg); outline: 2px solid var(--accent); outline-offset: -1px; }
+.ip-zoom-float .ip-zoom-fit { min-width: 40px; }
+
+/* Expanded: covers window; Esc or Close returns. */
+.ip-max-scrim {
+  position: fixed; inset: 0; z-index: 59;
+  background: color-mix(in oklab, var(--bg-app) 68%, transparent);
+}
+.ip-diagram.max {
+  position: fixed; inset: 16px; z-index: 60;
+  display: flex; flex-direction: column;
+  box-shadow: var(--shadow-window);
+}
+.ip-diagram.max:focus { outline: none; }
+.ip-diagram.max .ip-diagram-collapse { display: flex; flex: 1; min-height: 0; }
+.ip-diagram.max .ip-diagram-inner { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.ip-diagram.max .ip-view-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.ip-diagram.max .ip-view,
+.ip-diagram.max .ip-frame,
+.ip-diagram.max .ip-src { flex: 1; max-height: none; height: auto; min-height: 0; }
+
+.ip-new { position: relative; }
+.ip-new-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
+  width: 300px; padding: 4px; border-radius: 10px;
+  background: var(--bg-elevated); border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop); display: flex; flex-direction: column;
+}
+.ip-new-menu button {
+  all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px;
+  padding: 7px 10px; border-radius: 6px; cursor: pointer; color: var(--fg); font-size: var(--d-text-sm);
+}
+.ip-new-menu button:hover { background: var(--bg-hover); }
+.ip-new-menu button:focus-visible { background: var(--bg-hover); outline: 2px solid var(--accent); outline-offset: -2px; }
+.ip-new-hint { color: var(--fg-3); font-size: var(--d-text-xs); }
+/* ── Test Cases ────────────────────────────────────────────────────────── */
+.ip-cases { display: flex; flex-direction: column; gap: 10px; }
+.ip-progress-wrap { display: flex; flex-direction: column; gap: 6px; }
+.ip-progress-meta {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-size: var(--d-text-xs); color: var(--fg-3);
+}
+.ip-progress-stat { display: inline-flex; align-items: center; gap: 5px; }
+.ip-progress { display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: var(--bg-window); border: 1px solid var(--line-soft); }
+.ip-progress i { display: block; height: 100%; transition: width 200ms var(--ease-out); }
+.ip-progress .pass { background: var(--lime); }
+.ip-progress .fail { background: var(--rose); }
+.ip-progress .blocked { background: var(--amber); }
+.ip-progress .untested { background: var(--line-bright); }
+.ip-case-list { display: flex; flex-direction: column; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--bg-window); overflow: hidden; }
+.ip-case + .ip-case { border-top: 1px solid var(--line-soft); }
+.ip-case-head {
+  all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: var(--d-text-sm);
+  transition: background 120ms var(--ease-out);
+}
+.ip-case-head:hover { background: var(--bg-hover); }
+.ip-case-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ip-case-head .ui-icon { transition: transform 150ms var(--ease-out); color: var(--fg-3); }
+.ip-case.open .ip-case-head .ui-icon { transform: rotate(180deg); }
+.ip-st { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--line-bright); }
+.ip-st.pass { background: var(--lime); }
+.ip-st.fail { background: var(--rose); }
+.ip-st.blocked { background: var(--amber); }
+.ip-case-id { color: var(--fg-3); font-size: var(--d-text-xs); flex: none; }
+.ip-case-title { flex: 1; min-width: 0; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-pri { font-size: var(--d-text-xs); padding: 1px 7px; border-radius: 5px; background: var(--bg-elevated); color: var(--fg-3); flex: none; border: 1px solid var(--line-soft); }
+.ip-pri.p-high, .ip-pri.p-p0, .ip-pri.p-p1, .ip-pri.p-critical { color: var(--rose); border-color: color-mix(in oklab, var(--rose) 30%, transparent); background: color-mix(in oklab, var(--rose) 10%, transparent); }
+.ip-pri.p-medium, .ip-pri.p-p2 { color: var(--amber); border-color: color-mix(in oklab, var(--amber) 30%, transparent); background: color-mix(in oklab, var(--amber) 10%, transparent); }
+.ip-case-body { padding: 6px 14px 14px 30px; color: var(--fg-2); font-size: var(--d-text-sm); line-height: 1.6; border-top: 1px solid var(--line-soft); background: color-mix(in oklab, var(--bg-surface) 35%, var(--bg-window)); }
+.ip-case-meta { display: flex; gap: 16px; color: var(--fg-3); font-size: var(--d-text-xs); margin: 4px 0 8px; }
+.ip-case-meta b { color: var(--fg-2); font-weight: 500; }
+.ip-pre { margin: 6px 0; }
+.ip-pre b { color: var(--fg); font-weight: 500; margin-right: 6px; }
+.ip-steps { margin: 8px 0 4px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.ip-steps li span { display: block; }
+.ip-exp { color: var(--fg-3); font-size: var(--d-text-xs); margin-top: 2px; }
+
+/* ── Documents ─────────────────────────────────────────────────────────── */
+.ip-docs { display: flex; flex-direction: column; gap: 14px; }
+.ip-doc { max-width: 72ch; font-family: var(--font-chat); line-height: 1.65; color: var(--fg); }
+.ip-doc-title { font-size: calc(var(--d-text) * 1.3); font-weight: 600; color: var(--fg); }
+.ip-doc-src { color: var(--fg-3); font-size: var(--d-text-xs); margin-top: 2px; }
+.ip-doc-summary { color: var(--fg-2); margin: 10px 0; }
+.ip-doc-sec h4 { margin: 18px 0 8px; font-size: var(--d-text); font-weight: 600; color: var(--fg); }
+.ip-doc-sec ul { margin: 0; padding-left: 20px; color: var(--fg-2); display: flex; flex-direction: column; gap: 4px; }
+.ip-req { border-collapse: collapse; width: 100%; font-size: var(--d-text-sm); font-family: var(--font-sans); }
+.ip-req td { padding: 8px; border-top: 1px solid var(--line-soft); vertical-align: top; }
+.ip-req tr:hover td { background: var(--bg-hover); }
+.ip-req td:first-child { color: var(--fg-3); white-space: nowrap; }
+
+@media (pointer: coarse) {
+  .ip-sources .btn.small, .ip-diagram .btn.small, .ip-new .btn.small,
+  .ip-collapse-all, .ip-zoom-float button { min-height: 44px; min-width: 44px; }
+  .ip-diagram-toggle, .ip-case-head, .ip-tabs button { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ip-tabs button, .ip-action-row, .ip-action-go, .ip-skill-chip,
+  .ip-collapse-all .ui-icon, .ip-card.ip-diagram, .ip-card-head,
+  .ip-diagram-toggle, .ip-chev, .ip-zoom-float, .ip-zoom-float button,
+  .ip-progress i, .ip-case-head, .ip-case-head .ui-icon { transition: none; }
+  .ip-card.ip-diagram:not(.collapsed) .ip-diagram-inner { animation: none; }
+}

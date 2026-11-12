@@ -52,6 +52,7 @@
           { options: opts(["auto", "en", "zh"], { auto: "Follow system", en: "English", zh: "中文" }) }),
       ] },
       { name: "Theme", rows: [
+        tweak("systemTheme", "toggle", "Follow the system theme", "On Omarchy, take the colours of the theme in use and the system's monospace font, and follow a theme change when the window gets focus again. The theme below keeps its layout; a font you pick under Fonts still wins. Without an Omarchy theme nothing changes.", "omarchy system sync desktop colours colors font dark light auto"),
         tweak("theme", "themes", "Theme", "Picking a theme also resets the accent to the theme's own.", "dark light colour color kiln night shift aurora phosphor daylight"),
         tweak("accent", "swatches", "Accent", "Focus rings, the active tab, links and the assistant's marks.", "color colour highlight"),
         tweak("startScreen", "screens", "Start screen", "The animated screen behind the logo while no tab is open. It follows the theme and accent.", "welcome backdrop empty animation matrix latent embedding next token sampling agent loop orbit forward pass neural attention transformer self-attention",
@@ -76,7 +77,7 @@
         tweak("defaultSide", "seg", "New tabs show", "What the side column of a newly opened tab starts with. The toolbar still switches it per tab.", "conversation tree default browser",
           { options: opts(["rail", "tree", "browser"]) }),
         tweak("sidebar", "toggle", "Project sidebar", "The list of projects and their tabs on the left. `Ctrl+B` toggles it.", "projects"),
-        tweak("tabStrip", "toggle", "Tab strip", "Tabs in a strip under the header as well as in the sidebar. Terminal tabs and Settings bring the strip back while they are open.", "tabs tab bar strip"),
+        tweak("tabBar", "toggle", "Tab strip", "Tabs in a strip under the header as well as in the sidebar. Terminal tabs and Settings bring the strip back while they are open.", "tabs tab bar strip"),
         custom("widths", "Column widths", "Drag a column edge to resize it, double-click the edge to reset one.", "width resize pane sidebar rail tree files split browser",
           { keys: ["sidebarWidth", "railWidth", "treeWidth", "filesWidth", "splitWidth", "browserWidth"] }),
       ] },
@@ -111,6 +112,7 @@
         tweak("dictationSend", "toggle", "Send voice to text on stop", "Stopping voice to text yourself (the microphone, the panel's stop or a pause below) sends the draft with the dictated text, as Enter would. Off, the text only goes into the draft. A stop caused by switching tabs or opening Settings never sends.", "dictation speech microphone voice auto send submit"),
         tweak("dictationAutoStop", "seg", "Stop voice to text after a pause", "Stop recording once no new words have come in for this long; until your first words it keeps waiting. Background noise that omp hears as words keeps it going.", "dictation speech microphone voice silence auto stop hands-free",
           { options: opts([0, 1.5, 2, 3, 5], { 0: "off", 1.5: "1.5 s", 2: "2 s", 3: "3 s", 5: "5 s" }) }),
+        tweak("handsFree", "toggle", "Hands-free conversation", "Voice to text you start becomes a conversation: a pause ends your turn and sends it, and the microphone opens again when the reply is over. The reply is read aloud first only when Read replies aloud is on under Voice; this setting does not turn it on. Stopping voice to text yourself, an error or another tab ends it. With the pause above off, 2 s is used.", "hands-free handsfree live talk conversation voice dictation microphone auto listen loop read aloud"),
         tweak("voiceSpectrumBands", "seg", "Spectrum bars", "How many frequency bars the microphone equalizer above the input draws while voice to text or a live conversation records.", "voice microphone equalizer spectrum fft bands bars",
           { options: opts([16, 32, 48, 64, 96, 128]) }),
       ] },
@@ -139,6 +141,18 @@
       { name: "Widgets", src: "widgets.json", rows: [
         custom("widgets", "Plugin config", "Plugins and their triggers. A changed script asks for approval again before it runs.", "widget plugins plugin widgets.json extension status reload",
           { keyPrefix: "widget:", prefixDefault: true }),
+      ] },
+    ] },
+    { id: "voice", icon: "play", title: "Voice", blurb: "Reading replies aloud, and omp's voice to text and live conversation.", groups: [
+      { name: "Read aloud", rows: [
+        tweak("ttsEnabled", "toggle", "Read replies aloud", "When a run ends in the tab you are looking at, speak the reply's text; code blocks are skipped. A new message, a tab switch or `stop` above the input ends it.", "tts text to speech speak voice read aloud audio"),
+        custom("ttsEngine", "Speech engine", "What speaks, and in which voice. Edge TTS sends the text to Microsoft's online voices (Vietnamese included); Kokoro runs on this device and speaks English.", "tts text to speech engine voice vietnamese edge kokoro install",
+          { keys: ["ttsEngine", "ttsVoice"] }),
+        tweak("ttsSpeed", "seg", "Speaking speed", "How fast replies are read.", "tts speech rate speed",
+          { options: opts([0.75, 1, 1.25, 1.5, 2], { 0.75: "0.75×", 1: "1×", 1.25: "1.25×", 1.5: "1.5×", 2: "2×" }) }),
+      ] },
+      { name: "Voice to text", rows: [
+        custom("sttSettings", "Voice to text", "omp's on-device dictation behind the composer's microphone. Saved in omp's settings of the active tab's profile.", "stt dictation speech microphone whisper parakeet language vietnamese live voice model download"),
       ] },
     ] },
     { id: "terminal", icon: "terminal", title: "Terminal", blurb: "The shell panel under the chat. Each tab has its own shell, started in the tab's project folder.", groups: [

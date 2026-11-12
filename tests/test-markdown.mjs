@@ -42,10 +42,12 @@ for (const f of ["marked.min.js", "highlight.min.js", "app/marked-setup.js"]) {
   vm.runInContext(load(f), ctx, { filename: f });
 }
 const { marked } = ctx;
-// The two ways the app renders markdown: MarkdownContent (ui/markdown.jsx)
+// The three ways the app renders markdown: MarkdownContent (ui/markdown.jsx),
+// the same with `breaks` for a prompt the user sent (chat/user-bubble.jsx),
 // and one top-level token at a time (segmentPlan, ui/plan-annotations.jsx).
 const renderers = {
   parse: (md) => marked.parse(md),
+  prompt: (md) => marked.parse(md, { breaks: true }),
   plan: (md) => marked.lexer(md)
     .filter((t) => t.type !== "space" && t.type !== "def")
     .map((t) => marked.parser([t]))
@@ -221,6 +223,10 @@ check("query-string links keep legacy-looking & sequences literal", () => {
 
 check("mailto links survive the scheme check", () => {
   assert.equal(marked.parse("[m](mailto:a@b.c)"), '<p><a href="mailto:a@b.c">m</a></p>\n');
+});
+
+check("a prompt keeps its single line breaks", () => {
+  assert.equal(renderers.prompt("at a (b.js:1)\nat c (d.js:2)"), "<p>at a (b.js:1)<br>at c (d.js:2)</p>\n");
 });
 
 console.log(`markdown: ${passed} checks passed`);

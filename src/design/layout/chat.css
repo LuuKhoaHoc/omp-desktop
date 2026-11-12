@@ -46,6 +46,18 @@
 }
 
 .row { display: flex; gap: 12px; }
+/* While the column's width changes (chat/chat-view.jsx sets `is-resizing`
+   until it settles), rows off screen keep their last height instead of
+   re-wrapping on every step; the remembered height needs
+   `contain-intrinsic-block-size: auto` from before the resize starts, and
+   does nothing by itself. Only for the resize: left on, a row never shown
+   has an estimated height, and scrolling up through those moves the text
+   where the webview has no scroll anchoring (WebKit). Measured over 160
+   messages, per step of a drag: Chromium (WebView2) 150 ms → 15 ms;
+   WebKitGTK 2.54 no gain (76 ms either way, layout 42 → 12 ms but the
+   rest of the frame grows by as much). */
+.chat-pad > .row { contain-intrinsic-block-size: auto 200px; }
+.chat-scroll.is-resizing .chat-pad > .row { content-visibility: auto; }
 .row.user { justify-content: flex-end; }
 
 /* assistant left rail with thread */
@@ -148,12 +160,8 @@
 .user-text {
   font-size: var(--d-text);
   color: var(--fg);
-  /* A prompt is plain text, not markdown: keep its line breaks (a pasted
-     log or stack trace would otherwise run together, #31). No
-     `text-wrap: pretty` here: in WebKit it breaks preserved lines short
-     of the shrink-to-fit bubble's own max-content width, wrapping lines
-     that fit. */
-  white-space: pre-wrap;
+  /* A prompt renders as markdown with single line breaks kept (`breaks`), so
+     a pasted log or stack trace does not run together (#31). */
   overflow-wrap: anywhere;
 }
 

@@ -1,14 +1,30 @@
 /* ═════════════════════════════════════════════════════════════════════
-   tab-group-chip.jsx — one tab-bar chip for several tabs on one project
+   tab-group-chip.jsx — tab strip pieces shared with the project sidebar
 
-   Issue #27: tabs on the same folder *and* profile collapse into a single
-   chip (`omp-desktop 3 ▾`); its dropdown lists the member tabs and offers
-   "new conversation" in that project. Grouping itself is
+   TabCluster: a project (folder + profile) with several conversations in
+   the tab strip: its name once, then one tab per conversation and a "+"
+   for another in that project. Grouping itself is
    `OMP_PROJECT_NAV.groupTabs` (app/project-nav.js); this file only renders.
+   Also TabRunDot, TabLabel, TabNumber, tabClickProps and the strip's "+"
+   menu (NewTabMenu).
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon, RenameField } = window;
-const { groupTarget, groupRunState, membersNewestFirst, tabLabel } = window.OMP_PROJECT_NAV;
+const { groupTarget, membersNewestFirst, tabLabel } = window.OMP_PROJECT_NAV;
+
+// A tab's click props: select on click, close on middle-click, as in
+// browsers (#24). WebKit before Safari 18.2 / WebKitGTK 2.46 has no
+// `auxclick` and reports it as a `click` with button 1, hence the check in
+// onClick too; newer engines never send `click` for button 1, so this
+// can't double-fire. Swallowing the middle-button mousedown stops Windows
+// autoscroll and Linux primary-selection paste from firing on the tab.
+function tabClickProps(onSelect, onClose) {
+  return {
+    onClick: e => (e.button === 1 ? onClose?.() : onSelect?.()),
+    onMouseDown: e => { if (e.button === 1) e.preventDefault(); },
+    onAuxClick: e => { if (e.button === 1) { e.preventDefault(); onClose?.(); } },
+  };
+}
 
 /** A tab's (or group's) run-state dot; nothing while idle. Shared by the
  *  tab bar and the project sidebar so the titles stay in one place. */
@@ -39,122 +55,89 @@ function TabLabel({ tab, className, title }) {
   );
 }
 
-function TabGroupChip({ group, activeId, profileLabel, onSelect, onClose, onNewInProject, onRename, reorder }) {
-  const [open, setOpen] = React.useState(false);
+/** A tab's "go to tab N" number, or a project's range of them
+ *  (`OMP_PROJECT_NAV.tabDigits` / `groupDigits`). Shown only while the
+ *  chord's modifier is held (use-keymap.jsx useTabNumberHint; chrome.css
+ *  `.tab-num`). Shared by the tab bar and the project sidebar. */
+function TabNumber({ label }) {
+  return label ? <span className="tab-num" aria-hidden="true">{label}</span> : null;
+}
+
+function TabCluster({ group, activeId, digits, profileLabel, onSelect, onClose, onNewInProject, onRename, reorder }) {
   // Member tab whose name is being edited inline (#32).
   const [renaming, setRenaming] = React.useState(null);
-  const rootRef    = React.useRef(null);
-  const triggerRef = React.useRef(null);
-
-  // Focus back to the trigger: a picked row unmounts with the popover, and
-  // focus would otherwise fall back to <body> (same as ProfileMenu).
-  const close = React.useCallback(() => {
-    setOpen(false);
-    triggerRef.current?.focus();
-  }, []);
-
-  window.usePopoverDismiss(open, rootRef, close);
-
   const active  = group.tabs.find(t => t.id === activeId);
   const profile = profileLabel(group.profile);
-  // The × closes one conversation, the one a click on the chip selects (#45):
-  // the focused member, else the newest. Never the whole project.
-  const closeTarget = group.tabs.find(t => t.id === groupTarget(group, activeId));
-  // Drag to reorder (#40), on TabBar's `useDragReorder`: the chip moves
-  // along the bar, the dropdown's rows within this project.
+  // Drag to reorder (#40), on TabBar's `useDragReorder`: the head moves the
+  // project along the strip, a tab moves within this project.
   const members = `members:${group.key}`;
-
   return (
-    <div ref={rootRef}
-      {...reorder.itemProps("projects", group.key, "x")}
-      className={`tab tab-group ${active ? "active" : ""}${reorder.dropClass("projects", group.key)}`}
-      // A middle click never closes a group: it would take several tabs
-      // (and their transcripts) with it. Old WebKit reports it as a `click`
-      // with button 1 (see TabBar), hence the guard there too; the
-      // mousedown swallow stops autoscroll / primary-selection paste.
-      onClick={e => { if (e.button !== 1) onSelect(groupTarget(group, activeId)); }}
-      onMouseDown={e => { if (e.button === 1) e.preventDefault(); }}
-      onAuxClick={e => { if (e.button === 1) e.preventDefault(); }}>
-      <span className="tab-bar-mark" style={{ background: active ? active.color : "transparent" }} />
-      <Icon name="folder" size={11} color={active ? active.color : "var(--fg-4)"} />
-      <TabRunDot state={groupRunState(group.tabs)} />
-      <span className="tab-name" title={group.path}>{group.name}</span>
-      <span className="tab-count">{group.tabs.length}</span>
-      {profile && (
-        <span className="chip muted tab-profile" title={`${OMP_TR("profile:")} ${profile}`}>{profile}</span>
-      )}
-      <button ref={triggerRef} className="tab-group-trigger"
-        title={OMP_TR("conversations in this project")}
-        aria-haspopup="menu" aria-expanded={open}
-        onClick={e => { e.stopPropagation(); if (open) close(); else setOpen(true); }}>
-        <Icon name="chev" size={9} />
+    <div {...reorder.itemProps("projects", group.key, "x")}
+      className={`tab-cluster${active ? " active" : ""}${reorder.dropClass("projects", group.key)}`}>
+      <button className="tab-cluster-head" title={group.path}
+        onClick={() => onSelect(groupTarget(group, activeId))}>
+        <Icon name="folder" size={11} color={active ? active.color : "var(--fg-4)"} />
+        <span className="tab-name">{group.name}</span>
+        {profile && (
+          <span className="chip muted tab-profile" title={`${OMP_TR("profile:")} ${profile}`}>{profile}</span>
+        )}
       </button>
-      {/* Old WebKit reports a middle click as `click` with button 1 (see the
-          root): it must not close anything, as on the rest of the chip. */}
-      <button className="tab-close" title={OMP_TR("close conversation \"{name}\"", { name: closeTarget.name })}
-        onClick={e => { e.stopPropagation(); if (e.button !== 1) onClose?.(closeTarget.id); }}>
-        <Icon name="close" size={9} />
+      {/* Newest first, the order the sidebar lists them and "go to tab N"
+          counts in. */}
+      {membersNewestFirst(group).map(t => {
+        const on = t.id === activeId;
+        // A conversation not named yet still carries its folder's name,
+        // which the head already shows.
+        const name = tabLabel(t).prefix ? t.name : OMP_TR("new conversation");
+        return (
+          <div key={t.id}
+            {...reorder.itemProps(members, t.id, "x")}
+            className={`tab ${on ? "active" : ""}${reorder.dropClass(members, t.id)}`}
+            {...tabClickProps(() => onSelect(t.id), () => onClose?.(t.id))}
+            // The first click of the pair already selected the tab.
+            onDoubleClick={e => { if (onRename && !e.target.closest(".tab-close")) setRenaming(t.id); }}>
+            <span className="tab-bar-mark" style={{ background: on ? t.color : "transparent" }} />
+            <TabRunDot state={t.runState} />
+            {renaming === t.id ? (
+              <RenameField value={t.name}
+                onCommit={next => onRename(t.id, next)}
+                onClose={() => setRenaming(null)} />
+            ) : (
+              <span className="tab-name" title={`${name}\n${OMP_TR("double-click to rename")}`}>{name}</span>
+            )}
+            <TabNumber label={digits.get(t.id)} />
+            <button className="tab-close" title={OMP_TR("close tab")} onClick={e => { e.stopPropagation(); onClose?.(t.id); }}>
+              <Icon name="close" size={9} />
+            </button>
+          </div>
+        );
+      })}
+      <button className="tab-cluster-new" title={OMP_TR("new conversation in this project")}
+        onClick={() => onNewInProject?.(group.path, group.profile)}>
+        <Icon name="plus" size={10} />
       </button>
-
-      {open && (
-        <div className="tab-group-pop" role="menu" data-no-reorder onClick={e => e.stopPropagation()}>
-          {membersNewestFirst(group).map(t => (
-            <div key={t.id} {...reorder.itemProps(members, t.id, "y")}
-              className={`tab-group-row ${t.id === activeId ? "active" : ""}${reorder.dropClass(members, t.id)}`} role="none">
-              {renaming === t.id ? (
-                <span className="tab-group-item tab-group-editing">
-                  <span className="tab-group-dot"><TabRunDot state={t.runState} /></span>
-                  <RenameField value={t.name}
-                    onCommit={name => onRename(t.id, name)}
-                    onClose={() => setRenaming(null)} />
-                </span>
-              ) : (
-                <button className="tab-group-item" role="menuitem"
-                  onClick={() => { onSelect(t.id); close(); }}>
-                  <span className="tab-group-dot"><TabRunDot state={t.runState} /></span>
-                  <span className="tab-name" title={t.name}>{t.name}</span>
-                </button>
-              )}
-              {onRename && renaming !== t.id && (
-                <button className="tab-close" title={OMP_TR("rename conversation")}
-                  onClick={() => { onSelect(t.id); setRenaming(t.id); }}>
-                  <Icon name="edit" size={9} />
-                </button>
-              )}
-              {/* Stays open: the rest of the group is still listed, and when
-                  fewer than two tabs remain the whole chip unmounts. */}
-              <button className="tab-close" title={OMP_TR("close tab")} onClick={() => onClose?.(t.id)}>
-                <Icon name="close" size={9} />
-              </button>
-            </div>
-          ))}
-          <div className="tab-group-sep" role="separator" />
-          <button className="tab-group-item" role="menuitem"
-            onClick={() => { onNewInProject?.(group.path, group.profile); close(); }}>
-            <span className="tab-group-dot"><Icon name="plus" size={10} /></span>
-            <span className="tab-name">{OMP_TR("new conversation")}</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
 
-/** The tab bar's "+" (fork): a new omp chat or a terminal tab in the
- *  project that is open. Without an open project the chat entry picks a
- *  folder and the terminal entry is off (it opens in a project's folder). */
-function NewTabMenu({ project, onChat, onTerminal }) {
+/** The "+" menu (fork): a new omp chat or a terminal tab in the project
+ *  that is open. Without an open project the chat entry picks a folder and
+ *  the terminal entry is off (it opens in a project's folder). `header`
+ *  renders the trigger as the header's tool button (toolbar.jsx), the way
+ *  in while the tab strip is hidden; otherwise it is the strip's own "+". */
+function NewTabMenu({ project, onChat, onTerminal, header = false, chatChord = "" }) {
   const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef(null);
   const triggerRef = React.useRef(null);
   const close = React.useCallback(() => { setOpen(false); triggerRef.current?.focus(); }, []);
   window.usePopoverDismiss(open, rootRef, close);
   const where = project?.name ? ` in ${project.name}` : "";
+  const title = `new chat or terminal${where}${chatChord ? ` (chat: ${chatChord})` : ""}`;
   return (
-    <div ref={rootRef} className="tab-new" data-no-reorder>
-      <button ref={triggerRef} className="tab-new-btn" title={`new chat or terminal${where}`}
-        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
-        <Icon name="plus" size={12} />
+    <div ref={rootRef} className={header ? "tab-new tab-new-header" : "tab-new"} data-no-reorder>
+      <button ref={triggerRef} className={header ? "btn ghost tb-btn" : "tab-new-btn"} title={title}
+        aria-label={title} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <Icon name="plus" size={header ? 16 : 12} />
       </button>
       {open && (
         <div className="tab-group-pop" role="menu">
@@ -174,4 +157,4 @@ function NewTabMenu({ project, onChat, onTerminal }) {
   );
 }
 
-Object.assign(window, { TabGroupChip, TabRunDot, TabLabel, NewTabMenu });
+Object.assign(window, { TabCluster, TabRunDot, TabLabel, TabNumber, NewTabMenu, tabClickProps });

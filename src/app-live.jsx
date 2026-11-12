@@ -25,13 +25,13 @@ const {
   TWEAK_DEFAULTS, NULL_MODEL, EMPTY_PROJECT, DEFAULT_PROFILE_ID,
   INTENT_FRAMING, APPROVAL_PROMPT,
   useBridgeSnapshot, useThemeEffect, useSubagentManager, useUpdater, useConversationTree, useGoalMode, useTerminal, TerminalPanels, TerminalTabViews, timeNow,
-  useKeymap, useKeymapDispatch, useBrowser, BrowserDock, FilesPanel, useFileComments, MarkdownLinkContext: _AL_MdLinkCtx, ChatPageContext: _AL_PageCtx,
+  useKeymap, useKeymapDispatch, useTabNumberHint, useBrowser, BrowserDock, FilesPanel, useFileComments, MarkdownLinkContext: _AL_MdLinkCtx, ChatPageContext: _AL_PageCtx,
   usePaneWidths, ResizeHandle, useRemote, usePrAutomation, PrAutomationCard,
 } = window;
 const { routeSubmit: _routeSubmit } = window.OMP_SLASH;
 const { mergeIntoMessage: _mergeBrowserChips, browserCommand: _browserCommand, MIN_WIDTH: _AL_BROWSER_MIN } = window.OMP_BROWSER;
 const { mergeIntoMessage: _mergeFileMarks } = window.OMP_FILE_COMMENTS;
-const { recentRows, groupKey, moveGroup, moveMember, shiftGroup } = window.OMP_PROJECT_NAV;
+const { recentRows, groupKey, moveGroup, moveMember, shiftGroup, listedTabs } = window.OMP_PROJECT_NAV;
 const {
   entryOf, updateEntry, pruneEntries, seedEntries,
   PLAN_IDLE, togglePlan, enterPlan, approvePlan, annotatePlan, markPlanSent,
@@ -42,6 +42,9 @@ const { EMPTY: _EXT_EMPTY, cards: _extCards, toggles: _extToggles } = window.OMP
 const { entryOf: _TERM_entryOf } = window.OMP_TERMINAL;
 const { absolutePath: _gitAbsolutePath, finishedEdits: _gitFinishedEdits } = window.OMP_GIT_BROWSER;
 const { linkClick: _fpLinkClick } = window.OMP_FILE_PREVIEW;
+// The message box takes the focus, a frame later (after a closing form or
+// tab strip change has committed).
+const _AL_focusComposer = () => requestAnimationFrame(() => document.querySelector(".composer-input textarea")?.focus());
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
@@ -103,6 +106,8 @@ function App() {
   const [streaming,     setStreaming]     = React.useState(false);
   const [model,         setModelState]    = React.useState(NULL_MODEL);
   const [thinkingLevel, setThinkingLevel] = React.useState(null);
+  const [thinkingAuto,  setThinkingAuto]  = React.useState(false);
+  const [fastMode,      setFastMode]      = React.useState(null);
   const [ctx,           setCtx]           = React.useState(data.ctx);
   const [kanban,        setKanban]        = React.useState([]);
   const [planMeta,      setPlanMeta]      = React.useState(data.planMeta);
@@ -169,13 +174,13 @@ function App() {
   useBridgeSnapshot(bridge, {
     setMessages, setStreaming, setCtx, setKanban, setPlanMeta,
     setModels, setActivity, setSparkline,
-    setModelState, setThinkingLevel,
+    setModelState, setThinkingLevel, setThinkingAuto, setFastMode,
     setSessions, setActiveSessionId, setProfiles, setStartupProfileId, setRecentProjects,
     setNoTabProfileId, setWorkspaceNotes, setApprovalModes, setCloseConfirm,
     setPromptHistory, setSubagents, setSubagentTranscripts, setQueue, setQueueSending, setGoal, setExtWidgets, setLiveVoice, setDictation, setCodexLogin, setDictationCompleted,
   });
   useRemote({ bridge });
-  useThemeEffect(t);
+  useThemeEffect(t, useSystemTheme(bridge, t.systemTheme));
   React.useEffect(() => {
     bridge?.setPromptHistoryLimit(t.promptHistoryLimit ?? window.OMP_PROMPT_HISTORY.DEFAULT_LIMIT);
   }, [bridge, t.promptHistoryLimit]);
@@ -372,24 +377,63 @@ function App() {
     pendingLiveFromSettings.current = null;
     if (pending.id === planKey && !settingsOpening.current) requestLiveAction(pending.action);
   }, [stab.active, planKey]);
-  const requestDictationAction = action => {
+  // Hands-free conversation: the tab whose capture the user started while
+  // the setting is on. Their own stop, a failed start, an error, another
+  // tab or the setting going off ends it.
+  const [handsFreeTab, setHandsFreeTab] = React.useState(null);
+  const handsFreeArmed = !!t.handsFree && handsFreeTab === planKey;
+  const requestDictationAction = (action, { auto = false } = {}) => {
     if (action === "start" && settingsOpening.current) return Promise.resolve(false);
-    // The user's own stop sends the draft when Settings › Composer says so.
+    if (action === "start") setHandsFreeTab(t.handsFree ? planKey : null);
+    else if (!auto) setHandsFreeTab(null);
+    // The user's own stop sends the draft when Settings › Composer says so;
+    // a hands-free pause always does, it is the end of their turn.
     return runVoiceAction(dictationActionSeq, setDictationErrors, "Voice to text",
-      b => action === "start" ? b.dictationStart() : b.dictationStop({ send: !!t.dictationSend }));
+      b => action === "start" ? b.dictationStart() : b.dictationStop({ send: !!t.dictationSend || (auto && handsFreeArmed) }))
+      .then(ok => { if (!ok && action === "start") setHandsFreeTab(null); return ok; });
+  };
+  const dictationFailed = !!(dictation?.error || dictationErrors[planKey]);
+  React.useEffect(() => {
+    if (!t.handsFree || dictationFailed) setHandsFreeTab(null);
+    else setHandsFreeTab(tab => (tab === planKey ? tab : null));
+  }, [planKey, t.handsFree, dictationFailed]);
+  // The × on a voice panel's error line: the tab's command error (held
+  // here) and the bridge's own go together.
+  const dismissVoiceError = kind => {
+    (kind === "live" ? setLiveErrors : setDictationErrors)(m => ({ ...m, [planKey]: null }));
+    if (kind === "live") bridge?.liveDismiss(); else bridge?.dictationDismiss();
   };
   // Settings › Composer › Stop after a pause: no new dictated text for that
   // long stops the capture as the user's own stop, so "Send voice to text on
   // stop" applies to it too. Every text change re-arms the timer.
-  const dictationAutoStopMs = window.OMP_LIVE_VOICE.DICTATION.autoStopDelay(dictation, t.dictationAutoStop);
+  const dictationAutoStopMs = window.OMP_LIVE_VOICE.DICTATION.autoStopDelay(dictation,
+    handsFreeArmed ? window.OMP_LIVE_VOICE.HANDS_FREE.pause(t.dictationAutoStop) : t.dictationAutoStop);
   React.useEffect(() => {
     if (dictationAutoStopMs == null) return undefined;
-    const timer = setTimeout(() => requestDictationAction("stop"), dictationAutoStopMs);
+    const timer = setTimeout(() => requestDictationAction("stop", { auto: true }), dictationAutoStopMs);
     return () => clearTimeout(timer);
-  }, [dictationAutoStopMs, dictation?.captureId, dictation?.text, t.dictationSend]);
+  }, [dictationAutoStopMs, dictation?.captureId, dictation?.text, t.dictationSend, handsFreeArmed]);
   // The equalizer above the input while the microphone records (Rust reads
   // the device itself; omp's capture is out of reach in its own process).
   const voiceSpectrum = useVoiceSpectrum(bridge, window.OMP_VOICE_SPECTRUM.shouldRun(dictation, liveVoice), t.voiceSpectrumBands);
+  // Reads the reply aloud when the shown tab's run ends (Settings › Voice).
+  const readAloud = useReadAloud({
+    bridge, tweaks: t, sessionId: planKey, profileId: activeProfileId, streaming, messages,
+  });
+  // Hands-free: the reply is over (read aloud to its end when that is on),
+  // so it is the user's turn again. A turn that ended behind Settings waits
+  // for it to close.
+  const handsFreeTurn = React.useRef(0);
+  React.useEffect(() => {
+    if (readAloud.turn === handsFreeTurn.current) return;
+    const next = window.OMP_LIVE_VOICE.HANDS_FREE.next({
+      enabled: t.handsFree, armedTab: handsFreeTab, sessionId: planKey, streaming,
+      dictating: !!dictation?.active, calling: !!liveVoice?.active, settingsOpen: stab.active,
+    });
+    if (next === "wait") return;
+    handsFreeTurn.current = readAloud.turn;
+    if (next === "listen") requestDictationAction("start");
+  }, [readAloud.turn, stab.active]); // eslint-disable-line react-hooks/exhaustive-deps
   const handleLiveAction = (args = "") => {
     const action = window.OMP_SLASH.liveCommand(args, liveVoice);
     if (!action) {
@@ -478,6 +522,17 @@ function App() {
     bridge, tabId: activeProject.id, sessionIds, open: side === "files", setOpen: setFilesOpen,
     project: activeProject, edits: filesEdits,
   });
+  // A comment added as a chip (a chat quote, a file mark, a browser
+  // annotation) closed the form the focus was in: the composer takes it, so
+  // the send chord sends the chips. Only a count that grew within one tab:
+  // a tab switch shows another tab's chips, it adds none.
+  const chipCount = tabQuotes.length + browser.chips.length + files.marks.length;
+  const chipsSeen = React.useRef({ tab: planKey, count: chipCount });
+  React.useEffect(() => {
+    const seen = chipsSeen.current;
+    chipsSeen.current = { tab: planKey, count: chipCount };
+    if (seen.tab === planKey && chipCount > seen.count) _AL_focusComposer();
+  }, [planKey, chipCount]);
   const filesOpenAt = files.openAt;
   const previewToFiles = React.useCallback(
     (path, range) => { setPreview(null); filesOpenAt({ path, range }); }, [filesOpenAt]);
@@ -538,6 +593,10 @@ function App() {
   // Handler map read through a ref so the dispatch effect never re-subscribes.
   const handlersRef = React.useRef({});
   useKeymapDispatch(handlersRef);
+  useTabNumberHint();
+  // A tab switch is quiet (app/exit-motion.js `quietSwitch`): set before
+  // this commit's DOM changes, so the tab's surfaces never start to ease in.
+  React.useInsertionEffect(() => window.OMP_EXIT_MOTION.quietSwitch(document), [activeSessionId]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   // Where a submit goes (OMP_SLASH.routeSubmit): decided on the typed draft.
@@ -858,7 +917,7 @@ function App() {
   // ── Project navigation (#27) ──────────────────────────────────────────────
   const showSidebar   = t.sidebar ?? true;
   const toggleSidebar = () => setTweak("sidebar", !showSidebar);
-  const showTabStrip  = !!t.tabStrip || ttabs.tabs.length > 0 || stab.open;
+  const showTabStrip  = !!t.tabBar || ttabs.tabs.length > 0 || stab.open;
 
   // A recent project: focus its open tab in the active profile, else spawn.
   const handleOpenRecent = async path => {
@@ -899,12 +958,13 @@ function App() {
     const order = shiftGroup(sessions, groupKey(activeProject), delta);
     if (order) bridge?.reorderTabs(order);
   };
-  // Ctrl+Tab / Ctrl+Shift+Tab over the project tabs and, when open, the
-  // settings tab as the last stop. Indexed on `activeProject.id`, not
+  // Ctrl+Tab / Ctrl+Shift+Tab over the project tabs, in the order the
+  // sidebar lists them (as Ctrl+1..9 counts), and, when open, the settings
+  // tab as the last stop. Indexed on `activeProject.id`, not
   // `activeSessionId`: `activeProject` falls back to `sessions[0]` when the
   // snapshot's `activeSessionId` is stale or empty.
   const cycleTabs = dir => {
-    const r = window.OMP_SETTINGS_TAB.cycle(stab, sessionIds, activeProject.id, dir);
+    const r = window.OMP_SETTINGS_TAB.cycle(stab, listedTabs(sessions).map(s => s.id), activeProject.id, dir);
     if (r.settingsActive) { openSettings(); return; }
     setStab(window.OMP_SETTINGS_TAB.selectProject);
     if (r.sessionId && r.sessionId !== activeProject.id) bridge?.activateSession(r.sessionId);
@@ -974,16 +1034,18 @@ function App() {
     "desktop.composer.focus":  () => {
       setStab(window.OMP_SETTINGS_TAB.selectProject);
       setTtabs(window.OMP_TERMINAL_TABS.selectProject);
-      requestAnimationFrame(() => document.querySelector(".composer-input textarea")?.focus());
+      _AL_focusComposer();
     },
     "desktop.rail.toggle":     toggleRail,
     "desktop.tree.toggle":     () => toggleSide("tree"),
     "desktop.subagents.toggle": subagentUi.togglePane,
     "desktop.browser.annotate": () => { if (side === "browser" && browser.state.status === "running") browser.setAnnotate(!browser.annotate); },
     "desktop.browser.fullView": () => { if (side === "browser") browser.setFullView(!browser.fullView); },
-    // Ctrl+1..9: the nth tab as the sidebar lists it (grouped by project).
+    // Ctrl+1..9: the nth tab as the sidebar lists it (grouped by project,
+    // a project's conversations newest first); holding the modifier shows
+    // the numbers (useTabNumberHint).
     ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => [`desktop.tab.goto${n}`, () => {
-      const id = window.OMP_PROJECT_NAV.groupTabs(sessions).flatMap(g => g.tabs)[n - 1]?.id;
+      const id = listedTabs(sessions)[n - 1]?.id;
       if (!id) return;
       setStab(window.OMP_SETTINGS_TAB.selectProject);
       setTtabs(window.OMP_TERMINAL_TABS.selectProject);
@@ -1061,7 +1123,7 @@ function App() {
     approvalModes, sessions, activeProject,
     widgets, widgetTweakKey: _widgetTweakKey, extToggles, keyOpts: settingsKeyOpts,
     panes, terminalHeight: terminal.height, updater,
-    goal: { profileId: activeProfileId }, models,
+    goal: { profileId: activeProfileId }, models, readAloud,
     openApprovals: () => setRulesOpen(true),
     section: stab.section,
     setSection: id => setStab(s => window.OMP_SETTINGS_TAB.setSection(s, id)),
@@ -1092,7 +1154,8 @@ function App() {
           <WindowChrome project={activeProject}
             start={<HeaderStart nav={{
               sidebarOpen: showSidebar, onToggleSidebar: toggleSidebar,
-              onNewChat: newChat, onHistory: () => setHistoryOpen(true),
+              newTab: { project: activeProject.id ? activeProject : null, onChat: newChat, onTerminal: openTerminalTab },
+              onHistory: () => setHistoryOpen(true),
             }} />}
             end={<HeaderEnd onCommands={() => setBridgeOpen(true)} />} />
           {/* Tabs live in the sidebar; the strip is opt-in (Settings → Layout)
@@ -1118,9 +1181,10 @@ function App() {
             }}
           />}
 
-          <div ref={workspaceRef} className="workspace" style={panes.style}>
+          <div ref={workspaceRef} className="workspace">
             {showSidebar && (
               <ProjectSidebar
+                style={panes.sidebarStyle}
                 tabs={sessions}
                 activeId={stab.active ? null : activeSessionId}
                 recents={recentRows(recentProjects, sessions, activeProfileId)}
@@ -1138,7 +1202,7 @@ function App() {
               />
             )}
             {showSidebar && <ResizeHandle className="at-sidebar" {...panes.handle("sidebar")} />}
-            <div ref={stageRef} className={`stage ${side === "browser" ? `with-browser${browserFull ? " browser-full" : ""}` : sideRail ? `with-${sideRail}${filesFull ? " files-full" : ""}` : ""}`}>
+            <div ref={stageRef} style={panes.stageStyle} className={`stage ${side === "browser" ? `with-browser${browserFull ? " browser-full" : ""}` : sideRail ? `with-${sideRail}${filesFull ? " files-full" : ""}` : ""}`}>
               <main className="session" onFocusCapture={prAutomation.onConversationFocus}>
                 {noTab ? (
                   <EmptyWorkspace notes={workspaceNotes} screen={t.startScreen} paused={stab.active} />
@@ -1167,7 +1231,7 @@ function App() {
                     submitKey={t.submitKey}
                     onEdit={streaming ? null : handleEditPrompt}
                   />
-                  <ChatQuotePopover onAdd={addQuote} />
+                  <ChatQuotePopover onAdd={addQuote} submitKey={t.submitKey} />
                   <TerminalPanels sessions={sessions} activeId={planKey} terminal={terminal} />
                   <Composer
                     sessionId={planKey}
@@ -1180,8 +1244,11 @@ function App() {
                     dictation={dictation}
                     dictationError={dictationErrors[planKey]}
                     onDictationAction={requestDictationAction}
+                    onDismissVoiceError={dismissVoiceError}
                     dictationCompleted={dictationCompleted}
                     onAckDictation={ids => bridge?.ackDictation(ids)}
+                    handsFree={handsFreeArmed ? { armed: true, reads: !!t.ttsEnabled, end: () => setHandsFreeTab(null) } : null}
+                    readAloud={readAloud}
                     onSend={handleSend}
                     planMode={plan.mode}
                     onTogglePlan={togglePlanMode}
@@ -1195,8 +1262,11 @@ function App() {
                     onOpenModel={() => openBridge("models")}
                     currentModel={model}
                     thinking={thinkingLevel}
+                    thinkingAuto={thinkingAuto}
                     onLoadThinkingLevels={() => bridge.thinkingLevels()}
                     onSetThinking={level => bridge.setThinkingLevel(level)}
+                    fastMode={fastMode}
+                    onSetFastMode={on => bridge.setFastMode(on)}
                     isStreaming={streaming}
                     backgroundWork={activeProject.runState === "background"}
                     onAbort={handleAbort}
@@ -1251,14 +1321,15 @@ function App() {
                 />
               )}
 
-              {side === "browser" ? (
-                <BrowserDock ui={browser} stageRef={stageRef} room={panes.browserRoom} />
-              ) : side === "work" ? (
+              <div className="browser-slot">
+                {side === "browser" && <BrowserDock ui={browser} stageRef={stageRef} room={panes.browserRoom} />}
+              </div>
+              {side === "browser" ? null : side === "work" ? (
                 <WorkPanel />
               ) : side === "insights" ? (
                 <InsightsPanel projectPath={activeProject.path ?? null} onAsk={handleInsertDraft} />
               ) : side === "files" ? (
-                <FilesPanel key={planKey} ui={files} canSendNow={!goalUi.mode} onSendNow={() => handleSend("", [])} onOpenGit={handleOpenFile} />
+                <FilesPanel key={planKey} ui={files} canSendNow={!goalUi.mode} onSendNow={() => handleSend("", [])} onOpenGit={handleOpenFile} submitKey={t.submitKey} />
               ) : side === "tree" ? (
                 <ConversationTree
                   model={convTree.model} currentFile={convTree.currentFile} error={convTree.error}

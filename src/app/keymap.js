@@ -403,6 +403,19 @@
     return !isMac && mods.includes("ctrl") && mods.includes("shift");
   }
 
+  /**
+   * The editing command a keydown in a text field asks for: "undo", "redo"
+   * or null. WebKitGTK binds no key to either (a browser adds them as window
+   * accelerators, and wry does so for WebView2 only), so on Linux Ctrl+Z did
+   * nothing in the composer; use-keymap.jsx runs the webview's own command
+   * for the chords below. macOS is left out: its Edit menu owns ⌘Z.
+   */
+  const EDIT_COMMANDS = { "ctrl+z": "undo", "ctrl+shift+z": "redo", "ctrl+y": "redo" };
+  function editCommand(e, isMac = IS_MAC) {
+    if (isMac || e.getModifierState?.("AltGraph")) return null;
+    return EDIT_COMMANDS[chordFromEvent(e)] ?? null;
+  }
+
   // ── Display ───────────────────────────────────────────────────────────────
 
   /**
@@ -503,6 +516,41 @@
     return formatChord(stripped ? stripped[1] : chord);
   }
 
+  // ── Tab numbers ───────────────────────────────────────────────────────────
+
+  /** KeyboardEvent.key names of a chord's modifier (WebKitGTK reports the
+   *  super key as "Super" or "OS" on some setups). */
+  const MODIFIER_KEYS = { ctrl: ["Control"], alt: ["Alt"], super: ["Meta", "Super", "OS"] };
+
+  /**
+   * The modifier keys that start a "go to tab N" chord of the form
+   * `<modifier>+<key>`, as KeyboardEvent.key names: while one is held, the
+   * tab lists show each tab's number (use-keymap.jsx useTabNumberHint).
+   */
+  function tabNumberModifiers() {
+    const keys = new Set();
+    for (let n = 1; n <= 9; n++) {
+      for (const chord of keysFor(`desktop.tab.goto${n}`)) {
+        const m = /^(ctrl|alt|super)\+[^+]+$/.exec(chord);
+        if (m) for (const key of MODIFIER_KEYS[m[1]]) keys.add(key);
+      }
+    }
+    return keys;
+  }
+
+  /**
+   * What a key event means for the tab numbers: "arm" (a go-to-tab modifier
+   * went down: show them after a pause), "hide" (it came up, or another key
+   * makes this some other shortcut) or null (no change: a digit, a repeat).
+   * @param {KeyboardEvent} e
+   * @param {boolean} down  keydown, else keyup
+   */
+  function tabNumberStep(e, down, mods = tabNumberModifiers()) {
+    if (mods.has(e.key)) return down ? (e.repeat ? null : "arm") : "hide";
+    if (!down) return null;
+    return /^[1-9]$/.test(e.key) || /^(Digit|Numpad)[1-9]$/.test(e.code ?? "") ? null : "hide";
+  }
+
   // ── Export ────────────────────────────────────────────────────────────────
 
   window.OMP_KEYMAP = {
@@ -516,10 +564,13 @@
     matches,
     isTypingTarget,
     allowedInInput,
+    editCommand,
     guestShouldBypass,
     formatChord,
     hintFor,
     hintKeyFor,
+    tabNumberModifiers,
+    tabNumberStep,
     detectMac,
   };
 })();

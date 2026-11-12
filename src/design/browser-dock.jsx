@@ -13,9 +13,11 @@ const { BrowserPanel: _BD_Panel, ResizeHandle: _BD_Handle } = window;
 const { clampWidth: _BD_clamp, maxWidth: _BD_max, MIN_WIDTH: _BD_MIN } = window.OMP_BROWSER;
 
 function BrowserDock({ ui, stageRef, room }) {
+  // The stage's right edge is read once, at the press: a read per move
+  // would force a layout of the transcript the previous move just resized.
   const drag = window.useEdgeDrag({
-    begin: () => ({ start: width }),
-    measure: (e) => _BD_clamp(Math.round(stageRef.current.getBoundingClientRect().right - e.clientX), room),
+    begin: () => ({ start: width, right: stageRef.current.getBoundingClientRect().right }),
+    measure: (e, d) => _BD_clamp(Math.round(d.right - e.clientX), room),
     commit: ui.setWidth,
   });
   const width = _BD_clamp(drag.size ?? ui.width, room);

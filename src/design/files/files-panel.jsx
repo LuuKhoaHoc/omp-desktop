@@ -1,28 +1,45 @@
 /* ═════════════════════════════════════════════════════════════════════
    files/files-panel.jsx — the files panel in the side column
    (docs/architecture/file-comments.md): the git browser's files pane
-   (GitFileTree; hideable), the selected file with its marks (FileCode),
+   (GitFileTree; hideable), the selected file with its marks (FileCode) or,
+   while it is edited, its text (FileEditor),
    and a footer with the tab's mark counts, "clear all" and "send now".
 
-   Props: { ui, canSendNow, onSendNow, onOpenGit }
+   Props: { ui, canSendNow, onSendNow, onOpenGit, submitKey }
      ui         — useFileComments (app/use-file-comments.jsx)
      canSendNow — whether the marks can go out without typed text now
      onSendNow  — sends the marks with no typed text
      onOpenGit  — path → the git browser on that file
+     submitKey  — the composer's send chord, which saves a comment form
    ═════════════════════════════════════════════════════════════════════ */
 const {
-  Icon: _FCP_Icon, CopyButton: _FCP_Copy, GitFileTree: _FCP_Tree, FileCode: _FCP_Code,
+  Icon: _FCP_Icon, CopyButton: _FCP_Copy, GitFileTree: _FCP_Tree, FileCode: _FCP_Code, FileEditor: _FCP_Editor,
   FileState: _FCP_State, FILE_STATES: _FCP_STATES,
 } = window;
+const { blocker: _FCP_blocker, indentUnit: _FCP_indentUnit } = window.OMP_FILE_EDIT;
+// Why the edit button is off (OMP_FILE_EDIT.blocker).
+const _FCP_BLOCKED = {
+  encoding: "This file is not valid UTF-8 text: saving it here would damage it.",
+  eol: "This file mixes line endings: saving it here would rewrite them.",
+};
+const _FCP_PROBLEMS = {
+  changed: "The file changed on disk since you opened it.",
+  unsaved: "Save or discard your changes before opening another file.",
+};
 const { clipLines: _FCP_clip, MAX_LINES: _FCP_MAX_LINES, MAX_LINE_CHARS: _FCP_MAX_LINE_CHARS } = window.OMP_FILE_PREVIEW;
 const { formatBytes: _FCP_size } = window.OMP_UPDATER;
 const _FCP_NO_MARKS = Object.freeze([]);
 
-function _FCP_Body({ ui, path, clip }) {
+function _FCP_Body({ ui, path, clip, edit, submitKey }) {
   const f = ui.file;
   const value = f?.value;
   const marks = React.useMemo(
     () => (path ? ui.marks.filter(m => m.path === path) : _FCP_NO_MARKS), [ui.marks, path]);
+  const unit = React.useMemo(() => (edit ? _FCP_indentUnit(edit.base) : ""), [edit?.base]);
+  if (edit) {
+    return <_FCP_Editor key={edit.path} initial={ui.editDraft()} unit={unit} saving={edit.saving}
+      onInput={ui.editInput} onSave={ui.saveEdit} />;
+  }
   if (!ui.hasFolder) return <_FCP_State title={OMP_TR("No project folder")} sub={OMP_TR("This tab was opened without a folder.")} />;
   if (!ui.view.selected) {
     return <_FCP_State title={OMP_TR("No file open")} sub={OMP_TR("Pick a file in the tree, or type part of its path in the filter box.")} />;
@@ -36,7 +53,7 @@ function _FCP_Body({ ui, path, clip }) {
   }
   if (!clip) return <_FCP_State title={OMP_TR("Not a text file")} sub={OMP_TR("Only text files take explain marks and comments.")} />;
   return (
-    <_FCP_Code key={path} path={path} text={clip.text} marks={marks} target={ui.view.target}
+    <_FCP_Code key={path} path={path} text={clip.text} marks={marks} target={ui.view.target} submitKey={submitKey}
       onAdd={ui.addMark} onUpdate={ui.updateMark} onRemove={ui.removeMark} onTargetDone={ui.targetDone} />
   );
 }
@@ -69,12 +86,28 @@ function _FCP_Foot({ ui, canSendNow, onSendNow }) {
   );
 }
 
-function FilesPanel({ ui, canSendNow, onSendNow, onOpenGit }) {
+function _FCP_EditNote({ ui, edit }) {
+  if (!edit.problem) return null;
+  const known = _FCP_PROBLEMS[edit.problem];
+  return (
+    <div className="fc-edit-note" role="alert">
+      <span className="fc-edit-note-text">{known ? OMP_TR(known) : edit.problem}</span>
+      {edit.problem === "changed" && (
+        <button type="button" className="btn ghost" onClick={() => ui.saveEdit(true)}>{OMP_TR("overwrite")}</button>
+      )}
+    </div>
+  );
+}
+
+function FilesPanel({ ui, canSendNow, onSendNow, onOpenGit, submitKey }) {
   const value = ui.file?.value;
   const clip = React.useMemo(() => (value?.kind === "Text" ? _FCP_clip(value.text) : null), [value]);
   const path = value?.path ?? ui.view.selected;
   const slash = path ? path.search(/[^/]*$/) : 0;
   const { treeOpen } = ui.view;
+  // The edit of the file shown (an edit holds its file, so it is that one).
+  const edit = ui.view.edit && ui.view.edit.path === value?.path ? ui.view.edit : null;
+  const blocked = clip ? _FCP_blocker(value) : "kind";
   return (
     <section className="fc-panel" aria-label={OMP_TR("files panel")}>
       <div className={`fc-split${treeOpen ? "" : " no-tree"}`}>
@@ -103,14 +136,36 @@ function FilesPanel({ ui, canSendNow, onSendNow, onOpenGit }) {
             <span className="fc-crumb mono" title={path ?? ""}>
               {path ? <>{path.slice(0, slash)}<b>{path.slice(slash)}</b></> : null}
             </span>
-            {clip && <span className="chip muted mono">{clip.total} {OMP_TR("lines")}</span>}
-            {clip?.truncated && (
+            {clip && !edit && <span className="chip muted mono">{clip.total} {OMP_TR("lines")}</span>}
+            {clip?.truncated && !edit && (
               <span className="chip warn mono" title={OMP_TR("Shown: the first {n} lines, each cut at {m} characters", { n: _FCP_MAX_LINES, m: _FCP_MAX_LINE_CHARS })}>{OMP_TR("truncated")}</span>
             )}
+            {edit?.dirty && <span className="chip warn mono">{OMP_TR("unsaved")}</span>}
             <span className="fc-spacer" />
-            <button type="button" className="btn ghost icon" onClick={ui.refresh} title={OMP_TR("reload from disk")} aria-label={OMP_TR("reload from disk")}>
-              <_FCP_Icon name="refresh" size={12} />
-            </button>
+            {edit && (
+              <>
+                <button type="button" className="btn primary fc-save" disabled={!edit.dirty || edit.saving}
+                  onClick={() => ui.saveEdit()} title={OMP_TR("Save the file (Ctrl+S)")}>
+                  {edit.saving ? OMP_TR("saving…") : OMP_TR("save")}
+                </button>
+                <button type="button" className="btn ghost" disabled={edit.saving} onClick={ui.cancelEdit}
+                  title={OMP_TR("Leave the editor; unsaved text is dropped")}>
+                  {edit.dirty ? OMP_TR("discard") : OMP_TR("close editor")}
+                </button>
+              </>
+            )}
+            {clip && !edit && blocked !== "kind" && (
+              <button type="button" className="btn ghost icon" disabled={!!blocked} onClick={ui.startEdit}
+                title={blocked ? OMP_TR(_FCP_BLOCKED[blocked]) : OMP_TR("Edit this file")}
+                aria-label={OMP_TR("Edit this file")}>
+                <_FCP_Icon name="edit" size={12} />
+              </button>
+            )}
+            {!edit && (
+              <button type="button" className="btn ghost icon" onClick={ui.refresh} title={OMP_TR("reload from disk")} aria-label={OMP_TR("reload from disk")}>
+                <_FCP_Icon name="refresh" size={12} />
+              </button>
+            )}
             {value && value.kind !== "Outside" && !ui.searchMode && (
               <button type="button" className="btn ghost icon" onClick={() => onOpenGit(value.path)}
                 title={OMP_TR("Open in the git browser")} aria-label={OMP_TR("Open in the git browser")}>
@@ -119,8 +174,9 @@ function FilesPanel({ ui, canSendNow, onSendNow, onOpenGit }) {
             )}
             {value && <_FCP_Copy className="fp-copy" label={OMP_TR("Copy the project-relative path")} text={value.path} />}
           </div>
+          {edit && <_FCP_EditNote ui={ui} edit={edit} />}
           <div className="fc-body">
-            <_FCP_Body ui={ui} path={value?.path ?? null} clip={clip} />
+            <_FCP_Body ui={ui} path={value?.path ?? null} clip={clip} edit={edit} submitKey={submitKey} />
           </div>
         </div>
       </div>

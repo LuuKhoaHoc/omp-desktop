@@ -6,8 +6,8 @@
    - Ambient rail: TokenGauge, ActivityRadar, subagents card, Minimap
    ═════════════════════════════════════════════════════════════════════ */
 
-const { Icon, TokenGauge, ActivityRadar, Sparkline, TOOL_META, DEFAULT_PROFILE_ID, SubagentRailCard, TabGroupChip, TabRunDot, TabLabel, RenameField, BranchMenu } = window;
-const { groupTabs } = window.OMP_PROJECT_NAV;
+const { Icon, TokenGauge, ActivityRadar, Sparkline, TOOL_META, DEFAULT_PROFILE_ID, SubagentRailCard, TabCluster, TabRunDot, TabLabel, TabNumber, tabClickProps, RenameField, BranchMenu } = window;
+const { groupTabs, tabDigits } = window.OMP_PROJECT_NAV;
 
 // Thin wrappers around the shared `OMP_KEYMAP.hintFor`/`hintKeyFor` — same
 // guard and rationale as composer.jsx's copy (kept local rather than a
@@ -18,18 +18,17 @@ function hintFor(actionId, fallback) {
 }
 
 // ── Platform detection ────────────────────────────────────────────────
-const IS_WIN = typeof navigator !== "undefined" &&
-  (navigator.userAgent.includes("Windows") || navigator.platform.startsWith("Win"));
+const WINDOW_CONTROLS = window.OMP_PLATFORM?.windowControlsKind?.() ?? "none";
 
 // ── Window chrome ─────────────────────────────────────────────────────
 // The app's one header row: window controls, `start` (toolbar.jsx
 // HeaderStart), the title, `end` (HeaderEnd). The whole row drags the
 // window except its buttons (live.js _setupWindowChrome).
-function WindowChrome({ project, start, end }) {
+function WindowChrome({ project, start, end, controls = WINDOW_CONTROLS }) {
   return (
     <div className="chrome" data-tauri-drag-region>
-      {/* macOS traffic lights — left side, hidden on Windows */}
-      {!IS_WIN && (
+      {/* macOS traffic lights — left side, macOS only */}
+      {controls === "macos" && (
         <div className="chrome-lights">
           <span className="light red" />
           <span className="light amber" />
@@ -49,8 +48,8 @@ function WindowChrome({ project, start, end }) {
 
       <div className="chrome-right">
         {end}
-        {/* Windows controls — right side, hidden on macOS/Linux */}
-        {IS_WIN && (
+        {/* Windows controls — right side, Windows only (Linux uses native decorations) */}
+        {controls === "windows" && (
           <div className="win-controls">
             <button className="win-ctrl win-min" title={OMP_TR("Minimize")}>
               <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 5.5h8" stroke="currentColor" strokeWidth="1" /></svg>
@@ -69,20 +68,7 @@ function WindowChrome({ project, start, end }) {
 }
 
 // ── Project tabs ─────────────────────────────────────────────────────
-// A tab's click props: select on click, close on middle-click, as in
-// browsers (#24). WebKit before Safari 18.2 / WebKitGTK 2.46 has no
-// `auxclick` and reports it as a `click` with button 1, hence the check in
-// onClick too; newer engines never send `click` for button 1, so this
-// can't double-fire. Swallowing the middle-button mousedown stops Windows
-// autoscroll and Linux primary-selection paste from firing on the tab.
-function tabClickProps(onSelect, onClose) {
-  return {
-    onClick: e => (e.button === 1 ? onClose?.() : onSelect?.()),
-    onMouseDown: e => { if (e.button === 1) e.preventDefault(); },
-    onAuxClick: e => { if (e.button === 1) { e.preventDefault(); onClose?.(); } },
-  };
-}
-
+// tabClickProps (select on click, close on middle-click): tab-group-chip.jsx.
 function TabBar({
   projects, activeId, onSelect, onClose, onRename, onNewInProject, onReorder,
   profiles = [],
@@ -98,18 +84,32 @@ function TabBar({
   // Tab whose name is being edited inline (#32); double-click enters it.
   const [renaming, setRenaming] = React.useState(null);
   // Drag to reorder (#40): projects along the bar ("projects", keyed by
-  // group), and a group chip's members in its dropdown (see TabGroupChip).
+  // group), and a project's conversations among themselves (TabCluster).
   const reorder = window.useDragReorder(onReorder);
+  // Each tab's "go to tab N" number, shown while that chord's modifier is held.
+  const digits = tabDigits(projects);
+  // The tab in front is scrolled into the strip when it changes. After the
+  // frame: nothing reads layout between a tab switch's commit and the
+  // chat's own scroll (AGENTS.md, "Tab switch cost").
+  const scrollRef = React.useRef(null);
+  const front = settings?.active ? "settings" : terminals?.active ?? activeId;
+  React.useEffect(() => {
+    const frame = requestAnimationFrame(() =>
+      scrollRef.current?.querySelector(".tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+    return () => cancelAnimationFrame(frame);
+  }, [front]);
   return (
     <div className="tabs" onPointerDown={reorder.onPointerDown}>
-      {/* Tabs on one folder + profile share a chip (#27); a project with a
-          single tab renders as a plain tab. */}
+     <div className="tabs-scroll" ref={scrollRef}>
+      {/* A project with several conversations is a cluster: its name, then
+          a tab each; a project with one renders as a plain tab. */}
       {groupTabs(projects).map((group) => {
         if (group.tabs.length > 1) {
           return (
-            <TabGroupChip key={group.key}
+            <TabCluster key={group.key}
               group={group}
               activeId={activeId}
+              digits={digits}
               profileLabel={profileLabel}
               onSelect={onSelect}
               onClose={onClose}
@@ -139,6 +139,7 @@ function TabBar({
             ) : (
               <TabLabel tab={p} className="tab-name" title={`${p.name}\n${OMP_TR("double-click to rename")}`} />
             )}
+            <TabNumber label={digits.get(p.id)} />
             {profile && (
               <span className="chip muted tab-profile" title={`${OMP_TR("profile:")} ${profile}`}>{profile}</span>
             )}
@@ -179,6 +180,7 @@ function TabBar({
           </button>
         </div>
       )}
+     </div>
       {newTab && <window.NewTabMenu {...newTab} />}
     </div>
   );

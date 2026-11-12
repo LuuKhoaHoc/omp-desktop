@@ -10,7 +10,16 @@
    the tab's branch changes, when an edit/write tool card finishes (`edits`,
    OMP_GIT_BROWSER.finishedEdits) and on `refresh`. Whether the tab shows
    the panel is app-live.jsx's per-tab side column (`open` / `setOpen`).
-   Marks and views of a closed tab are dropped; nothing is persisted. */
+   Marks and views of a closed tab are dropped; nothing is persisted.
+
+   Editing (`view.edit`, per tab): `{ path, base, eol, dirty, saving,
+   problem }` — `base` is the file's text on disk when the edit began (or
+   was last saved), `problem` null, "changed" (the file no longer holds
+   `base`), "unsaved" (another file was picked over unsaved text) or an
+   error text. The typed text itself stays out of React state (`drafts`,
+   per tab): typing re-renders nothing but the first dirty flip. */
+
+const _UFC_EDIT = window.OMP_FILE_EDIT;
 
 const _UFC = window.OMP_FILE_COMMENTS;
 const { ancestorDirs: _UFC_ancestors } = window.OMP_GIT_BROWSER;
@@ -21,7 +30,7 @@ const _UFC_SEARCH_LIMIT = 50;
 const _UFC_SEARCH_DELAY_MS = 120;
 const _UFC_VIEW = Object.freeze({
   selected: null, target: null, expanded: Object.freeze(new Set()), filter: "",
-  treeOpen: true, changedOnly: false, commentedOnly: false,
+  treeOpen: true, changedOnly: false, commentedOnly: false, edit: null,
 });
 let _ufcSeq = 0;
 // Folder names compare without case where the file system does (Windows,
@@ -50,6 +59,7 @@ function useFileComments({ bridge, tabId, sessionIds, open, setOpen, project, ed
     const ids = idsKey ? idsKey.split("\0") : [];
     setMarks(s => _UFC_prune(s, ids));
     setViews(m => _UFC_prune(m, ids));
+    for (const id of [...drafts.current.keys()]) if (!ids.includes(id)) drafts.current.delete(id);
   }, [idsKey]);
   // Leaving the panel leaves full view.
   React.useEffect(() => { if (!open) setFullView(false); }, [open]);
@@ -57,6 +67,8 @@ function useFileComments({ bridge, tabId, sessionIds, open, setOpen, project, ed
   const view = _UFC_entryOf(views, tabId, _UFC_VIEW);
   const patchView = React.useCallback(
     fn => setViews(m => _UFC_updateEntry(m, tabId, _UFC_VIEW, v => ({ ...v, ...fn(v) }))), [tabId]);
+  const drafts = React.useRef(new Map()); // tab id → the editor's text
+  const latest = React.useRef(null);
 
   const folder = project.path || null;
   const repoRoot = project.repoRoot || null;
@@ -119,9 +131,13 @@ function useFileComments({ bridge, tabId, sessionIds, open, setOpen, project, ed
   }, [bridge, fileKey, tick]);
 
   const actions = React.useMemo(() => {
-    const showPath = (path, target) => patchView(v => ({
-      selected: path, target, expanded: new Set([...v.expanded, ..._UFC_ancestors(path)]),
-    }));
+    // Unsaved text holds its file: picking another one only says so.
+    const showPath = (path, target) => patchView(v => (v.edit?.dirty && v.edit.path !== path
+      ? { edit: { ...v.edit, problem: "unsaved" } }
+      : {
+        selected: path, target, expanded: new Set([...v.expanded, ..._UFC_ancestors(path)]),
+        edit: v.edit?.path === path ? v.edit : null,
+      }));
     return {
       select: path => showPath(path, null),
       toggleDir: path => patchView(v => {
@@ -152,12 +168,56 @@ function useFileComments({ bridge, tabId, sessionIds, open, setOpen, project, ed
       takeMarks: (ids, id = tabId) => setMarks(s => _UFC.removeMarks(s, id, ids)),
       restoreMarks: (list, id = tabId) => setMarks(s => _UFC.restoreMarks(s, id, list)),
       refresh: () => setNonce(n => n + 1),
+      /** Starts editing the shown file (a `FilePreview` OMP_FILE_EDIT.blocker
+       *  lets through). */
+      startEdit: () => {
+        const value = latest.current.file?.value;
+        if (_UFC_EDIT.blocker(value)) return;
+        drafts.current.delete(tabId);
+        patchView(() => ({ edit: { path: value.path, base: value.text, eol: _UFC_EDIT.eolOf(value.text), dirty: false, saving: false, problem: null } }));
+      },
+      /** The editor's text now; only the first change touches state (the
+       *  dirty flag), so typing does not re-render the app. */
+      editInput: draft => {
+        drafts.current.set(tabId, draft);
+        const edit = latest.current.view.edit;
+        if (!edit || (edit.dirty && edit.problem !== "unsaved")) return;
+        patchView(v => (v.edit ? { edit: { ...v.edit, dirty: true, problem: null } } : {}));
+      },
+      /** The text the editor starts from: what was typed, else the file's. */
+      editDraft: () => drafts.current.get(tabId) ?? _UFC_EDIT.toEditor(latest.current.view.edit?.base ?? ""),
+      cancelEdit: () => {
+        drafts.current.delete(tabId);
+        patchView(() => ({ edit: null }));
+        setNonce(n => n + 1);
+      },
+      /** Saves the editor's text; `force` overwrites a file that changed on
+       *  disk since the edit began. The edit stays open on the saved text. */
+      saveEdit: async (force = false) => {
+        const edit = latest.current.view.edit;
+        if (!edit || edit.saving) return;
+        const draft = drafts.current.get(tabId) ?? _UFC_EDIT.toEditor(edit.base);
+        const text = _UFC_EDIT.toDisk(draft, edit.eol);
+        patchView(v => (v.edit ? { edit: { ...v.edit, saving: true, problem: null } } : {}));
+        const res = _ufcResult(await bridge.writeProjectFile(edit.path, force ? null : edit.base, text));
+        const problem = res.error ?? (res.value.status === "changed" ? "changed" : null);
+        patchView(v => {
+          if (v.edit?.path !== edit.path) return {};
+          if (problem) return { edit: { ...v.edit, saving: false, problem } };
+          // Text typed while the save ran is still unsaved.
+          return { edit: { ...v.edit, base: text, saving: false, problem: null, dirty: (drafts.current.get(tabId) ?? draft) !== draft } };
+        });
+        if (!problem) setNonce(n => n + 1);
+      },
       // The code view applied the open target: drop it, so a remount (the
       // panel toggled, a tab switch) does not scroll and pick it again.
       targetDone: nonce => setViews(m => _UFC_updateEntry(m, tabId, _UFC_VIEW,
         v => (v.target?.nonce === nonce ? { ...v, target: null } : v))),
     };
-  }, [patchView, folder, tabId, setOpen]);
+  }, [patchView, folder, tabId, setOpen, bridge]);
+
+  const shownFile = selected && file.key === fileKey ? file : null;
+  latest.current = { view, file: shownFile };
 
   return {
     open, fullView, setFullView, hasFolder: !!folder,
@@ -169,7 +229,7 @@ function useFileComments({ bridge, tabId, sessionIds, open, setOpen, project, ed
     treeLoading: !st,
     truncated: !!st?.value?.truncated,
     changedCount: tree?.changed ?? 0,
-    file: selected && file.key === fileKey ? file : null,
+    file: shownFile,
     marks, counts, commentedOnly,
     ...actions,
   };

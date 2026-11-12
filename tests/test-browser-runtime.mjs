@@ -53,7 +53,7 @@ function wire(cssW, cssH, seq) {
   return buffer;
 }
 
-function screenHarness({ bypass = () => false, escape = () => null } = {}) {
+function screenHarness({ bypass = () => false, escape = () => null, cursorAt, slot = null } = {}) {
   const frames = new Map(); // rAF id → callback
   const timers = [];
   const queries = [];
@@ -90,15 +90,18 @@ function screenHarness({ bypass = () => false, escape = () => null } = {}) {
   const canvas = { width: 0, height: 0, getContext: () => ({ drawImage: (...args) => painted.push(args) }) };
   const panel = node();
   const size = { width: 400, height: 300 };
+  const cursors = [];
   const view = node({
+    style: { setProperty: (name, value) => cursors.push([name, value]) },
     getBoundingClientRect: () => ({ left: 0, top: 0, ...size }),
-    closest: (sel) => (sel === ".browser-panel" ? panel : null),
+    closest: (sel) => (sel === ".browser-panel" ? panel : sel === ".browser-slot" ? slot : null),
   });
   const sink = node({ value: "", focused: 0, focus() { this.focused++; } });
   const screen = window.OMP_BROWSER_SCREEN.createScreen({
     view, canvas, sink,
     send: (ev) => sent.push(ev),
     ack: (seq) => acks.push(seq),
+    cursorAt,
     onResize: (...args) => resized.push(args),
     onPage: (page) => pages.push(page),
     escape,
@@ -107,7 +110,7 @@ function screenHarness({ bypass = () => false, escape = () => null } = {}) {
   const paintAll = () => { for (const [id, paint] of [...frames]) { frames.delete(id); paint(); } };
   const runTimers = () => { for (const fn of timers.splice(0)) fn(); };
   return {
-    window, screen, canvas, view, sink, panel, size, bitmaps, decode, painted, sent, acks, resized, pages, escapes,
+    window, screen, canvas, view, sink, panel, size, bitmaps, decode, painted, sent, acks, resized, pages, escapes, cursors,
     queries, frames, paintAll, runTimers, observe: () => observe(),
   };
 }
@@ -196,6 +199,29 @@ test("screen input: typed keys, text through the sink, paste, side buttons", asy
   h.screen.destroy();
 });
 
+test("screen cursor: one question at a time, the newest point last, none during a drag", async () => {
+  const asked = [];
+  const h = screenHarness({ cursorAt: (x, y) => new Promise((resolve) => asked.push({ x, y, resolve })) });
+  h.screen.frame(wire(800, 600, 1));
+  await flush();
+  const move = (x, y, buttons = 0) => { h.window.fire("mousemove", { target: h.canvas, buttons, clientX: x, clientY: y }); h.paintAll(); };
+  move(10, 10);
+  move(20, 20);
+  move(30, 30);
+  assert.deepEqual(asked.map((a) => [a.x, a.y]), [[20, 20]], "nothing asked while one is in flight");
+  asked[0].resolve("pointer");
+  await flush();
+  assert.deepEqual(h.cursors, [["--page-cursor", "pointer"]]);
+  assert.deepEqual(asked.map((a) => [a.x, a.y]), [[20, 20], [60, 60]], "only the newest point follows");
+  asked[1].resolve(null); // the page went away: the cursor stays
+  await flush();
+  assert.equal(h.cursors.length, 1);
+  h.view.fire("mousedown", { target: h.canvas, button: 0, buttons: 1, clientX: 30, clientY: 30, detail: 1 });
+  move(50, 50, 1);
+  assert.equal(asked.length, 2, "a drag asks nothing");
+  h.screen.destroy();
+});
+
 test("screen input: Shift+Insert is a native paste, like Ctrl+V", async () => {
   const h = screenHarness();
   h.screen.frame(wire(800, 600, 1));
@@ -254,6 +280,46 @@ test("screen input: moves and wheel ticks coalesce per frame; a press sends what
   h.paintAll();
   assert.equal(h.sent.length, mid + 2);
   h.screen.destroy();
+});
+
+test("screen wheel: docks in the stage's slot share its one listener, which stays when they go", async () => {
+  const slot = node();
+  const h = screenHarness({ slot });
+  const tickAt = (canvas, deltaY) => slot.fire("wheel", { target: canvas, deltaMode: 0, deltaX: 0, deltaY, clientX: 100, clientY: 50 });
+  const wheels = (sent) => sent.filter((e) => e.kind === "wheel").map((e) => e.deltaY);
+  h.screen.frame(wire(800, 600, 1));
+  await flush();
+  h.paintAll();
+  assert.equal(slot.listeners("wheel"), 1);
+  assert.equal(h.view.listeners("wheel"), 0, "no wheel listener comes and goes with the dock");
+  assert.equal(tickAt(h.canvas, 30).defaultPrevented, true, "the app never scrolls under the page");
+  h.paintAll();
+  assert.deepEqual(wheels(h.sent), [30]);
+  // The next tab's dock: another view and screen under the same slot.
+  const sent = [];
+  const canvas = { width: 0, height: 0, getContext: () => ({ drawImage() {} }) };
+  const view = node({
+    style: { setProperty() {} },
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 300 }),
+    closest: (sel) => (sel === ".browser-slot" ? slot : null),
+  });
+  const next = h.window.OMP_BROWSER_SCREEN.createScreen({
+    view, canvas, sink: node({ value: "" }), send: (ev) => sent.push(ev), ack() {},
+    onResize() {}, onPage() {}, escape: () => null, onEscape() {},
+  });
+  // Destroyed after the next one took the slot: it must not clear it.
+  h.screen.destroy();
+  assert.equal(slot.listeners("wheel"), 1, "still the one listener");
+  next.frame(wire(800, 600, 2));
+  await flush();
+  h.paintAll();
+  tickAt(canvas, 10);
+  h.paintAll();
+  assert.deepEqual(wheels(sent), [10], "the live screen gets the wheel");
+  assert.deepEqual(wheels(h.sent), [30], "the destroyed one does not");
+  next.destroy();
+  assert.equal(tickAt(canvas, 5).defaultPrevented, false, "no screen alive: the event passes untouched");
+  assert.equal(slot.listeners("wheel"), 1, "kept for the next dock");
 });
 
 test("screen Esc while annotating is the panel's: not the page's, not the keymap's interrupt", () => {

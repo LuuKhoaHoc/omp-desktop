@@ -6,7 +6,11 @@
 
    useKeymapDispatch(handlersRef)
      — installs one window keydown listener; reads handlers through a ref
-       so the effect never re-subscribes when handlers change. */
+       so the effect never re-subscribes when handlers change.
+
+   useTabNumberHint()
+     — shows the tab lists' "go to tab N" numbers while the chord's
+       modifier is held. */
 
 function useKeymap(bridge, profileId) {
   const [payload,   setPayload]   = React.useState(null);
@@ -128,9 +132,19 @@ function useKeymapDispatch(handlersRef) {
       const chord = window.OMP_KEYMAP.chordFromEvent(e);
       if (!chord) return;
       const id = window.OMP_KEYMAP.lookup(chord);
-      if (!id) return;
-      const handler = handlersRef.current?.[id];
-      if (!handler) return;
+      const handler = id ? handlersRef.current?.[id] : null;
+      if (!handler) {
+        // Undo / redo in a text field, unless an action took the chord
+        // (keymap.js editCommand). A guest's field never gets here: xterm
+        // and the browser page's sink cancel the keys they forward.
+        const edit = window.OMP_KEYMAP.isTypingTarget(e.target)
+          ? window.OMP_KEYMAP.editCommand(e) : null;
+        if (edit) {
+          e.preventDefault();
+          document.execCommand(edit);
+        }
+        return;
+      }
       if (window.OMP_KEYMAP.isTypingTarget(e.target) &&
           !window.OMP_KEYMAP.allowedInInput(chord)) return;
       // preventDefault unconditionally once a bound handler is found, even
@@ -149,4 +163,40 @@ function useKeymapDispatch(handlersRef) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-Object.assign(window, { useKeymap, useKeymapDispatch });
+// Holding the modifier of "go to tab N" (Ctrl by default) shows each tab's
+// number in the sidebar and the tab strip: a class on <html>, so nothing
+// re-renders. After a pause, so a quick Ctrl+C never flashes them; gone on
+// release, on a key that makes it another shortcut (keymap.js
+// tabNumberStep) and when the window loses the keyboard. Capture phase: a
+// focused terminal or browser page stops the keys it takes.
+const _KM_TAB_NUMBERS_MS = 220;
+function useTabNumberHint() {
+  React.useEffect(() => {
+    const root = document.documentElement;
+    let timer = null;
+    const hide = () => {
+      clearTimeout(timer);
+      timer = null;
+      root.classList.remove("show-tab-numbers");
+    };
+    const on = down => e => {
+      const step = window.OMP_KEYMAP.tabNumberStep(e, down);
+      if (step === "hide") hide();
+      else if (step === "arm" && timer === null) {
+        timer = setTimeout(() => root.classList.add("show-tab-numbers"), _KM_TAB_NUMBERS_MS);
+      }
+    };
+    const onDown = on(true), onUp = on(false);
+    window.addEventListener("keydown", onDown, true);
+    window.addEventListener("keyup", onUp, true);
+    window.addEventListener("blur", hide);
+    return () => {
+      hide();
+      window.removeEventListener("keydown", onDown, true);
+      window.removeEventListener("keyup", onUp, true);
+      window.removeEventListener("blur", hide);
+    };
+  }, []);
+}
+
+Object.assign(window, { useKeymap, useKeymapDispatch, useTabNumberHint });

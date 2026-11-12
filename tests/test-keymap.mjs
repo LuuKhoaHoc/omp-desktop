@@ -416,6 +416,54 @@ check("guest: AltGr (reported as ctrl+alt) types, even on a bound chord", () => 
   });
 });
 
+// ── editCommand (undo / redo in a text field) ────────────────────────────────
+
+check("edit: ctrl+z undoes, ctrl+shift+z and ctrl+y redo", () => {
+  assert.equal(K.editCommand(ev("z", "c"), LINUX), "undo");
+  assert.equal(K.editCommand(ev("Z", "cs"), LINUX), "redo");
+  assert.equal(K.editCommand(ev("y", "c"), LINUX), "redo");
+});
+
+check("edit: other chords, a composing key and AltGr are not edit commands", () => {
+  assert.equal(K.editCommand(ev("z"), LINUX), null, "plain z types");
+  assert.equal(K.editCommand(ev("z", "ca"), LINUX), null, "ctrl+alt+z");
+  assert.equal(K.editCommand(ev("z", "m"), LINUX), null, "super+z");
+  assert.equal(K.editCommand(ev("a", "c"), LINUX), null, "ctrl+a");
+  assert.equal(K.editCommand({ ...ev("z", "c"), isComposing: true }, LINUX), null, "IME composition");
+  assert.equal(K.editCommand({ ...ev("z", "c"), getModifierState: (m) => m === "AltGraph" }, LINUX), null, "AltGr");
+});
+
+check("edit: macOS keeps undo in its Edit menu", () => {
+  assert.equal(K.editCommand(ev("z", "c"), MAC), null);
+  assert.equal(K.editCommand(ev("z", "m"), MAC), null);
+});
+
+// ── Tab numbers shown while the go-to-tab modifier is held ───────────────────
+
+check("tab numbers: the modifiers are those of the bound go-to-tab chords", () => {
+  assert.deepEqual([...K.tabNumberModifiers()].sort(), ["Control", "Meta", "OS", "Super"]);
+  withBindings(Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => [`desktop.tab.goto${n}`, `alt+${n}`])), () => {
+    assert.deepEqual([...K.tabNumberModifiers()], ["Alt"]);
+  });
+  // A two-modifier chord has no single key to hold, an unbound action none.
+  withBindings(Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => [`desktop.tab.goto${n}`, n === 1 ? "ctrl+alt+1" : []])), () => {
+    assert.equal(K.tabNumberModifiers().size, 0);
+  });
+});
+
+check("tab numbers: armed by the modifier, kept through digits, hidden by another key or the release", () => {
+  const key = (k, extra = {}) => ({ key: k, code: "", ...extra });
+  assert.equal(K.tabNumberStep(key("Control"), true), "arm");
+  assert.equal(K.tabNumberStep(key("Control", { repeat: true }), true), null, "auto-repeat does not re-arm");
+  assert.equal(K.tabNumberStep(key("3"), true), null);
+  assert.equal(K.tabNumberStep(key("&", { code: "Digit1" }), true), null, "a layout whose digit row types symbols");
+  assert.equal(K.tabNumberStep(key("3"), false), null);
+  assert.equal(K.tabNumberStep(key("c"), true), "hide", "Ctrl+C is not asking for tab numbers");
+  assert.equal(K.tabNumberStep(key("Shift"), true), "hide");
+  assert.equal(K.tabNumberStep(key("Control"), false), "hide");
+  assert.equal(K.tabNumberStep(key("Alt"), true), "hide", "not a go-to-tab modifier by default");
+});
+
 // ── Done ──────────────────────────────────────────────────────────────────────
 
 console.log(`keymap: ${passed} checks passed`);

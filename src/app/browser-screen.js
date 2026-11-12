@@ -1,8 +1,10 @@
 // app/browser-screen.js — DOM side of the browser panel (docs/architecture/browser.md):
 // paints the latest screencast frame on a canvas and
 // forwards the user's pointer, wheel, key, text and paste input to the page.
-//   createScreen({ view, canvas, sink, send, ack, onResize, onPage, escape, onEscape })
+//   createScreen({ view, canvas, sink, send, ack, cursorAt, onResize, onPage, escape, onEscape })
 //     -> { frame(buffer), size(), destroy() }
+// `cursorAt(x, y)` resolves to the CSS cursor keyword the page wants at that
+// page point (or null): the view shows it through `--page-cursor`.
 // `view` is the wrapper the canvas fills; `sink` a hidden <textarea> inside
 // it that holds keyboard focus for the page, so paste, IME composition and
 // dead keys work (an editable target): keys that type nothing go out as key
@@ -22,7 +24,27 @@
   const RESIZE_MS = 100;
   const LINE_PX = 16;
 
-  function createScreen({ view, canvas, sink, send, ack, onResize, onPage, escape, onEscape }) {
+  // WebKit restyles the whole document after a wheel listener is added or
+  // removed anywhere (WebKitGTK 2.54: ~20 ms of a switch to a tab with the
+  // panel open, on top of the pass the new tab needs anyway). So the wheel
+  // listener is not the screen's: it sits on `.browser-slot`, the dock's
+  // parent that stays while docks come and go (app-live.jsx), is added once
+  // and never removed, and hands the event to the screen that is alive.
+  const wheelSlots = new WeakMap(); // `.browser-slot` element → { handle }
+  function wheelSlot(view) {
+    const host = view.closest?.(".browser-slot");
+    if (!host) return null;
+    let slot = wheelSlots.get(host);
+    if (!slot) {
+      const made = { handle: null };
+      wheelSlots.set(host, made);
+      host.addEventListener("wheel", (e) => made.handle?.(e), { passive: false });
+      slot = made;
+    }
+    return slot;
+  }
+
+  function createScreen({ view, canvas, sink, send, ack, cursorAt, onResize, onPage, escape, onEscape }) {
     const B = window.OMP_BROWSER;
     const ctx = canvas.getContext("2d");
     let dead = false;
@@ -39,6 +61,8 @@
     let pressed = 0; // bit `1 << MouseEvent.button` per button held since a press on the canvas
     let resizeTimer = 0;
     let dprQuery = null;
+    let cursorBusy = false; // a cursor question is in flight
+    let cursorNext = null; // the newest point to ask about once it settles
 
     // Every frame Rust sent is acked exactly once: painted, or dropped
     // (superseded before decode or paint, undecodable).
@@ -154,8 +178,25 @@
 
     function mouse(type, e, button) {
       const p = at(e);
-      if (!p) return;
+      if (!p) return null;
       send({ kind: "mouse", type, x: p.x, y: p.y, button, buttons: e.buttons, clickCount: type === "mouseMoved" ? 0 : Math.max(1, e.detail), modifiers: B.modifiersOf(e) });
+      return p;
+    }
+
+    // The screencast has no cursor: the page is asked what it wants under
+    // the pointer, one question at a time, the newest point last.
+    function askCursor(p) {
+      if (!cursorAt || !p) return;
+      if (cursorBusy) { cursorNext = p; return; }
+      cursorBusy = true;
+      Promise.resolve(cursorAt(p.x, p.y)).catch(() => null).then((cursor) => {
+        cursorBusy = false;
+        if (dead) return;
+        if (cursor) view.style.setProperty("--page-cursor", cursor);
+        const next = cursorNext;
+        cursorNext = null;
+        askCursor(next);
+      });
     }
 
     // Moves and wheel ticks are coalesced to one of each per frame (the
@@ -167,7 +208,10 @@
       cancelAnimationFrame(inputRaf);
       inputRaf = 0;
       if (!dead) {
-        if (move) mouse("mouseMoved", move, buttonOf(move));
+        if (move) {
+          const p = mouse("mouseMoved", move, buttonOf(move));
+          if (!pressed) askCursor(p); // a drag keeps the cursor it started with
+        }
         const p = wheel && at(wheel.e);
         if (p) send({ kind: "wheel", x: p.x, y: p.y, deltaX: wheel.dx, deltaY: wheel.dy, modifiers: B.modifiersOf(wheel.e) });
       }
@@ -249,17 +293,23 @@
       onEscape(action);
     };
 
+    // Without a slot (a view mounted outside the stage) the view listens.
+    const slot = wheelSlot(view);
+    if (slot) slot.handle = onWheel;
     const on = [
       [panel, "keydown", onEsc], [view, "mousedown", onDown], [window, "mouseup", onUp], [window, "mousemove", onMove],
-      [view, "wheel", onWheel, { passive: false }], [view, "contextmenu", onContext],
+      [view, "contextmenu", onContext],
       [sink, "keydown", onKeyDown], [sink, "keyup", onKeyUp], [sink, "paste", onPaste],
       [sink, "input", onInput], [sink, "compositionend", flushText],
     ];
+    if (!slot) on.push([view, "wheel", onWheel, { passive: false }]);
     for (const [t, type, fn, opt] of on) t.addEventListener(type, fn, opt);
 
     function destroy() {
       dead = true;
       for (const [t, type, fn, opt] of on) t.removeEventListener(type, fn, opt);
+      // Only its own: the next tab's screen may already be the slot's.
+      if (slot && slot.handle === onWheel) slot.handle = null;
       ro.disconnect();
       dprQuery?.removeEventListener("change", onDpr);
       clearTimeout(resizeTimer);

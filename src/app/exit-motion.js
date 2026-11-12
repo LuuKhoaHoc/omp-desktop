@@ -17,17 +17,37 @@
      counts as a removal.
    - Copies are `inert` and `aria-hidden`, lose their ids, keep canvas
      pixels; one is dropped at its animation's end or after 600ms.
-   - Reduced motion or a hidden document: nothing is copied. */
+   - Reduced motion or a hidden document: nothing is copied.
+   - A tab switch swaps whole surfaces (the other tab's side pane, its
+     transcript) and is not something opening or closing: `quietSwitch` puts
+     `tab-switching` on <html> for SWITCH_QUIET_MS, during which nothing is
+     copied and motion.css runs the entrances with no duration. */
 (function () {
   const EXIT_SELECTOR = [
-    ".bridge-scrim", ".kanban-scrim", ".gitb-scrim", ".fp-scrim",
+    ".bridge-scrim", ".kanban-scrim", ".gitb-scrim", ".fp-scrim", ".wp-drawer-scrim",
     ".ask-dialog", ".close-confirm-panel",
     ".profile-pop", ".thinking-pop", ".tab-group-pop", ".branch-pop", ".st-menu", ".font-pick-pop",
-    ".ip-new-menu", ".pr-changes-menu", ".mention-pop", ".slash-pop", ".browser-popover", ".quote-pop",
+    ".ip-new-menu", ".pr-changes-menu", ".mention-pop", ".slash-pop", ".browser-popover", ".quote-pop", ".wp-view-pop", ".wp-filter-pop",
     ".rail", ".split", ".wp-panel", ".tree-drawer", ".browser-dock", ".wp-drawer", ".project-sidebar",
     ".term-panel", ".tb-sub", ".tab",
   ].join(", ");
   const MAX_LIFE_MS = 600;
+  const SWITCH_CLASS = "tab-switching";
+  // Longer than any entrance (the transcript rows' 320ms), so a surface
+  // that arrived with the switch has finished when the class goes.
+  const SWITCH_QUIET_MS = 400;
+
+  const switching = doc => doc.documentElement.classList.contains(SWITCH_CLASS);
+
+  /** Marks `doc` as switching tabs for `ms`. Returns a cancel for the
+   *  timer only: the class stays for the switch that follows (which calls
+   *  this again), so a run of quick switches is quiet throughout. */
+  function quietSwitch(doc, ms = SWITCH_QUIET_MS) {
+    const win = doc.defaultView;
+    doc.documentElement.classList.add(SWITCH_CLASS);
+    const timer = win.setTimeout(() => doc.documentElement.classList.remove(SWITCH_CLASS), ms);
+    return () => win.clearTimeout(timer);
+  }
 
   /** The listed surfaces in a removed subtree, outermost only. Pure over
    *  the Element API (`matches`, `querySelectorAll`, `parentElement`). */
@@ -54,7 +74,7 @@
     const rects = new WeakMap();
     const measure = el => { if (el.isConnected && !el.hidden) rects.set(el, el.getBoundingClientRect()); };
     const sizes = new win.ResizeObserver(entries => { for (const e of entries) measure(e.target); });
-    const quiet = () => doc.hidden || win.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const quiet = () => doc.hidden || switching(doc) || win.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const track = node => {
       if (node.nodeType !== 1) return;
@@ -109,6 +129,6 @@
     track(doc.body);
   }
 
-  window.OMP_EXIT_MOTION = { EXIT_SELECTOR, outermost, ghostStyle, install };
+  window.OMP_EXIT_MOTION = { EXIT_SELECTOR, SWITCH_QUIET_MS, outermost, ghostStyle, switching, quietSwitch, install };
   if (typeof document !== "undefined" && document.body && typeof ResizeObserver !== "undefined") install(document);
 })();

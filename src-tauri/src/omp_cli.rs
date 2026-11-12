@@ -47,7 +47,7 @@ pub fn run(args: &[String], label: &str) -> Result<Vec<u8>, String> {
 /// `std::process::Output`) so it can be unit-tested without constructing
 /// a platform-specific `ExitStatus` (`std::os::unix::process::ExitStatusExt`
 /// and its Windows equivalent have incompatible signatures).
-fn exit_failure_message(
+pub fn exit_failure_message(
     label: &str,
     status: impl std::fmt::Display,
     stderr: &[u8],

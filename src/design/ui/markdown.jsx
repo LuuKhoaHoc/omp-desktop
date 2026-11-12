@@ -46,8 +46,9 @@ function _mdPageParts(text) {
   return parts;
 }
 
-// ── Markdown renderer — uses marked + highlight.js when available ─────────
-const MarkdownContent = ({ text, streaming, pages }) => {
+// `breaks`: a single newline is a line break, for text a person typed (a
+// sent prompt), where lines are meant as lines.
+const MarkdownContent = ({ text, streaming, pages, breaks }) => {
   const parts = React.useMemo(() => {
     if (!pages || !text) return null;
     try { return _mdPageParts(text); } catch (_) { return null; }
@@ -59,9 +60,9 @@ const MarkdownContent = ({ text, streaming, pages }) => {
       return '<p>' + escapeText(text)
         .replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
     }
-    try { return window.marked.parse(text); }
+    try { return window.marked.parse(text, breaks ? { breaks: true } : undefined); }
     catch (_) { return '<pre>' + escapeText(text) + '</pre>'; }
-  }, [text]);
+  }, [text, breaks]);
 
   const onClick = useMarkdownClick();
   if (parts) {

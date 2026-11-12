@@ -121,6 +121,18 @@ check("a call that never connected ends in error, a resumed one stays resumable"
   const resumed = apply(paused, { type: "start" }, { type: "live_phase", phase: "error" }, { type: "live_end", error: "network down" });
   assert.deepEqual([resumed.paused, resumed.phase, resumed.error, resumed.transcripts[0].text], [true, "paused", "network down", "kept"]);
 });
+check("dismissing an error line clears it and leaves an ended call's error phase", () => {
+  const failed = apply(start(), { type: "start_failure", error: "credentials missing" });
+  assert.deepEqual(V.apply(failed, { type: "dismiss" }), { ...failed, error: null, phase: "idle" });
+  // A paused call with an error stays paused, captions kept.
+  const dropped = apply(start(), { type: "live_phase", phase: "listening" }, caption("user", 1, "kept", true), { type: "process_exit", error: "omp crashed" });
+  const shown = V.apply(dropped, { type: "dismiss" });
+  assert.deepEqual([shown.paused, shown.phase, shown.error, shown.transcripts[0].text], [true, "paused", null, "kept"]);
+  // A call still open keeps its phase: a failed stop can be retried.
+  const stuck = apply(start(), { type: "stop" }, { type: "stop_failure", error: "stop failed" });
+  assert.deepEqual([V.apply(stuck, { type: "dismiss" }).active, V.apply(stuck, { type: "dismiss" }).phase, V.apply(stuck, { type: "dismiss" }).error], [true, "error", null]);
+  assert.equal(V.apply(V.EMPTY, { type: "dismiss" }), V.EMPTY);
+});
 check("Codex login comes from get_login_providers; unknown stays null", () => {
   assert.equal(V.codexLogin([{ id: "anthropic", authenticated: true }, { id: "openai-codex", authenticated: true }]), true);
   assert.equal(V.codexLogin([{ id: "openai-codex", authenticated: false }]), false);
@@ -177,6 +189,15 @@ check("dictation previews replace rather than accumulate, and stale captures are
   assert.deepEqual([s.active, s.text, s.error], [false, "final", "STT failed"]);
   assert.equal(D.apply(s, { type: "dictation_end", captureId: "one", text: "duplicate" }), s);
 });
+check("dismissing a dictation error clears an ended capture and keeps a live one", () => {
+  const ended = D.apply(D.apply(D.EMPTY, { type: "start", captureId: "one" }), { type: "start_failure", error: "Speech-to-text is disabled." });
+  assert.deepEqual([ended.active, ended.error], [false, "Speech-to-text is disabled."]);
+  assert.equal(D.apply(ended, { type: "dismiss" }), D.EMPTY);
+  let live = D.apply(D.apply(D.EMPTY, { type: "start", captureId: "two" }), { type: "stop" });
+  live = D.apply(live, { type: "stop_failure", error: "microphone busy" });
+  assert.deepEqual(D.apply(live, { type: "dismiss" }), { ...live, error: null });
+  assert.equal(D.apply(D.EMPTY, { type: "dismiss" }), D.EMPTY);
+});
 check("auto-stop arms only while recording after the first words", () => {
   const recording = text => ({ ...D.EMPTY, active: true, phase: "recording", captureId: "c", text });
   assert.equal(D.autoStopDelay(recording("Hello."), 2), 2000);
@@ -186,6 +207,63 @@ check("auto-stop arms only while recording after the first words", () => {
   assert.equal(D.autoStopDelay({ ...recording("Hello."), phase: "stopping" }, 2), null);
   assert.equal(D.autoStopDelay({ ...recording("Hello."), phase: "starting" }, 2), null);
   assert.equal(D.autoStopDelay(D.EMPTY, 2), null);
+});
+check("the dictation model list marks the model in use and trusts omp's check for it", () => {
+  const sttModels = [{ id: "local/whisper-large-v3-turbo", downloaded: false }, { id: "local/whisper-small", downloaded: true }, { id: "local/parakeet-tdt-0.6b-v3", downloaded: false }];
+  const check = ready => [{ name: "Speech-to-Text model", ready, status: "" }, { name: "Text-to-Speech model", ready: true, status: "" }];
+  const flags = rows => rows.map(r => [r.id.slice(6), r.inUse, r.downloaded]);
+  assert.deepEqual(flags(D.modelRows({ sttModels, models: check(false) }, "")),
+    [["whisper-large-v3-turbo", false, false], ["whisper-small", false, true], ["parakeet-tdt-0.6b-v3", true, false]], "unset role: omp's default is in use");
+  // The folder scan can lag behind omp (another cache folder): omp's check wins for the model in use only.
+  assert.deepEqual(flags(D.modelRows({ sttModels, models: check(true) }, "local/whisper-large-v3-turbo")),
+    [["whisper-large-v3-turbo", true, true], ["whisper-small", false, true], ["parakeet-tdt-0.6b-v3", false, false]]);
+  assert.deepEqual(flags(D.modelRows({ sttModels, models: check(false) }, "local/whisper-small"))[1], ["whisper-small", true, false], "omp says its files are incomplete");
+  assert.deepEqual(flags(D.modelRows({ sttModels, models: [] }, "local/whisper-small"))[1], ["whisper-small", true, true], "no check to read: the scan stands");
+  const named = D.modelRows({ sttModels, models: check(true) }, "local/whisper-small")[1];
+  assert.deepEqual([named.name, named.hint], [D.MODELS["local/whisper-small"].name, D.MODELS["local/whisper-small"].hint]);
+  const custom = D.modelRows({ sttModels, models: check(true) }, "openai/gpt-4o-transcribe");
+  assert.deepEqual([custom.length, custom[0].id, custom[0].name, custom[0].inUse, custom[0].downloaded], [4, "openai/gpt-4o-transcribe", "openai/gpt-4o-transcribe", true, null], "a role outside the list is shown, with no download state: omp's check is about a local model");
+  assert.deepEqual(flags(custom).slice(1), [["whisper-large-v3-turbo", false, false], ["whisper-small", false, true], ["parakeet-tdt-0.6b-v3", false, false]], "the listed models keep the folder scan");
+  assert.equal(custom.filter(r => r.inUse).length, 1);
+  assert.equal(D.bundlesKokoro({ models: check(true) }), false, "Kokoro is installed: a download fetches the dictation model only");
+  assert.equal(D.bundlesKokoro({ models: [{ name: "Text-to-Speech model", ready: false, status: "" }] }), true);
+  assert.equal(D.bundlesKokoro({ models: [] }), true, "an unread check still warns");
+  const [turbo, small] = D.modelRows({ sttModels, models: check(false) }, "local/whisper-large-v3-turbo");
+  assert.equal(D.downloadingId([turbo, small], small.id, true), small.id, "the row this page is starting");
+  assert.equal(D.downloadingId([turbo, small], null, true), turbo.id, "a download started before the page opened is the model in use");
+  assert.equal(D.downloadingId([turbo, small], null, false), null);
+});
+check("a starting capture shows the model omp is fetching, and nothing else does", () => {
+  const starting = D.apply(D.EMPTY, { type: "start", captureId: "c1" });
+  const fetching = D.apply(starting, { type: "download", captureId: "c1", id: "local/whisper-large-v3-turbo", bytes: 405_500_000 });
+  assert.deepEqual(fetching.download, { id: "local/whisper-large-v3-turbo", bytes: 405_500_000 });
+  assert.deepEqual(D.downloadLine(fetching.download), { name: "Whisper large v3 turbo", mb: 405, totalMb: 760 });
+  assert.deepEqual(D.downloadLine({ id: "local/whisper-base", bytes: 2_000_000 }), { name: "Whisper base", mb: 2, totalMb: null });
+  assert.equal(D.downloadLine(starting.download), null);
+  assert.equal(D.apply(fetching, { type: "download", captureId: "c1", id: "local/whisper-large-v3-turbo", bytes: 405_500_000 }), fetching, "the same reading is no change");
+  assert.equal(D.apply(starting, { type: "download", captureId: "other", id: "local/whisper-base", bytes: 5 }), starting, "another capture's reading");
+  assert.equal(D.apply(starting, { type: "download", captureId: "c1", id: "local/whisper-base", bytes: 0 }), starting);
+  const recording = D.apply(fetching, { type: "dictation_state", captureId: "c1", state: "recording" });
+  assert.deepEqual(recording, { ...starting, phase: "recording" }, "the download is over once the microphone is open");
+  assert.equal(D.apply(recording, { type: "download", captureId: "c1", id: "local/whisper-base", bytes: 9 }), recording);
+  assert.equal("download" in D.apply(fetching, { type: "stop" }), false);
+  assert.equal("download" in D.apply(fetching, { type: "dictation_end", captureId: "c1", text: "", error: "no microphone" }), false);
+});
+check("hands-free: a pause always ends the turn, and the microphone reopens only for the armed, idle tab", () => {
+  const H = V.HANDS_FREE;
+  assert.equal(H.pause(3), 3);
+  assert.equal(H.pause(0), H.PAUSE, "pause off: the turn still needs an end");
+  assert.equal(H.pause(undefined), H.PAUSE);
+  const idle = { enabled: true, armedTab: "a", sessionId: "a", streaming: false, dictating: false, calling: false, settingsOpen: false };
+  assert.equal(H.next(idle), "listen");
+  assert.equal(H.next({ ...idle, enabled: false }), "drop", "setting off");
+  assert.equal(H.next({ ...idle, armedTab: null }), "drop", "the user never started it");
+  assert.equal(H.next({ ...idle, sessionId: "b" }), "drop", "another tab is shown");
+  assert.equal(H.next({ ...idle, streaming: true }), "drop", "a new run already started");
+  assert.equal(H.next({ ...idle, dictating: true }), "drop");
+  assert.equal(H.next({ ...idle, calling: true }), "drop", "a live conversation holds the microphone");
+  assert.equal(H.next({ ...idle, settingsOpen: true }), "wait", "never record behind Settings, listen once it closes");
+  assert.equal(H.next({ ...idle, settingsOpen: true, streaming: true }), "drop");
 });
 
 // Render the actual JSX controls with the same lightweight React stand-in used
@@ -236,6 +314,26 @@ check("voice controls start independently and retain stop and cancel actions", (
   assert.deepEqual(actions, [["dictation", "start"], ["live", "start"], ["dictation", "stop"], ["live", "stop"], ["dictation", "stop"], ["live", "stop"]]);
   [dictation, live] = render({}, {}, false);
   assert.deepEqual([live.props.disabled, live.props.title, dictation.props.disabled], [true, V.CODEX_MISSING, false], "no Codex login greys out live only");
+});
+check("the hands-free panel stays between captures, says whether the reply is read first, and can be ended", () => {
+  const Babel = createRequire(import.meta.url)(join(root, "src/babel.min.js"));
+  const { code } = Babel.transform(readFileSync(join(root, "src/design/live-voice.jsx"), "utf8"), { presets: ["react"] });
+  const window = { Icon: () => null, OMP_LIVE_VOICE: V };
+  const React = { Fragment: "fragment", createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }) };
+  runInNewContext(code, { window, React, OMP_TR: s => s });
+  const flat = node => (node == null || node === false ? [] : Array.isArray(node) ? node.flatMap(flat) : typeof node === "object" ? [node, ...flat(node.children)] : []);
+  const texts = node => flat(node).flatMap(n => n.children.filter(c => typeof c === "string"));
+  const panel = handsFree => window.DictationPanel({ dictation: {}, error: null, onAction() {}, onDismiss() {}, handsFree });
+  assert.equal(panel(null), null, "no capture, not armed: no panel");
+  let ended = 0;
+  const idle = panel({ armed: true, reads: true, end: () => { ended++; } });
+  assert.deepEqual(texts(idle).slice(0, 2), ["hands-free", "listens again after the reply"]);
+  flat(idle).find(n => n.type === "button" && n.children.includes("end")).props.onClick();
+  assert.equal(ended, 1);
+  assert.ok(texts(panel({ armed: true, reads: false, end() {} })).includes("listens again after the reply; read aloud is off"));
+  const recording = window.DictationPanel({ dictation: { active: true, phase: "recording" }, error: null, onAction() {}, onDismiss() {}, handsFree: { armed: true, reads: true, end() {} } });
+  assert.deepEqual(texts(recording).slice(0, 2), ["hands-free", "recording"]);
+  assert.equal(flat(recording).some(n => n.type === "button" && n.children.includes("end")), false, "a capture shows stop, not end");
 });
 
 // Exercise the public bridge against a deterministic fake IPC transport. The

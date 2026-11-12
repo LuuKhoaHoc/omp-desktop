@@ -2,8 +2,9 @@
 
 /* Row below the tab bar: sidebar + stage. The sidebar sits outside `.stage`,
    so the stage's grid templates (rail / split pane) are untouched. Its
-   width is `--w-sidebar` (app/use-pane-widths.jsx); the row positions the
-   sidebar's resize handle (stage.css `.pane-resize.at-sidebar`). */
+   width is `--w-sidebar`, set on the sidebar and on its resize handle
+   (app/use-pane-widths.jsx `sidebarStyle`); the row positions that handle
+   (stage.css `.pane-resize.at-sidebar`). */
 .workspace { flex: 1; min-height: 0; display: flex; position: relative; }
 
 .project-sidebar {

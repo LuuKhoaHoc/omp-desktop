@@ -109,6 +109,25 @@
 .fc-lines:focus { outline: none; }
 .fc-lines .fc-form-wrap textarea { user-select: text; }
 
+/* ── Editor (files/file-editor.jsx) ─────────────────────────────────── */
+.fc-editor {
+  display: block; box-sizing: border-box; width: 100%; height: 100%;
+  margin: 0; padding: 10px 14px; border: 0; outline: none; resize: none;
+  background: transparent; color: var(--fg); caret-color: var(--accent);
+  font-size: var(--d-text-sm); line-height: 1.55; tab-size: 4;
+  white-space: pre; overflow: auto;
+}
+.fc-bar .btn.fc-save { height: 24px; }
+.fc-bar .btn:disabled { opacity: .4; cursor: default; }
+.fc-edit-note {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--amber) 10%, transparent);
+  color: var(--fg-2); font-size: var(--d-text-sm);
+}
+.fc-edit-note-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.fc-edit-note .btn { height: 24px; white-space: nowrap; }
+
 /* ── Footer ─────────────────────────────────────────────────────────── */
 .fc-foot {
   flex: none; display: flex; align-items: center; gap: 8px;

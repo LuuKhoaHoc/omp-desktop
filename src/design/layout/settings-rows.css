@@ -50,6 +50,13 @@
 .st-path-text { min-width: 0; }
 .st-btns { display: flex; gap: 8px; flex: none; }
 .st-row-error { padding: 0 16px 10px; color: var(--rose); font-size: var(--d-text-xs); overflow-wrap: anywhere; }
+/* A download's progress, under its row (rows-voice.jsx). */
+.st-progress {
+  display: block; width: calc(100% - 32px); height: 3px; margin: 0 16px 10px;
+  appearance: none; border: 0; border-radius: 2px; overflow: hidden; background: var(--line);
+}
+.st-progress::-webkit-progress-bar { background: transparent; }
+.st-progress::-webkit-progress-value { background: var(--accent); }
 .st-linkrow .st-btn svg { color: currentColor; }
 
 /* ── Approvals → the mode editor (approval-mode-section.jsx) ───────── */

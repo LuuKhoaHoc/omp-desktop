@@ -2,9 +2,10 @@
    design/chat/quote-popover.jsx — quote the chat into the next message.
    Selecting text in the transcript (`.chat-scroll`) shows a "Comment"
    button by the selection; it opens a small form (the quote, an optional
-   comment; ⌘/Ctrl+Enter adds, Escape cancels) whose result goes to
-   `onAdd(text, comment)`: app-live.jsx keeps it as a chip above the
-   composer (app/chat-quotes.js) until the tab's next send.
+   comment; the composer's send chord adds, Escape cancels) whose result
+   goes to `onAdd(text, comment)`: app-live.jsx keeps it as a chip above
+   the composer (app/chat-quotes.js) until the tab's next send, and moves
+   the focus to the composer, so the same chord then sends.
    ═════════════════════════════════════════════════════════════════════ */
 
 const _QP_WIDTH = 340;
@@ -35,7 +36,7 @@ function _QP_place(box, height) {
   return { left, top };
 }
 
-function ChatQuotePopover({ onAdd }) {
+function ChatQuotePopover({ onAdd, submitKey = "enter" }) {
   const [pick, setPick] = React.useState(null); // { text, box }
   const [form, setForm] = React.useState(false);
   const [comment, setComment] = React.useState("");
@@ -91,7 +92,7 @@ function ChatQuotePopover({ onAdd }) {
         onChange={e => setComment(e.target.value)}
         onKeyDown={e => {
           e.stopPropagation();
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+          if (window.isSubmitKey(e, submitKey)) { e.preventDefault(); save(); }
           if (e.key === "Escape") { e.preventDefault(); close(); }
         }} />
       <div className="quote-pop-foot">

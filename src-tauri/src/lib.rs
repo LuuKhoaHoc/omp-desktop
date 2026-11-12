@@ -33,18 +33,23 @@ mod pr_automation;
 mod private_fs;
 mod profiles;
 mod program_setting;
+mod progress_lines;
 mod project_file;
 mod recent_projects;
 mod redaction;
 mod remote;
 mod saved_sessions;
 mod spawn_gate;
+mod speech_config;
 mod stats;
+mod stt_models;
 mod supervisor;
+mod system_theme;
 mod terminal;
 #[cfg(test)]
 mod test_support;
 mod text;
+mod tts;
 mod updater;
 mod voice_spectrum;
 mod widgets;
@@ -545,15 +550,21 @@ fn pick_program(
 fn picked_program(
     picked: &std::sync::mpsc::Receiver<Option<tauri_plugin_dialog::FilePath>>,
 ) -> Result<Option<String>, String> {
-    let Some(picked) = picked.recv().map_err(|e| format!("channel error: {e}"))? else {
-        return Ok(None);
-    };
+    picked
+        .recv()
+        .map_err(|e| format!("channel error: {e}"))?
+        .map(utf8_path)
+        .transpose()
+}
+
+/// A path the native dialog returned, as the UTF-8 text the settings files
+/// and a composer mention hold.
+fn utf8_path(picked: tauri_plugin_dialog::FilePath) -> Result<String, String> {
     let path = picked
         .into_path()
         .map_err(|e| format!("invalid picked path: {e}"))?;
     path.into_os_string()
         .into_string()
-        .map(Some)
         .map_err(|p| format!("{} is not a UTF-8 path", p.to_string_lossy()))
 }
 
@@ -827,6 +838,42 @@ async fn open_project(app: tauri::AppHandle) -> Result<Option<String>, String> {
     .await?
 }
 
+/// The composer's File button: pick any files with the native dialog, opened
+/// in the tab's project folder when it has one. The paths come from the OS
+/// dialog; the composer writes them into the draft as `@path` mentions, as
+/// it does for dropped files, and omp reads them at send. Empty when
+/// cancelled. Callback-based `pick_files` for the reason `open_project`
+/// gives.
+#[tauri::command]
+async fn pick_attachments(
+    window: tauri::WebviewWindow,
+    session_id: String,
+    terminal: State<'_, Arc<terminal::TerminalManager>>,
+) -> Result<Vec<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut dialog = window
+        .dialog()
+        .file()
+        .set_title("Attach Files")
+        .set_parent(&window);
+    if let Some(folder) = terminal.folder(&session_id) {
+        dialog = dialog.set_directory(folder);
+    }
+    dialog.pick_files(move |result| {
+        let _ = tx.send(result);
+    });
+    off_ipc(move || {
+        rx.recv()
+            .map_err(|e| format!("channel error: {e}"))?
+            .unwrap_or_default()
+            .into_iter()
+            .map(utf8_path)
+            .collect()
+    })
+    .await?
+}
+
 /// What `start_git_watch` reports for a tab's folder.
 #[derive(serde::Serialize)]
 struct GitWatch {
@@ -952,6 +999,22 @@ async fn project_file_read(
     off_ipc(move || project_file::read(&root, &path)).await?
 }
 
+/// Save the files panel's edit of a project file — see
+/// `project_file::write`. The folder comes from the tab, as for the read.
+#[tauri::command]
+async fn project_file_write(
+    session_id: String,
+    path: String,
+    base: Option<String>,
+    text: String,
+    terminal: State<'_, Arc<terminal::TerminalManager>>,
+) -> Result<project_file::Saved, String> {
+    let root = terminal
+        .folder(&session_id)
+        .ok_or_else(|| "this tab has no project folder".to_owned())?;
+    off_ipc(move || project_file::write(&root, &path, base.as_deref(), &text)).await?
+}
+
 /// Work panel: one `glab api` / `gh api` call (`work::cli`).
 #[tauri::command]
 async fn work_cli(
@@ -1000,6 +1063,13 @@ fn page_register(
 #[tauri::command]
 async fn list_fonts() -> Result<Vec<work::FontFamily>, String> {
     off_ipc(work::fonts).await
+}
+
+/// The desktop's theme colours and monospace font (`system_theme::read`),
+/// for "Follow the system theme".
+#[tauri::command]
+async fn system_theme() -> Result<system_theme::SystemTheme, String> {
+    off_ipc(system_theme::read).await
 }
 
 /// Stage a file's changes — see `workspace::accept`.
@@ -1182,6 +1252,152 @@ async fn model_config_set(
     let scope = model_config::Scope::parse(&scope)?;
     let profile = store.resolve_owned(profile)?;
     off_ipc(move || model_config::set(profile.as_deref(), scope, &name, value.as_deref())).await?
+}
+
+/// omp's voice settings of `profile` and the state of the on-device speech
+/// models — see `speech_config::get`. Shells out to omp, so `async` +
+/// `spawn_blocking`.
+#[tauri::command]
+async fn speech_config_get(
+    profile: Option<String>,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+    app: AppHandle,
+) -> Result<speech_config::SpeechConfig, String> {
+    let (home, profile, env_dir) = kb_resolve(profile, &store, &app)?;
+    off_ipc(move || {
+        let overridden = profile.is_none() && env_dir.as_deref().is_some_and(|d| !d.is_empty());
+        let agent = profiles::agent_dir_for(&home, profile.as_deref(), env_dir.as_deref());
+        let xdg = stt_models::xdg_cache_root(
+            profile.as_deref(),
+            overridden,
+            std::env::var_os("XDG_CACHE_HOME").as_deref(),
+        );
+        speech_config::get(profile.as_deref(), stt_models::list(&agent, xdg.as_deref()))
+    })
+    .await?
+}
+
+/// The dictation model omp is downloading for `profile`, counting what was
+/// written since `since_ms` (Unix milliseconds: when the capture that waits
+/// for it began) — see `stt_models::arriving`. `None`: nothing is arriving.
+#[tauri::command]
+async fn stt_download_progress(
+    profile: Option<String>,
+    since_ms: u64,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+    app: AppHandle,
+) -> Result<Option<stt_models::Arriving>, String> {
+    let (home, profile, env_dir) = kb_resolve(profile, &store, &app)?;
+    off_ipc(move || {
+        let overridden = profile.is_none() && env_dir.as_deref().is_some_and(|d| !d.is_empty());
+        let agent = profiles::agent_dir_for(&home, profile.as_deref(), env_dir.as_deref());
+        let xdg = stt_models::xdg_cache_root(
+            profile.as_deref(),
+            overridden,
+            std::env::var_os("XDG_CACHE_HOME").as_deref(),
+        );
+        // A time no clock can hold (a made-up `since_ms`) has no download.
+        let since =
+            std::time::UNIX_EPOCH.checked_add(std::time::Duration::from_millis(since_ms))?;
+        stt_models::arriving(&agent, xdg.as_deref(), since)
+    })
+    .await
+}
+
+/// Set one voice setting of `profile` (`key` is one of
+/// `speech_config::KEYS`) — see `speech_config::set`. Returns the settings
+/// omp reports afterwards.
+#[tauri::command]
+async fn speech_config_set(
+    profile: Option<String>,
+    key: String,
+    value: String,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+) -> Result<Vec<speech_config::Setting>, String> {
+    let profile = store.resolve_owned(profile)?;
+    off_ipc(move || speech_config::set(profile.as_deref(), &key, &value)).await?
+}
+
+/// Which speech engines can read replies aloud for `profile` — see
+/// `tts::status`. Spawns omp, so `async` + `spawn_blocking`.
+#[tauri::command]
+async fn tts_status(
+    profile: Option<String>,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+) -> Result<Vec<tts::EngineStatus>, String> {
+    let profile = store.resolve_owned(profile)?;
+    off_ipc(move || tts::status(profile.as_deref())).await
+}
+
+/// One progress line of a running `tts_install`, for `tts://install`.
+#[derive(Clone, serde::Serialize)]
+struct TtsInstallProgress {
+    engine: &'static str,
+    #[serde(flatten)]
+    progress: progress_lines::Progress,
+}
+
+/// Install speech engine `engine` (`tts::Engine`'s id) on this machine —
+/// see `tts::install` — and return every engine's state afterwards. Runs
+/// for minutes; an engine that reports progress (omp's model downloads)
+/// has each line emitted as `tts://install`.
+#[tauri::command]
+async fn tts_install(
+    engine: String,
+    profile: Option<String>,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+    app: AppHandle,
+) -> Result<Vec<tts::EngineStatus>, String> {
+    let engine = tts::Engine::parse(&engine)?;
+    let profile = store.resolve_owned(profile)?;
+    off_ipc(move || {
+        tts::install(engine, profile.as_deref(), move |progress| {
+            // Best effort: a line nobody hears is replaced by the next one.
+            let _ = app.emit(
+                "tts://install",
+                TtsInstallProgress {
+                    engine: engine.id(),
+                    progress,
+                },
+            );
+        })?;
+        Ok(tts::status(profile.as_deref()))
+    })
+    .await?
+}
+
+/// Speak `text` with `engine` and `voice` at `speed` (1 = normal) into one
+/// audio file the webview plays — see `tts::synthesize`.
+#[tauri::command]
+async fn tts_speak(
+    engine: String,
+    voice: String,
+    speed: f32,
+    text: String,
+    profile: Option<String>,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+    app: AppHandle,
+) -> Result<tts::Audio, String> {
+    let engine = tts::Engine::parse(&engine)?;
+    let profile = store.resolve_owned(profile)?;
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| format!("no app cache dir: {e}"))?
+        .join("tts");
+    off_ipc(move || {
+        tts::synthesize(
+            &tts::Request {
+                engine,
+                voice: &voice,
+                speed,
+                text: &text,
+                profile: profile.as_deref(),
+            },
+            &dir,
+        )
+    })
+    .await?
 }
 
 /// Shared profile-resolution and home-dir setup for the three keybindings
@@ -1670,6 +1886,7 @@ pub fn run() {
             insights_delete,
             page_register,
             list_fonts,
+            system_theme,
             send_command,
             start_session,
             stop_session,
@@ -1698,6 +1915,7 @@ pub fn run() {
             browser::commands::browser_tab_activate,
             browser::commands::browser_input,
             browser::commands::browser_frame_ack,
+            browser::commands::browser_cursor,
             browser::commands::browser_annotate,
             browser::commands::browser_capture,
             browser::commands::browser_scroll_to,
@@ -1706,6 +1924,7 @@ pub fn run() {
             extension_ui_state,
             streaming_message,
             open_project,
+            pick_attachments,
             take_pending_open_projects,
             start_git_watch,
             stop_git_watch,
@@ -1725,6 +1944,7 @@ pub fn run() {
             git_browser_commit,
             git_browser_commit_file,
             project_file_read,
+            project_file_write,
             pr_automation::pr_automation_snapshot,
             workspace_accept,
             workspace_reject,
@@ -1741,6 +1961,12 @@ pub fn run() {
             goal_continuation_set,
             model_config_get,
             model_config_set,
+            speech_config_get,
+            stt_download_progress,
+            speech_config_set,
+            tts_status,
+            tts_install,
+            tts_speak,
             list_project_files,
             list_profiles,
             create_profile,
@@ -1829,8 +2055,26 @@ fn announce_held_close(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{config_dir, holds_close, StartSessionArgs};
+    use super::{config_dir, holds_close, utf8_path, StartSessionArgs};
     use std::path::PathBuf;
+    use tauri_plugin_dialog::FilePath;
+
+    /// A mention is the path as the dialog gave it: spaces stay, and the
+    /// composer quotes them.
+    #[test]
+    fn a_picked_path_is_passed_on_verbatim() {
+        let picked = FilePath::Path(PathBuf::from("/home/u/My Docs/b c.pdf"));
+        assert_eq!(utf8_path(picked).as_deref(), Ok("/home/u/My Docs/b c.pdf"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_picked_path_that_is_not_utf8_is_refused() {
+        use std::os::unix::ffi::OsStringExt;
+        let name = std::ffi::OsString::from_vec(vec![b'/', b'a', 0xff]);
+        let refused = utf8_path(FilePath::Path(PathBuf::from(name)));
+        assert!(refused.is_err_and(|e| e.ends_with("is not a UTF-8 path")));
+    }
 
     #[test]
     fn an_absolute_config_dir_is_used_as_is() {
@@ -1897,6 +2141,50 @@ mod tests {
         assert!(
             serde_json::from_value::<StartSessionArgs>(payload).is_err(),
             "a renamed profile field must be a loud deserialize error, not a silent None"
+        );
+    }
+
+    /// Tauri merges `tauri.linux.conf.json` via RFC 7396 JSON Merge Patch,
+    /// which replaces the `app.windows` array wholesale. Pin every field
+    /// except `decorations` against `tauri.conf.json` so window sizing,
+    /// drag-drop, or label changes cannot drift silently on Linux.
+    #[test]
+    fn linux_config_keeps_main_window_identical_except_decorations() {
+        let mut base: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("parse base config");
+        let mut linux: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.linux.conf.json"))
+                .expect("parse linux config");
+
+        let base_win = base["app"]["windows"][0]
+            .as_object_mut()
+            .expect("base main window object");
+        let linux_win = linux["app"]["windows"][0]
+            .as_object_mut()
+            .expect("linux main window object");
+
+        assert_eq!(
+            base_win.remove("decorations"),
+            Some(serde_json::Value::Bool(false)),
+            "base config keeps frameless window for macOS and Windows"
+        );
+        assert_eq!(
+            linux_win.remove("decorations"),
+            Some(serde_json::Value::Bool(true)),
+            "linux config enables native OS window decorations"
+        );
+        assert_eq!(
+            base_win, linux_win,
+            "linux main window must mirror tauri.conf.json in every field except decorations"
+        );
+        assert_eq!(base["app"]["windows"].as_array().map(Vec::len), Some(1));
+        assert_eq!(linux["app"]["windows"].as_array().map(Vec::len), Some(1));
+
+        let generated: tauri::Context<tauri::Wry> = tauri::generate_context!();
+        assert_eq!(
+            generated.config().app.windows[0].decorations,
+            cfg!(target_os = "linux"),
+            "generated Tauri context must enable native decorations only on Linux"
         );
     }
 }

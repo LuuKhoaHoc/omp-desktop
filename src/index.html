@@ -67,6 +67,12 @@
        app/extension-widgets.js and app/browser.js its truncateText, and
        app-live.jsx destructures the rest. -->
   <script src="app/constants.js"></script>
+  <!-- Platform detection, per-OS window controls policy, and command-bridge
+       hint helpers. Dependency-free IIFE; design/chrome.jsx,
+       design/composer.jsx, and live.js read window.OMP_PLATFORM so traffic
+       lights render on macOS only, Win controls on Windows only, Linux uses
+       native OS decorations, and palette hints match the host keymap. -->
+  <script src="app/platform.js"></script>
   <!-- Keymap registry + chord algebra, and guestShouldBypass (which keys a
        focused guest — terminal, browser panel — leaves to the app).
        Dependency-free IIFE; must load before any Babel file (composer.jsx,
@@ -77,6 +83,12 @@
        destructures window.OMP_MENTIONS at top level, so this must load
        before it. -->
   <script src="mentions.js"></script>
+
+  <!-- Markdown syntax of a composer draft (OMP_COMPOSER_MD.spans), for the
+       coloured copy under the textarea. Dependency-free IIFE;
+       design/composer-highlight.jsx destructures it at top level, so this
+       must load before it. -->
+  <script src="app/composer-markdown.js"></script>
 
   <!-- Image attach/paste helpers. Dependency-free IIFE; composer.jsx
        destructures window.OMP_IMAGES at top level, so this must load
@@ -175,10 +187,18 @@
        physics; dependency-free IIFE, read late by app-live.jsx and
        design/voice-spectrum.jsx. -->
   <script src="app/voice-spectrum.js"></script>
+  <!-- Reading replies aloud (OMP_TTS): engines and voices, speakable text,
+       chunks. Dependency-free IIFE; app/use-read-aloud.jsx and
+       design/settings/rows-voice.jsx read it at render time. -->
+  <script src="app/tts.js"></script>
   <!-- Accent tokens (#37): the soft/glow/deep shades derived from a picked
        accent. Dependency-free IIFE; app/use-bridge-snapshot.jsx's
        useThemeEffect calls window.OMP_ACCENT at effect time. -->
   <script src="app/accent.js"></script>
+  <!-- "Follow the system theme": Rust's system_theme as CSS tokens and
+       font roles (OMP_SYSTEM_THEME). IIFE; useThemeEffect calls it, and it
+       reads window.OMP_ACCENT, at effect time. -->
+  <script src="app/system-theme.js"></script>
   <script src="app/exit-motion.js"></script>
 <script src="app/excalidraw-svg.js"></script>
 <script src="app/chat-pages.js"></script>
@@ -297,6 +317,11 @@
        time; app/use-file-comments.jsx destructures window.OMP_FILE_COMMENTS
        at top level, app-live.jsx too. -->
   <script src="app/file-comments.js"></script>
+  <!-- Files panel editor: line ends, indent steps. Dependency-free IIFE;
+       design/files/file-editor.jsx, files-panel.jsx and
+       app/use-file-comments.jsx destructure window.OMP_FILE_EDIT at top
+       level. -->
+  <script src="app/file-edit.js"></script>
   <!-- Phone remote: bounded transcript mapping and serial action handler.
        Dependency-free IIFE; app/use-remote.jsx reads OMP_REMOTE_VIEW when
        its effect mounts, before app-live.jsx renders. -->
@@ -419,11 +444,13 @@
   <script type="text/babel" src="design/browser-dock.jsx"></script>
   <script type="text/babel" src="design/mention-menu.jsx"></script>
   <!-- Collapsed-paste chips + preview (#31), the steer / follow-up queue
-       strip, the thinking pill's level menu (#10) and the browser annotation
-       chips; composer.jsx renders all four by their global names. -->
+       strip, the thinking pill's level menu (#10), the fast mode pill and
+       the browser annotation chips; composer.jsx renders all five by their
+       global names. -->
   <script type="text/babel" src="design/paste-strip.jsx"></script>
   <script type="text/babel" src="design/queue-strip.jsx"></script>
   <script type="text/babel" src="design/thinking-menu.jsx"></script>
+  <script type="text/babel" src="design/fast-mode-pill.jsx"></script>
   <script type="text/babel" src="design/browser-chips.jsx"></script>
   <!-- Chat quote popover + composer quote chips (window.ChatQuotePopover,
        window.QuoteChips), looked up at render time. -->
@@ -436,6 +463,9 @@
   <!-- Composer's microphone equalizer (canvas); reads window.OMP_VOICE_SPECTRUM
        when it mounts. -->
   <script type="text/babel" src="design/voice-spectrum.jsx"></script>
+  <!-- The draft's coloured copy; composer.jsx renders <ComposerHighlight> by
+       its global name. Destructures window.OMP_COMPOSER_MD at top level. -->
+  <script type="text/babel" src="design/composer-highlight.jsx"></script>
   <script type="text/babel" src="design/composer.jsx"></script>
   <!-- Per-tab profile selector — toolbar.jsx destructures window.ProfileMenu
        at top level, so this must load before it. -->
@@ -444,8 +474,8 @@
        and project-sidebar.jsx destructure window.RenameField at top level,
        so this must load before all three. -->
   <script type="text/babel" src="design/rename-field.jsx"></script>
-  <!-- Grouped tab-bar chip (#27) — chrome.jsx destructures
-       window.TabGroupChip / window.TabRunDot / window.TabLabel at top level,
+  <!-- The tab strip's project cluster (#27) — chrome.jsx destructures
+       window.TabCluster / window.TabRunDot / window.TabLabel at top level,
        so this must load before it. -->
   <script type="text/babel" src="design/tab-group-chip.jsx"></script>
   <!-- The status bar's branch pill and picker: chrome.jsx destructures
@@ -492,12 +522,14 @@
   <script type="text/babel" src="design/git/history.jsx"></script>
   <script type="text/babel" src="design/git/git-browser.jsx"></script>
   <!-- Files panel: file-code.jsx (the commentable rows; destructures
-       window.Icon, OMP_FILE_PREVIEW and OMP_FILE_COMMENTS) before
-       files-panel.jsx, which destructures window.FileCode, GitFileTree
-       (git/file-tree.jsx), FileState / FILE_STATES (chat/file-preview.jsx),
-       CopyButton, OMP_FILE_PREVIEW and OMP_UPDATER at top level.
-       app-live.jsx destructures FilesPanel. -->
+       window.Icon, OMP_FILE_PREVIEW and OMP_FILE_COMMENTS) and
+       file-editor.jsx (the editor; destructures OMP_FILE_EDIT) before
+       files-panel.jsx, which destructures window.FileCode, FileEditor,
+       GitFileTree (git/file-tree.jsx), FileState / FILE_STATES
+       (chat/file-preview.jsx), CopyButton, OMP_FILE_PREVIEW, OMP_FILE_EDIT
+       and OMP_UPDATER at top level. app-live.jsx destructures FilesPanel. -->
   <script type="text/babel" src="design/files/file-code.jsx"></script>
+  <script type="text/babel" src="design/files/file-editor.jsx"></script>
   <script type="text/babel" src="design/files/files-panel.jsx"></script>
   <!-- Approvals panel's mode section (#57); approval-rules-panel.jsx
        destructures window.ApprovalModeSection at top level. -->
@@ -523,9 +555,11 @@
   <script src="app/work-review.js"></script>
   <script type="text/babel" src="design/work-pickers.jsx"></script>
   <script type="text/babel" src="design/work-forms.jsx"></script>
+  <script type="text/babel" src="design/work-view-menu.jsx"></script>
   <script type="text/babel" src="design/work-review.jsx"></script>
   <script type="text/babel" src="design/work-panel.jsx"></script>
   <script type="text/babel" src="design/insights-panel.jsx"></script>
+  <script type="text/babel" src="design/insights-diagrams.jsx"></script>
   <!-- Per-tab terminal panel and the list app-live.jsx renders; destructures
        window.Icon and window.OMP_TERMINAL (app/terminal.js, above) at top
        level. -->
@@ -545,6 +579,7 @@
   <script type="text/babel" src="design/settings/rows-programs.jsx"></script>
   <script type="text/babel" src="design/settings/rows-agent.jsx"></script>
   <script type="text/babel" src="design/settings/rows-models.jsx"></script>
+  <script type="text/babel" src="design/settings/rows-voice.jsx"></script>
   <script type="text/babel" src="design/settings/rows-session.jsx"></script>
   <script type="text/babel" src="design/settings/rows-fonts.jsx"></script>
   <script type="text/babel" src="design/settings/rows-approvals.jsx"></script>
@@ -605,6 +640,9 @@
   <!-- Composer voice spectrum: starts/stops Rust's microphone analyser and
        keeps its newest frame in a ref; exports useVoiceSpectrum. -->
   <script type="text/babel" src="app/use-voice-spectrum.jsx"></script>
+  <!-- Reads the reply aloud at the end of a run; calls window.OMP_TTS at
+       render time, exports useReadAloud. -->
+  <script type="text/babel" src="app/use-read-aloud.jsx"></script>
   <!-- Phone publisher and actions; follows live.js and app/remote-view.js,
        exports useRemote for app-live.jsx. -->
   <script type="text/babel" src="app/use-remote.jsx"></script>

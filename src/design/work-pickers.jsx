@@ -49,8 +49,8 @@ function _WPF_Options({ items, active, onPick, listRef }) {
 }
 
 function _WPF_Status({ choices, empty }) {
-  if (choices.loading) return <small>Loading choices…</small>;
-  if (choices.error) return <small className="danger-text">Couldn't load choices, type it instead: {choices.error}</small>;
+  if (choices.loading) return <small>{OMP_TR("Loading choices…")}</small>;
+  if (choices.error) return <small className="danger-text">{OMP_TR("Couldn't load choices, type it instead: {err}", { err: choices.error })}</small>;
   return empty ? <small>{empty}</small> : null;
 }
 
@@ -103,14 +103,13 @@ function _WPF_Multi({ values, onChange, choices, placeholder, hint, ordered }) {
       <div className="wp-chips" onMouseDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.querySelector("input")?.focus(); } }}>
         {values.map((v, i) => (
           <span key={v} className="wp-chip" title={nameOf(v) ?? v}>
-            {ordered && i > 0 && <button type="button" aria-label={`move ${v} left`} onClick={() => shift(i, -1)}>‹</button>}
+            {ordered && i > 0 && <button type="button" aria-label={OMP_TR("move {name} left", { name: v })} onClick={() => shift(i, -1)}>‹</button>}
             <span>{v}</span>
-            {ordered && i < values.length - 1 && <button type="button" aria-label={`move ${v} right`} onClick={() => shift(i, 1)}>›</button>}
-            <button type="button" aria-label={`remove ${v}`} onClick={() => drop(v)}>×</button>
+            {ordered && i < values.length - 1 && <button type="button" aria-label={OMP_TR("move {name} right", { name: v })} onClick={() => shift(i, 1)}>›</button>}
+            <button type="button" aria-label={OMP_TR("remove {name}", { name: v })} onClick={() => drop(v)}>×</button>
           </span>
         ))}
-        <input value={q} placeholder={values.length ? "Add…" : placeholder} role="combobox" aria-expanded={open}
-          onFocus={() => { setOpen(true); setActive(0); }} onBlur={() => setOpen(false)}
+        <input value={q} placeholder={values.length ? OMP_TR("Add…") : placeholder} role="combobox" aria-expanded={open}
           onChange={e => { setQ(e.target.value); setOpen(true); setActive(0); }}
           onKeyDown={e => {
             if (e.key === "Backspace" && !q && values.length) { drop(values[values.length - 1]); return; }

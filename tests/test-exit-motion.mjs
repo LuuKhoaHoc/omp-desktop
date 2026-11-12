@@ -87,4 +87,43 @@ check("ghostStyle: no box, no copy", () => {
   assert.equal(M.ghostStyle({ left: 0, top: 0, width: 30, height: 0 }), null);
 });
 
+// A document with a class list on its root and timers run by hand.
+function fakeDoc() {
+  const cls = new Set();
+  const timers = new Map();
+  let next = 0;
+  return {
+    documentElement: { classList: { add: c => cls.add(c), remove: c => cls.delete(c), contains: c => cls.has(c) } },
+    defaultView: {
+      setTimeout: (fn, ms) => { timers.set(++next, { fn, ms }); return next; },
+      clearTimeout: id => timers.delete(id),
+    },
+    timers,
+    runTimers() { for (const [id, t] of [...timers]) { timers.delete(id); t.fn(); } },
+  };
+}
+
+check("quietSwitch: the document is switching until its timer runs", () => {
+  const doc = fakeDoc();
+  assert.equal(M.switching(doc), false);
+  M.quietSwitch(doc);
+  assert.equal(M.switching(doc), true);
+  assert.deepEqual([...doc.timers.values()].map(t => t.ms), [M.SWITCH_QUIET_MS]);
+  doc.runTimers();
+  assert.equal(M.switching(doc), false);
+});
+
+check("quietSwitch: a second switch before the first ended keeps it quiet for its own time", () => {
+  const doc = fakeDoc();
+  const cancel = M.quietSwitch(doc);
+  // The effect's cleanup, then the next switch (app-live.jsx).
+  cancel();
+  assert.equal(M.switching(doc), true, "the cancel drops the timer, not the class");
+  assert.equal(doc.timers.size, 0);
+  M.quietSwitch(doc);
+  assert.equal(doc.timers.size, 1, "one timer: the first cannot end the second's quiet early");
+  doc.runTimers();
+  assert.equal(M.switching(doc), false);
+});
+
 console.log(`exit-motion: ${passed} checks passed`);

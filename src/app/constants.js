@@ -31,6 +31,7 @@
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "locale": "auto",
     "theme": "kiln",
+    "systemTheme": true,
     "startScreen": "latent",
     "density": "cozy",
     "layout": "rail",
@@ -53,7 +54,9 @@
     "updateCheck": true,
     "skippedUpdate": null,
     "sidebar": true,
-    "tabStrip": false,
+    // Was `tabStrip`, off by default: every stored copy holds that `false`
+    // (the whole object is saved), so the on-by-default setting has a new key.
+    "tabBar": true,
     "sidebarWidth": 0,
     "splitWidth": 0,
     "railWidth": 0,
@@ -68,7 +71,12 @@
     "submitKey": "enter",
     "dictationSend": false,
     "dictationAutoStop": 3,
+    "handsFree": false,
     "voiceSpectrumBands": 64,
+    "ttsEnabled": false,
+    "ttsEngine": "edge",
+    "ttsVoice": "vi-VN-HoaiMyNeural",
+    "ttsSpeed": 1,
     "pasteCollapseLines": 5,
     "restoreTabs": true,
     "confirmBusyClose": false,
@@ -125,9 +133,11 @@
   }
 
   // omp's thinking levels, lowest first, with its own descriptions
-  // (packages/tui/src/thinking.ts, THINKING_LEVEL_METADATA).
+  // (packages/tui/src/thinking.ts, THINKING_LEVEL_METADATA), and its `auto`
+  // selector, which is not a level: omp picks one per turn.
   const THINKING_LEVELS = {
     off:     { hint: "no reasoning" },
+    auto:    { hint: "omp picks the level for each turn" },
     minimal: { hint: "very brief reasoning (~1k tokens)" },
     low:     { hint: "light reasoning (~2k tokens)" },
     medium:  { hint: "moderate reasoning (~8k tokens)" },
@@ -135,6 +145,15 @@
     xhigh:   { hint: "extended reasoning (~32k tokens)" },
     max:     { hint: "maximum reasoning the model supports" },
   };
+
+  // The thinking menu's rows for omp's level list of a model (`off` first):
+  // the `auto` selector, which that list leaves out, goes after `off`. A
+  // model without levels to choose from gets no `auto` either.
+  function thinkingMenuRows(levels) {
+    if (levels.length <= 1 || levels.includes("auto")) return levels;
+    const at = levels[0] === "off" ? 1 : 0;
+    return [...levels.slice(0, at), "auto", ...levels.slice(at)];
+  }
 
   Object.assign(window, {
     TWEAK_DEFAULTS,
@@ -147,5 +166,6 @@
     isSubmitKey,
     truncateText,
     THINKING_LEVELS,
+    thinkingMenuRows,
   });
 })();

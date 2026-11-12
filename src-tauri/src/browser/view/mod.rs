@@ -11,6 +11,7 @@
 //! `Core::switch` serialises target switches and viewport changes.
 
 mod core;
+mod cursor;
 mod emit;
 mod events;
 mod frames;

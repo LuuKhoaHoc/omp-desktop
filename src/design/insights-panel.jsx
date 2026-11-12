@@ -1,36 +1,31 @@
 /* ═════════════════════════════════════════════════════════════════════
-   design/insights-panel.jsx — the Insights panel (fork): diagrams, test
-   cases and a document analysis that the agent writes into the project,
-   drawn beside the chat. Data: `<project>/.omp/insights/` read by Rust
-   (`insights_read`, src-tauri/src/work.rs), re-read every few seconds
-   while the panel is open, so the agent's writes show up as it works.
-
-   File formats (documented in docs/insights.md):
-     docs/<slug>.json (or doc-analysis.json)  { title, source?, summary, sections?: [{ heading, points[] }],
-                          requirements?: [{ id, text, priority? }] }
-     testcases/<slug>.json (or testcases.json)  { cases: [{ id, title, requirement?, priority?, type?,
-                          preconditions?, steps: [string | { action, expected }],
-                          expected?, status?: "untested"|"pass"|"fail"|"blocked" }] }
-     diagrams/*         what the diagram skills write: .mmd/.mermaid
-                          (Mermaid), .svg, .png, .html, .excalidraw
-   Mermaid uses the vendored src/mermaid.min.js, loaded on first use, strict
-   security level. SVG, PNG and Excalidraw (app/excalidraw-svg.js) render as
-   <img> data URLs, so nothing in them runs; HTML pages go in a sandboxed
-   iframe with no scripts. "New diagram" drafts a prompt naming the skill.
+   design/insights-panel.jsx — the Insights panel (fork): header tabs,
+   actionable empty state, test cases and document analysis beside the
+   chat. Diagram rendering lives in design/insights-diagrams.jsx.
+   Data: `<project>/.omp/insights/` read by Rust (`insights_read`).
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon: _IP_Icon } = window;
 const _IP_POLL_MS = 4000;
 const _IP_STATUS = ["untested", "pass", "fail", "blocked"];
 
+function _ipStatusLabel(s) {
+  if (s === "all") return OMP_TR("all");
+  if (s === "untested") return OMP_TR("untested");
+  if (s === "pass") return OMP_TR("pass");
+  if (s === "fail") return OMP_TR("fail");
+  if (s === "blocked") return OMP_TR("blocked");
+  return s;
+}
+
 // A two-step delete: the first click asks, the second within 4 s deletes.
 function _IP_Delete({ label, onDelete }) {
   const [ask, setAsk] = React.useState(false);
   React.useEffect(() => { if (!ask) return; const id = setTimeout(() => setAsk(false), 4000); return () => clearTimeout(id); }, [ask]);
   return (
-    <button className={`btn ghost small${ask ? " danger" : ""}`} title={`Delete ${label}`}
+    <button type="button" className={`btn ghost small${ask ? " danger" : ""}`} title={OMP_TR("Delete {label}", { label })}
       onClick={() => (ask ? (setAsk(false), onDelete()) : setAsk(true))}>
-      {ask ? "Delete?" : <_IP_Icon name="trash" size={12} />}
+      {ask ? OMP_TR("Delete?") : <_IP_Icon name="trash" size={12} />}
     </button>
   );
 }
@@ -42,14 +37,14 @@ function _IP_Sources({ items, sel, onSel, all, labelOf, onDelete, onAdd }) {
   return (
     <div className="ip-filter ip-sources">
       <div className="wp-seg small ip-source-seg">
-        {all && <button className={sel === null ? "on" : ""} onClick={() => onSel(null)}>All</button>}
+        {all && <button type="button" className={sel === null ? "on" : ""} onClick={() => onSel(null)}>{OMP_TR("All")}</button>}
         {items.map(it => (
-          <button key={it.file} className={sel === it.file ? "on" : ""} title={it.file} onClick={() => onSel(it.file)}>{labelOf(it)}</button>
+          <button type="button" key={it.file} className={sel === it.file ? "on" : ""} title={it.file} onClick={() => onSel(it.file)}>{labelOf(it)}</button>
         ))}
       </div>
       {cur && onDelete && <_IP_Delete label={cur.file} onDelete={() => onDelete(cur.file)} />}
       <span style={{ flex: 1 }} />
-      {onAdd && <button className="btn ghost small" onClick={onAdd}><_IP_Icon name="plus" size={12} /> Add document</button>}
+      {onAdd && <button type="button" className="btn ghost small" onClick={onAdd}><_IP_Icon name="plus" size={12} /> {OMP_TR("Add document")}</button>}
     </div>
   );
 }
@@ -75,34 +70,46 @@ function _IP_Cases({ sets, onDelete, onAdd }) {
       onDelete={pick !== null || valid.length === 1 ? f => { onDelete(f); setSel(null); } : null} onAdd={onAdd} />
   );
   const broken = sets.filter(s => !Array.isArray(s.data?.cases)).map(s => (
-    <div key={s.file} className="wp-note err ip-broken">{s.data?.error ?? `${s.file}: no "cases" list`} {onDelete && <_IP_Delete label={s.file} onDelete={() => onDelete(s.file)} />}</div>
+    <div key={s.file} className="wp-note err ip-broken">{s.data?.error ?? OMP_TR("{file}: no \"cases\" list", { file: s.file })} {onDelete && <_IP_Delete label={s.file} onDelete={() => onDelete(s.file)} />}</div>
   ));
-  if (!cases.length) return <div className="ip-cases">{sources}{broken}<div className="wp-empty-line pad">No test cases yet.</div></div>;
+  if (!cases.length) return <div className="ip-cases">{sources}{broken}<div className="wp-empty-line pad">{OMP_TR("No test cases yet.")}</div></div>;
   const pct = s => `${(counts[s] / cases.length) * 100}%`;
   return (
     <div className="ip-cases">
       {sources}
       {broken}
-      <div className="ip-progress" aria-label="test status">
-        {_IP_STATUS.filter(s => counts[s]).map(s => <i key={s} className={s} style={{ width: pct(s) }} title={`${s}: ${counts[s]}`} />)}
+      <div className="ip-progress-wrap">
+        <div className="ip-progress-meta">
+          {_IP_STATUS.filter(s => counts[s] > 0).map(s => (
+            <span key={s} className="ip-progress-stat">
+              <span className={`ip-st ${s}`} aria-hidden="true" />
+              <span>{counts[s]} {_ipStatusLabel(s)}</span>
+            </span>
+          ))}
+        </div>
+        <div className="ip-progress" aria-label={OMP_TR("test status")}>
+          {_IP_STATUS.filter(s => counts[s]).map(s => <i key={s} className={s} style={{ width: pct(s) }} title={`${_ipStatusLabel(s)}: ${counts[s]}`} />)}
+        </div>
       </div>
       <div className="ip-filter">
         <div className="wp-seg small">
           {["all", ..._IP_STATUS].map(s => (
-            <button key={s} className={status === s ? "on" : ""} onClick={() => setStatus(s)}>
-              {s} <span className="wp-count">{s === "all" ? cases.length : counts[s]}</span>
+            <button type="button" key={s} className={status === s ? "on" : ""} onClick={() => setStatus(s)}>
+              {s !== "all" && <span className={`ip-st ${s}`} aria-hidden="true" />}
+              <span>{_ipStatusLabel(s)}</span>
+              <span className="wp-count">{s === "all" ? cases.length : counts[s]}</span>
             </button>
           ))}
         </div>
-        <input value={q} placeholder="Filter cases" onChange={e => setQ(e.target.value)} aria-label="filter test cases" />
+        <input type="search" value={q} placeholder={OMP_TR("Filter cases…")} onChange={e => setQ(e.target.value)} aria-label={OMP_TR("filter test cases")} />
       </div>
       <div className="ip-case-list">
         {shown.map(c => {
           const st = c.status ?? "untested", isOpen = openId === c._key;
           return (
             <div key={c._key} className={`ip-case${isOpen ? " open" : ""}`}>
-              <button className="ip-case-head" aria-expanded={isOpen} onClick={() => setOpenId(isOpen ? null : c._key)}>
-                <span className={`ip-st ${st}`} title={st} />
+              <button type="button" className="ip-case-head" aria-expanded={isOpen} onClick={() => setOpenId(isOpen ? null : c._key)}>
+                <span className={`ip-st ${st}`} title={_ipStatusLabel(st)} />
                 <span className="mono ip-case-id">{c.id}</span>
                 <span className="ip-case-title">{c.title}</span>
                 {c.priority && <span className={`ip-pri p-${String(c.priority).toLowerCase()}`}>{c.priority}</span>}
@@ -111,10 +118,10 @@ function _IP_Cases({ sets, onDelete, onAdd }) {
               {isOpen && (
                 <div className="ip-case-body">
                   <div className="ip-case-meta">
-                    {c.requirement && <span>Requirement <b className="mono">{c.requirement}</b></span>}
-                    {c.type && <span>Type <b>{c.type}</b></span>}
+                    {c.requirement && <span>{OMP_TR("Requirement")} <b className="mono">{c.requirement}</b></span>}
+                    {c.type && <span>{OMP_TR("Type")} <b>{c.type}</b></span>}
                   </div>
-                  {c.preconditions && <p className="ip-pre"><b>Preconditions</b> {Array.isArray(c.preconditions) ? c.preconditions.join("; ") : c.preconditions}</p>}
+                  {c.preconditions && <p className="ip-pre"><b>{OMP_TR("Preconditions")}</b> {Array.isArray(c.preconditions) ? c.preconditions.join("; ") : c.preconditions}</p>}
                   <ol className="ip-steps">
                     {(c.steps ?? []).map((s, i) => (
                       <li key={i}>
@@ -123,12 +130,20 @@ function _IP_Cases({ sets, onDelete, onAdd }) {
                       </li>
                     ))}
                   </ol>
-                  {c.expected && <p className="ip-pre"><b>Expected</b> {c.expected}</p>}
+                  {c.expected && <p className="ip-pre"><b>{OMP_TR("Expected")}</b> {c.expected}</p>}
                 </div>
               )}
             </div>
           );
         })}
+        {shown.length === 0 && (
+          <div className="wp-empty-line pad">
+            {OMP_TR("No cases match the active filter.")}{" "}
+            {(q || status !== "all") && (
+              <button type="button" className="btn ghost small" onClick={() => { setQ(""); setStatus("all"); }}>{OMP_TR("Clear filters")}</button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -141,11 +156,10 @@ function _IP_Docs({ docs, onDelete, onAdd }) {
     <div className="ip-docs">
       <_IP_Sources items={docs} sel={cur?.file} onSel={setSel} labelOf={d => d.data?.title || _ipSlug(d.file)}
         onDelete={f => { onDelete(f); setSel(null); }} onAdd={onAdd} />
-      {cur ? <_IP_Doc doc={cur.data} /> : <div className="wp-empty-line pad">No document analysis yet.</div>}
+      {cur ? <_IP_Doc doc={cur.data} /> : <div className="wp-empty-line pad">{OMP_TR("No document analysis yet.")}</div>}
     </div>
   );
 }
-
 function _IP_Doc({ doc }) {
   if (doc.error) return <div className="wp-note err">{doc.error}</div>;
   return (
@@ -161,7 +175,7 @@ function _IP_Doc({ doc }) {
       ))}
       {(doc.requirements ?? []).length > 0 && (
         <section className="ip-doc-sec">
-          <h4>Requirements</h4>
+          <h4>{OMP_TR("Requirements")}</h4>
           <table className="ip-req">
             <tbody>{doc.requirements.map(r => (
               <tr key={r.id}><td className="mono">{r.id}</td><td>{r.text}</td><td>{r.priority && <span className={`ip-pri p-${String(r.priority).toLowerCase()}`}>{r.priority}</span>}</td></tr>
@@ -173,209 +187,73 @@ function _IP_Doc({ doc }) {
   );
 }
 
-// ── Diagrams (Mermaid) ─────────────────────────────────────────────────────
-let _ipMermaid = null;
-/** Loads the vendored Mermaid once, themed from the current CSS tokens. */
-function _ipLoadMermaid() {
-  if (!_ipMermaid) {
-    _ipMermaid = new Promise((resolve, reject) => {
-      if (window.mermaid) return resolve(window.mermaid);
-      const s = document.createElement("script");
-      s.src = "mermaid.min.js";
-      s.onload = () => resolve(window.mermaid);
-      s.onerror = () => { _ipMermaid = null; reject(new Error("Could not load mermaid.min.js")); };
-      document.head.appendChild(s);
-    }).then(m => {
-      // The schematic look (app/mermaid-schematic.js); colours come from layout/diagram.css.
-      const css = getComputedStyle(document.documentElement);
-      m.initialize(window.OMP_MERMAID_SCHEMATIC.config(name => css.getPropertyValue(name).trim()));
-      return m;
-    });
-  }
-  return _ipMermaid;
-}
-// Mermaid renders through shared global state: one diagram at a time.
-let _ipQueue = Promise.resolve();
-let _ipSeq = 0;
-function _ipRender(source) {
-  const id = `ip-mmd-${++_ipSeq}`;
-  // A failed render leaves Mermaid's scratch node (`d<id>`) in <body>.
-  const run = _ipQueue.then(async () => (await _ipLoadMermaid()).render(id, source))
-    .catch(e => { document.getElementById(`d${id}`)?.remove(); throw e; });
-  _ipQueue = run.catch(() => {});
-  return run;
-}
-/** The card title: `%% title: X` (Mermaid), `<title>` (SVG/HTML), else the
- *  file name without its extension. */
-function _ipDiagramTitle(source, file) {
-  const m = /^\s*%%\s*title\s*:\s*(.+)$/im.exec(source ?? "") ?? /<title[^>]*>([^<]{1,200})<\/title>/i.exec(source ?? "");
-  return m ? m[1].trim() : String(file).replace(/\.[a-z]+$/i, "");
-}
-
-// The diagram skills the agent can use, and the file each one leaves here.
-const _IP_SKILLS = [
-  { id: "mermaidjs-v11", label: "Mermaid", hint: "flow, sequence, state, ER, gantt", ext: "mmd", how: "Write the Mermaid source itself (no rendering), first line `%% title: <name>`." },
-  { id: "diagram-design", label: "Diagram design", hint: "30+ kinds: swimlane, journey, timeline, matrix…", ext: "svg", how: "Save the finished diagram as standalone SVG (or HTML if it needs CSS), with a <title>." },
-  { id: "architecture-diagram", label: "Architecture", hint: "system / infra, dark SVG", ext: "html", how: "Save the standalone HTML file, with a <title>." },
-  { id: "tech-graph", label: "Tech graph", hint: "publish-grade SVG + PNG", ext: "svg", how: "Save the SVG (a PNG beside it is fine), with a <title>." },
-  { id: "excalidraw", label: "Excalidraw", hint: "whiteboard sketch", ext: "excalidraw", how: "Save the .excalidraw scene JSON." },
-  { id: "preview", label: "Visual explanation", hint: "HTML walkthrough / slides", ext: "html", how: "Save the self-contained HTML page (no CDN scripts: it is shown without JavaScript), with a <title>." },
-];
-function _ipSkillPrompt(skill) {
-  return `Use the \`${skill.id}\` skill (load it; if it is not loaded, read its SKILL.md under ~/.agents/skills or ~/.hermes/skills) to draw: <what to draw, or attach the spec>.\n`
-    + `Save the result into this project's .omp/insights/diagrams/<kebab-name>.${skill.ext}, one diagram per file. ${skill.how} `
-    + "The Insights panel shows that folder.";
-}
-
-function _ipCopy(text) { navigator.clipboard?.writeText(text).catch(() => {}); }
-const _IP_ZOOMS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
-
-/** What a card shows: `{ mermaid }` (inline SVG string), `{ img }` (data URL),
- *  `{ html }` (sandboxed page), or `{ err }`. */
-function _ipUseDiagram({ kind, source, data, error }) {
-  const [out, setOut] = React.useState(error ? { err: error } : null);
-  React.useEffect(() => {
-    if (error) return setOut({ err: error });
-    let live = true;
-    try {
-      if (kind === "mermaid") {
-        setOut(null);
-        _ipRender(source).then(r => live && setOut({ mermaid: r.svg }), e => live && setOut({ err: String(e?.message ?? e) }));
-      } else if (kind === "png") setOut({ img: `data:image/png;base64,${data}` });
-      else if (kind === "svg") setOut({ img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}` });
-      else if (kind === "excalidraw") setOut({ img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(window.OMP_EXCALIDRAW.toSvg(JSON.parse(source)).svg)}` });
-      else if (kind === "html") setOut({ html: source });
-      else setOut({ err: `unknown kind ${kind}` });
-    } catch (e) { setOut({ err: String(e?.message ?? e) }); }
-    return () => { live = false; };
-  }, [kind, source, data, error]);
-  return out;
-}
-
-function _IP_Diagram({ file, kind = "mermaid", source, data, error, onDelete }) {
-  const out = _ipUseDiagram({ kind, source, data, error });
-  const [zoom, setZoom] = React.useState(null); // null = fit width
-  const [max, setMax] = React.useState(false);
-  const [showSrc, setShowSrc] = React.useState(false);
-  const view = React.useRef(null);
-  const drag = React.useRef(null);
-  const graph = React.useRef(null);
-  // A new drawing: mark its entry/exit nodes and start the draw-in.
-  React.useLayoutEffect(() => {
-    const svg = out?.mermaid && view.current?.querySelector(".ip-mmd svg");
-    graph.current = svg ? { svg, ...window.OMP_MERMAID_SCHEMATIC.decorate(svg) } : null;
-  }, [out?.mermaid, showSrc]);
-  const onOver = e => {
-    const g = graph.current;
-    if (!g || drag.current) return;
-    const node = e.target.closest?.("g.node");
-    window.OMP_MERMAID_SCHEMATIC.focus(g.svg, g, node?.dataset.node ?? null);
-  };
-  // Zoom sets the drawing's width from its natural size; fit caps it at the card.
-  React.useLayoutEffect(() => {
-    const el = view.current?.querySelector("svg, img");
-    if (!el) return;
-    const natural = el.tagName === "IMG" ? el.naturalWidth : (el.viewBox?.baseVal?.width || el.getBBox?.().width || 0);
-    el.style.maxWidth = zoom == null ? "100%" : "none";
-    el.style.width = zoom == null || !natural ? "" : `${Math.round(natural * zoom)}px`;
-    el.style.height = "auto";
-  });
-  React.useEffect(() => {
-    if (!max) return;
-    const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); setMax(false); } };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [max]);
-  const step = dir => setZoom(z => {
-    const cur = z ?? 1, i = _IP_ZOOMS.findIndex(v => v >= cur - 1e-6);
-    return _IP_ZOOMS[Math.max(0, Math.min(_IP_ZOOMS.length - 1, (i < 0 ? _IP_ZOOMS.length - 1 : i) + dir))];
-  });
-  const onWheel = e => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); step(e.deltaY < 0 ? 1 : -1); } };
-  const onDown = e => {
-    if (e.button !== 0 || !view.current) return;
-    drag.current = { x: e.clientX, y: e.clientY, l: view.current.scrollLeft, t: view.current.scrollTop };
-  };
-  const onMove = e => {
-    const d = drag.current;
-    if (!d || !view.current) return;
-    view.current.scrollLeft = d.l - (e.clientX - d.x);
-    view.current.scrollTop = d.t - (e.clientY - d.y);
-  };
-  const title = _ipDiagramTitle(source, file);
-  const text = kind !== "png" && source != null;
-  const zoomable = out && (out.mermaid || out.img);
-  const body = showSrc && text ? <pre className="ip-src mono">{source}</pre>
-    : !out ? <span className="wp-loading">rendering…</span>
-    : out.err ? (text ? <pre className="ip-src mono">{source}</pre> : null)
-    : out.html != null ? <iframe className="ip-frame" sandbox="" title={title} srcDoc={out.html} />
-    : (
-      <div ref={view} className={`ip-view${zoom == null ? " fit" : ""}${out.mermaid ? " ip-sheet" : ""}`} onWheel={onWheel}
-        onPointerOver={onOver} onPointerLeave={e => { drag.current = null; onOver(e); }}
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }}>
-        {out.mermaid ? <div className="ip-mmd" dangerouslySetInnerHTML={{ __html: out.mermaid }} /> : <img src={out.img} alt={title} draggable={false} />}
+function _IP_Empty({ onAsk, prompt }) {
+  const [pickSkill, setPickSkill] = React.useState(false);
+  const { _IP_SKILLS: skills = [], _ipSkillPrompt: skillPrompt } = window;
+  const casesPrompt = "Read the document or feature I attach. Pick a short kebab-case slug (not one already used in .omp/insights/testcases/) and write .omp/insights/testcases/<slug>.json in the format of docs/insights.md in omp-desktop.";
+  const docPrompt = "Read the document I attach. Pick a short kebab-case slug (not one already used in .omp/insights/docs/) and write .omp/insights/docs/<slug>.json with summary, sections, and prioritized requirements in the format of docs/insights.md in omp-desktop.";
+  return (
+    <div className="ip-empty-shell">
+      <div className="ip-empty-hero">
+        <div className="ip-empty-icon" aria-hidden="true"><_IP_Icon name="test" size={18} /></div>
+        <div className="ip-empty-copy">
+          <h3>{OMP_TR("Project Insights")}</h3>
+          <p>{OMP_TR("Ask the agent to analyze a spec, codebase, or flow. Outputs save into `.omp/insights/` and appear live here.").split("`").map((p, i) => (i % 2 ? <code key={i} className="mono">{p}</code> : <React.Fragment key={i}>{p}</React.Fragment>))}</p>
+        </div>
       </div>
-    );
-  return (
-    <figure className={`ip-card ip-diagram${max ? " max" : ""}`}>
-      <figcaption className="ip-card-title">
-        <span className="ip-diagram-name" title={file}>{title}</span>
-        <span className="ip-kind">{kind === "mermaid" ? window.OMP_MERMAID_SCHEMATIC.diagramType(source) : kind}</span>
-        <span style={{ flex: 1 }} />
-        {zoomable && !showSrc && (
-          <span className="ip-zoom" role="group" aria-label="Zoom">
-            <button className="btn ghost small" aria-label="Zoom out" onClick={() => step(-1)}>−</button>
-            <button className="btn ghost small mono" title="Fit width" onClick={() => setZoom(z => (z == null ? 1 : null))}>{zoom == null ? "Fit" : `${Math.round(zoom * 100)}%`}</button>
-            <button className="btn ghost small" aria-label="Zoom in" onClick={() => step(1)}>+</button>
-          </span>
-        )}
-        {text && <button className="btn ghost small" aria-pressed={showSrc} onClick={() => setShowSrc(v => !v)}>{showSrc ? "Diagram" : "Source"}</button>}
-        {text && <button className="btn ghost small" title="Copy source" onClick={() => _ipCopy(source)}>Copy</button>}
-        {out?.mermaid && <button className="btn ghost small" title="Copy as SVG" onClick={() => _ipCopy(out.mermaid)}>SVG</button>}
-        <button className="btn ghost small" aria-pressed={max} title={max ? "Close (Esc)" : "Expand"} onClick={() => setMax(v => !v)}>{max ? "Close" : "Expand"}</button>
-        {onDelete && !max && <_IP_Delete label={file} onDelete={onDelete} />}
-      </figcaption>
-      {out?.err && <div className="wp-note err"><_IP_Icon name="warn" size={12} /> {file}: {out.err}</div>}
-      {body}
-    </figure>
-  );
-}
-
-/** "New diagram" menu: drafts a prompt for the picked skill into the composer. */
-function _IP_NewDiagram({ onAsk }) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <div className="ip-new">
-      <button className="btn primary small" aria-expanded={open} onClick={() => setOpen(v => !v)}>
-        <_IP_Icon name="plus" size={12} /> New diagram
-      </button>
-      {open && (
-        <div className="ip-new-menu" role="menu">
-          {_IP_SKILLS.map(s => (
-            <button key={s.id} role="menuitem" onClick={() => { setOpen(false); onAsk(_ipSkillPrompt(s)); }}>
-              <span>{s.label} <span className="ip-kind">.{s.ext}</span></span>
-              <span className="ip-new-hint">{s.hint} · <span className="mono">{s.id}</span></span>
-            </button>
-          ))}
+      <div className="ip-action-list">
+        <div className="ip-action-item">
+          <button type="button" className="ip-action-row" disabled={!onAsk} aria-expanded={pickSkill}
+            onClick={() => setPickSkill(v => !v)}>
+            <span className="ip-action-ico" aria-hidden="true"><_IP_Icon name="layers" size={14} /></span>
+            <span className="ip-action-meta">
+              <span className="ip-action-name">{OMP_TR("Architecture & Flow Diagrams")}</span>
+              <span className="ip-action-desc">{OMP_TR("Generate Mermaid flowcharts, sequence, state, ER, SVG or Excalidraw sketches")}</span>
+            </span>
+            <span className="ip-action-go" aria-hidden="true"><_IP_Icon name={pickSkill ? "chev" : "chevR"} size={12} /></span>
+          </button>
+          {pickSkill && onAsk && (
+            <div className="ip-skill-drawer">
+              {skills.map(s => {
+                const meta = window._ipSkillText?.(s) ?? s;
+                return (
+                  <button key={s.id} type="button" className="ip-skill-chip" onClick={() => onAsk(skillPrompt(s))}>
+                    <span className="ip-skill-chip-head">{meta.label} <span className="ip-kind">.{s.ext}</span></span>
+                    <span className="ip-skill-chip-hint">{meta.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="ip-action-item">
+          <button type="button" className="ip-action-row" disabled={!onAsk} onClick={() => onAsk?.(casesPrompt)}>
+            <span className="ip-action-ico" aria-hidden="true"><_IP_Icon name="plan" size={14} /></span>
+            <span className="ip-action-meta">
+              <span className="ip-action-name">{OMP_TR("Test Case Suite")}</span>
+              <span className="ip-action-desc">{OMP_TR("Extract structured test scenarios, preconditions, steps & expected outcomes")}</span>
+            </span>
+            <span className="ip-action-go" aria-hidden="true"><_IP_Icon name="chevR" size={12} /></span>
+          </button>
+        </div>
+        <div className="ip-action-item">
+          <button type="button" className="ip-action-row" disabled={!onAsk} onClick={() => onAsk?.(docPrompt)}>
+            <span className="ip-action-ico" aria-hidden="true"><_IP_Icon name="file" size={14} /></span>
+            <span className="ip-action-meta">
+              <span className="ip-action-name">{OMP_TR("Document Spec Breakdown")}</span>
+              <span className="ip-action-desc">{OMP_TR("Summarize PRDs and extract prioritized requirement tables")}</span>
+            </span>
+            <span className="ip-action-go" aria-hidden="true"><_IP_Icon name="chevR" size={12} /></span>
+          </button>
+        </div>
+      </div>
+      {onAsk && (
+        <div className="ip-empty-foot">
+          <button type="button" className="btn primary" onClick={() => onAsk(prompt)}>
+            {OMP_TR("Analyze attached document (all-in-one)")}
+          </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function _IP_Diagrams({ diagrams, onAsk, onDelete }) {
-  const [q, setQ] = React.useState("");
-  const needle = q.trim().toLowerCase();
-  const shown = needle ? diagrams.filter(d => `${_ipDiagramTitle(d.source, d.file)} ${d.file} ${d.kind}`.toLowerCase().includes(needle)) : diagrams;
-  return (
-    <div className="ip-diagrams">
-      <div className="ip-filter">
-        {diagrams.length > 3 && <input type="search" placeholder={`Filter ${diagrams.length} diagrams`} value={q} onChange={e => setQ(e.target.value)} />}
-        <span style={{ flex: 1 }} />
-        {onAsk && <_IP_NewDiagram onAsk={onAsk} />}
-      </div>
-      {shown.map(d => <_IP_Diagram key={d.file} {...d} onDelete={onDelete && (() => onDelete(`diagrams/${d.file}`))} />)}
-      {!diagrams.length && <div className="wp-empty-line pad">No diagrams yet. Pick a skill under "New diagram"; files land in .omp/insights/diagrams/.</div>}
-      {diagrams.length > 0 && !shown.length && <div className="wp-empty-line pad">No diagram matches "{q}".</div>}
     </div>
   );
 }
@@ -385,7 +263,8 @@ function InsightsPanel({ projectPath, onAsk }) {
   const [err, setErr] = React.useState(null);
   const [tab, setTab] = React.useState("diagrams");
   React.useEffect(() => {
-    if (!projectPath) { setData(null); return; }
+    setData(null); setErr(null);
+    if (!projectPath) return;
     const inv = window.__TAURI__?.core?.invoke;
     if (!inv) { setErr("Insights needs the desktop app."); return; }
     let live = true, last = "";
@@ -408,42 +287,42 @@ function InsightsPanel({ projectPath, onAsk }) {
   const docs = data?.docs ?? [];
   const nCases = sets.reduce((n, s) => n + (Array.isArray(s.data?.cases) ? s.data.cases.length : 0), 0);
   const tabs = [
-    { id: "diagrams", label: "Diagrams", n: diagrams.length },
-    { id: "cases", label: "Test cases", n: nCases },
-    { id: "doc", label: "Documents", n: docs.length },
+    { id: "diagrams", label: OMP_TR("Diagrams"), n: diagrams.length },
+    { id: "cases", label: OMP_TR("Test cases"), n: nCases },
+    { id: "doc", label: OMP_TR("Documents"), n: docs.length },
   ];
-  // One slug per document, so a new one never overwrites the last.
   const prompt = "Read the document I attach. Pick a short kebab-case slug for it (not one already used in .omp/insights/docs/). Draw its flows as Mermaid diagrams in .omp/insights/diagrams/<slug>-*.mmd (one diagram per file: flowchart for business flows, sequenceDiagram for FE/BE/API calls, stateDiagram-v2 for statuses, erDiagram for data; first line `%% title: <name>`), and write .omp/insights/docs/<slug>.json and .omp/insights/testcases/<slug>.json in the formats the Insights panel expects (see docs/insights.md in omp-desktop). Do not touch other documents' files.";
   const add = onAsk ? () => onAsk(prompt) : null;
+  const Diagrams = window._IP_Diagrams;
+
   return (
     <div className="wp-panel ip-panel">
-      <div className="wp-head">
-        <span className="wp-head-title">Insights</span>
-        <div className="wp-tabs inline" role="tablist">
+      <div className="wp-head ip-head">
+        <span className="ip-brand"><_IP_Icon name="test" size={14} /><span>{OMP_TR("Insights")}</span></span>
+        <span className="ip-head-sep" aria-hidden="true" />
+        <div className="wp-seg small ip-tabs" role="tablist" aria-label={OMP_TR("Insights sections")}>
           {tabs.map(t => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
-              {t.label}{t.n > 0 && <span className="wp-count">{t.n}</span>}
+            <button type="button" key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
+              <span>{t.label}</span>{t.n > 0 && <span className="wp-count">{t.n}</span>}
             </button>
           ))}
         </div>
       </div>
-      {err && <div className="wp-note err wp-banner"><_IP_Icon name="warn" size={12} /> {err}</div>}
+      {err && <div className="wp-note err wp-banner"><_IP_Icon name="warn" size={12} /> {err === "Insights needs the desktop app." ? OMP_TR("Insights needs the desktop app.") : err}</div>}
       <div className="wp-scroll ip-scroll">
-        {!projectPath && <div className="wp-empty"><div className="wp-empty-title">Open a project</div><p>Insights read the project's .omp/insights folder.</p></div>}
-        {projectPath && data && !data.exists && (
-          <div className="wp-empty">
-            <div className="wp-empty-title">No insights yet</div>
-            <p>Ask the agent to analyse a document: it writes diagrams, test cases and a summary into <code className="mono">.omp/insights/</code>, and they appear here as it works.</p>
-            {onAsk && <button className="btn primary" onClick={() => onAsk(prompt)}><_IP_Icon name="sparkle" size={12} /> Draft the request</button>}
-            {onAsk && <div className="ip-empty-new"><_IP_NewDiagram onAsk={onAsk} /></div>}
+        {!projectPath && <div className="wp-empty"><div className="wp-empty-title">{OMP_TR("Open a project")}</div><p>{OMP_TR("Insights read the project's .omp/insights folder.")}</p></div>}
+        {projectPath && !data && !err && <div className="wp-empty-line pad" role="status">{OMP_TR("Loading insights…")}</div>}
+        {projectPath && data && !data.exists && <_IP_Empty onAsk={onAsk} prompt={prompt} />}
+        {data?.exists && (
+          <div key={tab} className="ip-tab-stage">
+            {tab === "diagrams" && Diagrams && <Diagrams diagrams={diagrams} onAsk={onAsk} onDelete={remove} />}
+            {tab === "cases" && <_IP_Cases sets={sets} onDelete={remove} onAdd={add} />}
+            {tab === "doc" && <_IP_Docs docs={docs} onDelete={remove} onAdd={add} />}
           </div>
         )}
-        {data?.exists && tab === "diagrams" && <_IP_Diagrams diagrams={diagrams} onAsk={onAsk} onDelete={remove} />}
-        {data?.exists && tab === "cases" && <_IP_Cases sets={sets} onDelete={remove} onAdd={add} />}
-        {data?.exists && tab === "doc" && <_IP_Docs docs={docs} onDelete={remove} onAdd={add} />}
       </div>
     </div>
   );
 }
 
-Object.assign(window, { InsightsPanel, _IP_Diagram, _ipDiagramTitle, _ipSkillPrompt });
+Object.assign(window, { InsightsPanel, _IP_Delete });

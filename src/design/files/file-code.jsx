@@ -80,7 +80,9 @@ function _FC_Card({ mark, stale, onEdit, onRemove }) {
   );
 }
 
-function _FC_Form({ quote, initial, onSave, onCancel }) {
+// `submitKey` is the composer's send chord (constants.js isSubmitKey): it
+// saves the comment, as it sends a message there.
+function _FC_Form({ quote, initial, submitKey, onSave, onCancel }) {
   const [text, setText] = React.useState(initial);
   const save = () => { if (text.trim()) onSave(text.trim()); };
   return (
@@ -89,7 +91,7 @@ function _FC_Form({ quote, initial, onSave, onCancel }) {
       <textarea className="plan-comment-form-area" autoFocus value={text} placeholder={OMP_TR("your comment…")}
         onChange={e => setText(e.target.value)}
         onKeyDown={e => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+          if (window.isSubmitKey(e, submitKey)) { e.preventDefault(); save(); }
           // Prevented: the keymap's Esc would interrupt the agent's turn. An
           // Esc ending an IME composition is the IME's.
           if (e.key === "Escape" && !e.nativeEvent.isComposing) { e.preventDefault(); onCancel(); }
@@ -97,14 +99,14 @@ function _FC_Form({ quote, initial, onSave, onCancel }) {
       <div className="plan-comment-form-foot">
         <span className="fc-spacer" />
         <button type="button" className="btn outlined" onClick={save} disabled={!text.trim()}>
-          {OMP_TR("comment")} <span className="kbd">⌘↵</span>
+          {OMP_TR("comment")} <span className="kbd">{submitKey === "ctrl+enter" ? "⌘↵" : "↵"}</span>
         </button>
       </div>
     </div>
   );
 }
 
-function FileCode({ path, text, marks, target, onAdd, onUpdate, onRemove, onTargetDone }) {
+function FileCode({ path, text, marks, target, submitKey = "enter", onAdd, onUpdate, onRemove, onTargetDone }) {
   const html = React.useMemo(() => _FC_highlight(path, text, window.hljs), [path, text]);
   const raw = React.useMemo(() => text.split("\n"), [text]);
   // { from, to, selection, top, left }: the popup's lines and place.
@@ -274,7 +276,7 @@ function FileCode({ path, text, marks, target, onAdd, onUpdate, onRemove, onTarg
   // Keyed per mark: a form moved to another mark starts from that mark's text.
   const formEl = form && (
     <div key={`form:${form.id ?? "new"}`} className="fc-form-wrap">
-      <_FC_Form quote={quoteOf(form)} initial={form.text} onCancel={() => setForm(null)}
+      <_FC_Form quote={quoteOf(form)} initial={form.text} submitKey={submitKey} onCancel={() => setForm(null)}
         onSave={(t) => {
           if (form.id) onUpdate(form.id, { text: t });
           else onAdd(markOf(form, "comment", t));

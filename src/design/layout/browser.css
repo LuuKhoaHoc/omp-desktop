@@ -101,6 +101,8 @@
   box-shadow: inset 0 0 0 1px var(--line-bright);
   pointer-events: none;
 }
+/* The page's own cursor under the pointer (browser-screen.js asks Rust). */
+.browser-view { cursor: var(--page-cursor, default); }
 .browser-view.annotating { cursor: crosshair; }
 .browser-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .browser-status {
@@ -170,7 +172,10 @@
 /* Full view: the panel is the only column. */
 .stage.with-browser.browser-full,
 .window.is-split .stage.with-browser.browser-full { grid-template-columns: minmax(0, 1fr); }
-.stage.browser-full > :not(.browser-dock):not(.st-host) { display: none; }
+.stage.browser-full > :not(.browser-slot):not(.st-host) { display: none; }
+/* The dock's parent, always in the stage and boxless: it holds the wheel
+   listener of whichever dock is mounted (app/browser-screen.js). */
+.browser-slot { display: contents; }
 .browser-dock { position: relative; display: flex; min-width: 0; min-height: 0; }
 .browser-dock > .browser-panel { flex: 1; }
 

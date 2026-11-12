@@ -45,14 +45,15 @@ flowchart LR
   B -- no --> D[Back to Sale]
 ```
 
-Each card has zoom (−/+, `Ctrl`+wheel, the label between them toggles Fit / 100%),
-drag to pan, **Expand** (covers the window, `Esc` closes), **Source** and
-**Copy** for text files, and **SVG** (copy the rendered Mermaid as SVG). Above
-the cards, a filter appears once there are more than three, and **New diagram**
-lists the skills above: picking one drafts a prompt into the composer naming
-the skill and the file it should leave here. An HTML page drawn with
-JavaScript (or a CDN script) shows blank: ask the skill for static output.
-
+Each card collapses or expands from its header, and **Collapse all** /
+**Expand all** folds every visible card at once. Inside the canvas, a floating
+zoom pill offers −/+, Fit / 100% (`Ctrl`+wheel works too), drag to pan, while
+the card header holds **Code** and **Copy** for text files, **SVG** (copy the
+rendered Mermaid as SVG), and **Expand** (covers the window, `Esc` closes).
+Above the cards, a filter appears once there are two or more diagrams, and
+**New diagram** lists the skills above: picking one drafts a prompt into the
+composer naming the skill and the file it should leave here. An HTML page drawn
+with JavaScript (or a CDN script) shows blank: ask the skill for static output.
 The Mermaid renderer is the vendored `src/mermaid.min.js` (`mermaid@12.3.0`,
 verbatim `dist/mermaid.min.js` from npm, SHA-256
 `336df803d87a38b70a01e736e666c8f7601d2ce42f5e47c8fafe5d721074b9a3`), loaded
@@ -99,8 +100,11 @@ security level (labels sanitised, no click callbacks or scripts).
 
 ## Asking the agent
 
-The empty state's "Draft the request" button puts a prompt in the composer.
-Any prompt works as long as it names this folder and these formats, e.g.:
+The empty state offers three quick-start actions (**Architecture & Flow
+Diagrams** with skill presets, **Test Case Suite**, and **Document Spec
+Breakdown**) plus **Analyze attached document (all-in-one)** to draft a full
+request into the composer. Any prompt works as long as it names this folder and
+these formats, e.g.:
 
 > Read the attached spec, then draw its flows into `.omp/insights/diagrams/`
 > and write `doc-analysis.json` and `testcases.json` in the formats of

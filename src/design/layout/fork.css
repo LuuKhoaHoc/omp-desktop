@@ -3,7 +3,7 @@
    panels. Uses only theme tokens, so aurora / phosphor / daylight work. */
 
 /* Chat font role (Settings → Appearance → Font → Chat). */
-.ass-text, .user-text, .composer-input textarea { font-family: var(--font-chat); }
+.ass-text, .user-text, .composer-input textarea, .composer-hl { font-family: var(--font-chat); }
 .mono-chat .ass-text, .mono-chat .user-text { font-family: var(--font-mono); }
 
 /* ── Font pickers ──────────────────────────────────────────────────────── */
@@ -51,3 +51,8 @@
 .thinking-bars i { width: 3px; border-radius: 1px; background: var(--line-bright); }
 .thinking-bars i:nth-child(1) { height: 5px; } .thinking-bars i:nth-child(2) { height: 8px; } .thinking-bars i:nth-child(3) { height: 11px; }
 .thinking-bars i.f { background: var(--fg-2); }
+.thinking-auto { font-size: var(--d-text-xs); color: var(--fg-3); }
+/* Fast mode pill (fast-mode-pill.jsx): amber like the plan pill when on,
+   dimmed while the provider is not serving the priority tier. */
+.fast-pill.on > span { color: var(--amber); }
+.fast-pill.idle { opacity: .65; }

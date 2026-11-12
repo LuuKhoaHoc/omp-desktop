@@ -266,6 +266,18 @@ check("isSubmitKey: \"enter\" sends on Enter without Shift, \"ctrl+enter\" on Ct
   assert.equal(isSubmitKey(key({ ctrlKey: true, keyCode: 229 }), "ctrl+enter"), false, "IME guard (229)");
 });
 
+// ── Thinking menu rows (constants.js thinkingMenuRows) ─────────────────────
+
+check("thinkingMenuRows puts omp's auto selector after off, only for a model with levels", () => {
+  const { thinkingMenuRows, THINKING_LEVELS } = constants;
+  assert.deepEqual(thinkingMenuRows(["off", "low", "high"]), ["off", "auto", "low", "high"]);
+  assert.deepEqual(thinkingMenuRows(["low", "high"]), ["auto", "low", "high"], "a model that cannot turn thinking off");
+  assert.deepEqual(thinkingMenuRows(["off"]), ["off"], "no levels: nothing for auto to pick");
+  assert.deepEqual(thinkingMenuRows([]), []);
+  assert.deepEqual(thinkingMenuRows(["off", "auto", "low"]), ["off", "auto", "low"], "an omp that lists auto itself");
+  assert.equal(typeof THINKING_LEVELS.auto.hint, "string");
+});
+
 check("Windows and old-Mac line endings become the textarea's LF", () => {
   assert.equal(S.normalizePaste("a\r\nb\rc\n"), "a\nb\nc\n");
   // Six CRLF lines are six lines, and collapse like it.

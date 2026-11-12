@@ -12,6 +12,9 @@ const { collapseStates: _CV_collapseStates, PREVIEW_LINES: _CV_PREVIEW_LINES } =
 // Lines a collapsed block keeps in view, for chat.css; one object, so a
 // streaming frame does not diff a fresh style.
 const _CV_PAD_STYLE = { "--collapse-lines": _CV_PREVIEW_LINES };
+// How long the view's width must hold before the transcript re-wraps in
+// full after a resize.
+const _CV_RESIZE_SETTLE_MS = 150;
 
 // ── Per-bubble memo wrappers ────────────────────────────────────────────────
 // Primary streaming-perf win: only the live tail (new object ref per
@@ -194,12 +197,32 @@ function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, 
   // with no scroll event and no new message: keep a pinned view on the
   // latest line through that. `stickToBottom` reads refs only, so the
   // first render's copy stays valid.
+  // A width change (a column or browser panel drag, the window) re-wraps
+  // the whole transcript on every step: until the width holds for
+  // RESIZE_SETTLE_MS, `is-resizing` lets rows off screen keep their height
+  // (layout/chat.css). They re-wrap once when it is dropped, with no size
+  // change of this view to observe, so a pinned view is put back then.
   React.useEffect(() => {
     const el = scrollRef.current;
     if (!el) return undefined;
-    const ro = new ResizeObserver(() => { if (pinnedRef.current) stickToBottom(el); });
+    let width = null;
+    let timer = 0;
+    const settle = () => {
+      el.classList.remove("is-resizing");
+      if (pinnedRef.current) stickToBottom(el);
+    };
+    const ro = new ResizeObserver((entries) => {
+      const now = entries[entries.length - 1].contentRect.width;
+      if (width !== null && now !== width) {
+        el.classList.add("is-resizing");
+        clearTimeout(timer);
+        timer = setTimeout(settle, _CV_RESIZE_SETTLE_MS);
+      }
+      width = now;
+      if (pinnedRef.current) stickToBottom(el);
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); clearTimeout(timer); };
   }, []);
 
   // Only the last completed assistant message is annotatable in plan mode

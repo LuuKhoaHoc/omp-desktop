@@ -9,13 +9,13 @@
    are real buttons, so every action is keyboard-reachable.
    ═════════════════════════════════════════════════════════════════════ */
 
-const { Icon, TabRunDot, TabLabel, RenameField } = window;
-const { groupTabs, groupRunState, groupTarget, membersNewestFirst, basename, parentName } = window.OMP_PROJECT_NAV;
+const { Icon, TabRunDot, TabLabel, TabNumber, RenameField } = window;
+const { groupTabs, groupRunState, groupTarget, groupDigits, tabDigits, membersNewestFirst, basename, parentName } = window.OMP_PROJECT_NAV;
 
 function ProjectSidebar({
   tabs, activeId, recents, profileLabel,
   onSelectTab, onCloseTab, onRenameTab, onNewInProject, onOpenRecent, onForgetRecent, onOpenFolder, onReorder,
-  footer = null,
+  footer = null, style,
 }) {
   // Group keys the user folded. Not persisted: tab ids (and so pathless
   // groups' keys) don't survive a restart anyway.
@@ -39,12 +39,15 @@ function ProjectSidebar({
   const renameButton = t => actButton(OMP_TR("rename conversation"), "edit", 10, () => startRename(t.id));
   const closeButton = id => actButton(OMP_TR("close tab"), "close", 9, () => onCloseTab(id));
   const groups = groupTabs(tabs);
+  // Each tab's "go to tab N" number, shown while that chord's modifier is
+  // held; a folded project shows its members' range.
+  const digits = tabDigits(tabs);
   // Drag to reorder (#40), the same lists as the tab bar's: projects (a
   // project's rows move as one block), and members within their project.
   const reorder = window.useDragReorder(onReorder);
 
   return (
-    <aside className="project-sidebar" aria-label={OMP_TR("projects")}>
+    <aside className="project-sidebar" style={style} aria-label={OMP_TR("projects")}>
       <div className="psb-head">
         <span>{OMP_TR("projects")}</span>
         <button className="psb-act psb-head-act" title={OMP_TR("open folder…")} aria-label={OMP_TR("open folder…")} onClick={onOpenFolder}>
@@ -100,6 +103,7 @@ function ProjectSidebar({
                       <span className="chip muted tab-profile" title={`${OMP_TR("profile:")} ${profile}`}>{profile}</span>
                     )}
                     <TabRunDot state={groupRunState(group.tabs)} />
+                    {!expanded && <TabNumber label={groupDigits(group, digits)} />}
                     {multi && <span className="tab-count psb-count">{group.tabs.length}</span>}
                   </button>
                 )}
@@ -119,6 +123,7 @@ function ProjectSidebar({
                       onDoubleClick={() => startRename(t.id)}>
                       <span className="psb-name">{t.name}</span>
                       <TabRunDot state={t.runState} />
+                      <TabNumber label={digits.get(t.id)} />
                     </button>
                   )}
                   <span className="psb-actions">

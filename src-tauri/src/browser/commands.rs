@@ -354,6 +354,17 @@ pub fn browser_frame_ack(
     Ok(())
 }
 
+/// The CSS cursor keyword the shown page wants at `(x, y)` (page CSS px).
+#[tauri::command]
+pub async fn browser_cursor(
+    session_id: String,
+    x: f64,
+    y: f64,
+    app: AppHandle,
+) -> Result<&'static str, String> {
+    with_view(app, session_id, move |v| v.cursor_at(x, y)).await
+}
+
 #[tauri::command]
 pub async fn browser_annotate(session_id: String, on: bool, app: AppHandle) -> Result<(), String> {
     with_view(app, session_id, move |v| v.annotate(on)).await

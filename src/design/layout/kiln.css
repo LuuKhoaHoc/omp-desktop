@@ -6,17 +6,7 @@
      code and diffs an inset step below their tile;
    - fields and floating surfaces are raised: a faint lit top line, a
      half-pixel ring and a soft drop (--shadow-pop); popovers add glass;
-   - selection is a neutral tint, the accent only means act / running;
-   - small text a step larger and heavier than night's (thin strokes vanish
-     on a dark ground, worst on Linux's grayscale antialiasing). */
-
-/* ── Type ──────────────────────────────────────────────────────────────── */
-.theme-kiln.density-cozy    { --d-text-xs: 0.8125rem;  --d-text-sm: 0.8438rem; }
-.theme-kiln.density-compact { --d-text-xs: 0.7813rem;  --d-text-sm: 0.8125rem; }
-.theme-kiln.density-dense   { --d-text-xs: 0.75rem;    --d-text-sm: 0.7813rem; }
-.theme-kiln body { font-weight: 480; }
-.theme-kiln :is(.mono, kbd, .kbd, code) { font-weight: 500; }
-.theme-kiln :is(kbd, .kbd) { font-size: max(0.6875rem, 0.85em); }
+   - selection is a neutral tint, the accent only means act / running. */
 
 /* ── Tones ─────────────────────────────────────────────────────────────── */
 .theme-kiln {
@@ -46,12 +36,12 @@
 
 /* ── Transcript ────────────────────────────────────────────────────────── */
 .theme-kiln .user-bubble {
-  background: color-mix(in oklab, var(--accent) 14%, var(--bg-window));
+  background: var(--kiln-bubble, color-mix(in oklab, var(--accent) 14%, var(--bg-window)));
   border-radius: 14px 14px 4px 14px;
 }
-.theme-kiln .ass-text :not(pre) > code,
-.theme-kiln .ass-text code { color: var(--lime); background: var(--kiln-inset); }
-.theme-kiln .ass-text pre { background: var(--kiln-inset); border-color: transparent; }
+.theme-kiln :is(.ass-text, .user-text) :not(pre) > code,
+.theme-kiln :is(.ass-text, .user-text) code { color: var(--lime); background: var(--kiln-inset); }
+.theme-kiln :is(.ass-text, .user-text) pre { background: var(--kiln-inset); border-color: transparent; }
 .theme-kiln .thought { border-left-color: var(--line); }
 
 /* Tool calls: borderless tiles beside a quiet thread. */

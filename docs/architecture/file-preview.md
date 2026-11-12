@@ -31,6 +31,7 @@ A range is `{ from, to }`, 1-based and inclusive; one line and an open-ended sta
 - Image by extension (`png jpg jpeg gif webp bmp ico avif svg`). It is returned base64 with its MIME type and shown as a `data:` URL, which CSP `img-src` already allows. An SVG in an `<img>` runs no script.
 - Size limits: text 1 MiB (`MAX_TEXT_BYTES`), images 8 MiB (`MAX_IMAGE_BYTES`). The read is `take(cap + 1)`, so a file that grows after `metadata` cannot overrun the limit.
 - Binary means a NUL byte in the first 8 KiB (`git_browser::is_binary`, the git browser's own test). Text that is not valid UTF-8 is decoded lossily.
+- `FilePreview.editable`: the text was valid UTF-8. The files panel's editor (`file-comments.md`, "Editing") opens only on such a file and saves through `project_file_write` (`project_file::write`), which shares `resolve` with the read.
 
 ## Rendering (`chat/file-preview.jsx`)
 

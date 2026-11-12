@@ -1,5 +1,7 @@
-/* chat/user-bubble.jsx — user-side bubble, right-aligned. */
-const { ImageThumbs: _UB_ImageThumbs, Icon: _UB_Icon } = window;
+/* chat/user-bubble.jsx — user-side bubble, right-aligned. The prompt renders
+   as markdown, like a reply, with its single line breaks kept; never as a
+   live page (no `pages`): a ```html page block the user typed stays code. */
+const { ImageThumbs: _UB_ImageThumbs, Icon: _UB_Icon, MarkdownContent: _UB_Markdown } = window;
 
 // `onEdit(msg)` (fork): go back to just before this prompt and put its
 // text in the composer. Off while the tab streams and for a bubble omp has
@@ -21,7 +23,7 @@ function UserBubble({ msg, idx, highlighted, onEdit }) {
           )}
         </div>
         <_UB_ImageThumbs images={msg.images} className="user-images" alt={OMP_TR("attached image")} />
-        {msg.text && <div className="user-text">{msg.text}</div>}
+        {msg.text && <div className="user-text"><_UB_Markdown text={msg.text} breaks /></div>}
       </div>
     </div>
   );

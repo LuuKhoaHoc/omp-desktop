@@ -22,6 +22,8 @@ function useBridgeSnapshot(bridge, setters) {
       setters.setSparkline(snap.sparkline);
       setters.setModelState(snap.model || _UB_NULL_MODEL);
       if (snap.thinkingLevel) setters.setThinkingLevel(snap.thinkingLevel);
+      setters.setThinkingAuto(snap.thinkingAuto === true);
+      setters.setFastMode(snap.fastMode ?? null);
       setters.setSessions(snap.sessions ?? []);
       setters.setPromptHistory(snap.promptHistory ?? []);
       setters.setSubagents(snap.subagents);
@@ -47,8 +49,40 @@ function useBridgeSnapshot(bridge, setters) {
   }, [bridge]);
 }
 
-function useThemeEffect(t) {
+// The last system look, so a start paints it at once instead of the picked
+// theme first.
+const _UB_SYSTEM_KEY = "omp-desktop:system-theme";
+function _UB_storedSystem() {
+  try { return JSON.parse(localStorage.getItem(_UB_SYSTEM_KEY) ?? "null"); } catch { return null; }
+}
+
+/** Rust's system look (system_theme) while `enabled`, else null. Re-read
+ *  when the window gets focus: a theme switch in the desktop's own menu
+ *  takes the focus and gives it back. */
+function useSystemTheme(bridge, enabled) {
+  const [sys, setSys] = React.useState(_UB_storedSystem);
   React.useEffect(() => {
+    if (!enabled || !bridge) return undefined;
+    let live = true;
+    const read = () => bridge.systemTheme().then(res => {
+      if (!live || !res.ok) return;
+      try { localStorage.setItem(_UB_SYSTEM_KEY, JSON.stringify(res.value)); } catch {}
+      setSys(prev => (window.OMP_SYSTEM_THEME.same(prev, res.value) ? prev : res.value));
+    });
+    read();
+    window.addEventListener("focus", read);
+    return () => { live = false; window.removeEventListener("focus", read); };
+  }, [bridge, enabled]);
+  return enabled ? sys : null;
+}
+
+// Tokens the last run set from the system palette, cleared by the next.
+let _UB_systemTokens = [];
+
+function useThemeEffect(t, sys = null) {
+  React.useEffect(() => {
+    const S = window.OMP_SYSTEM_THEME;
+    const palette = S.tokens(sys);
     const root = document.documentElement;
     root.classList.remove("density-cozy", "density-compact", "density-dense");
     root.classList.add(`density-${t.density}`);
@@ -57,7 +91,13 @@ function useThemeEffect(t) {
     // The accent override and its three derived tokens (app/accent.js), so
     // focus rings, glows and the xterm selection follow it. Cleared first:
     // an accent equal to the theme's own keeps the theme's hand-tuned set.
-    window.OMP_ACCENT.applyThemeTokens(root, t.theme, t.accent);
+    // A system palette (app/system-theme.js) replaces the theme's colours,
+    // accent included, and keeps the picked theme's structure. The last
+    // palette goes first: it holds the accent tokens too.
+    for (const name of _UB_systemTokens) root.style.removeProperty(name);
+    window.OMP_ACCENT.applyThemeTokens(root, S.baseTheme(sys, t.theme), palette ? null : t.accent);
+    _UB_systemTokens = Object.keys(palette ?? {});
+    for (const [name, value] of Object.entries(palette ?? {})) root.style.setProperty(name, value);
     if (t.fontSize) root.style.fontSize = `${t.fontSize}%`;
     // Font roles (Settings → Appearance → Font): a family name wins over the
     // theme's stack, which stays as the fallback. "" clears the override.
@@ -66,8 +106,10 @@ function useThemeEffect(t) {
     root.style.setProperty("--font-display", fam(t.fontUi, "system-ui, sans-serif"));
     root.style.setProperty("--font-chat", fam(t.fontChat, "var(--font-sans)"));
     root.style.setProperty("--font-mono", fam(t.fontMono, "ui-monospace, monospace"));
-  }, [t.theme, t.density, t.accent, t.monoChat, t.fontSize, t.fontUi, t.fontChat, t.fontMono]);
+    // Roles left unpicked follow the system while it is followed.
+    for (const [name, value] of Object.entries(S.fonts(sys, t))) root.style.setProperty(name, value);
+  }, [t.theme, t.density, t.accent, t.monoChat, t.fontSize, t.fontUi, t.fontChat, t.fontMono, sys]);
 }
 
 
-Object.assign(window, { useBridgeSnapshot, useThemeEffect });
+Object.assign(window, { useBridgeSnapshot, useThemeEffect, useSystemTheme });

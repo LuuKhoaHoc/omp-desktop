@@ -1,12 +1,15 @@
 /* app/use-pane-widths.jsx — the resizable columns beside the chat (#41).
    usePaneWidths({ tweaks, setTweak, open, reserve, workspaceRef })
-     → { style, handle(name), reset, browserRoom }
+     → { stageStyle, sidebarStyle, handle(name), reset, browserRoom }
    `open` lists the shown panes (OMP_LAYOUT_WIDTHS.PANES names), `reserve`
    the px of a column that sizes itself (the browser panel's minimum),
    `workspaceRef` the `.workspace` row the sidebar and the stage share.
-   `style` carries the widths as CSS variables (`--w-sidebar`, `--w-split`,
-   `--w-rail`, `--w-tree`, `--w-files`; layout/stage.css, sidebar.css,
-   tree.css, files.css, browser.css), `handle(name)` the ResizeHandle props of one pane, and
+   The widths are CSS variables on the elements that size with them
+   (layout/stage.css says why not on `.workspace`): `stageStyle` for
+   `.stage` (`--w-split`, `--w-rail`, `--w-tree`, `--w-files`; stage.css,
+   tree.css, files.css, browser.css) and `sidebarStyle` (`--w-sidebar`;
+   sidebar.css) for the sidebar, which the sidebar's handle props carry
+   too. `handle(name)` is the ResizeHandle props of one pane, and
    `reset()` sets every pane (the browser panel's too) back to its default,
    `browserRoom` is the stage less the split pane (the browser dock's room).
    A drag shows its width locally and saves the tweak once, on release
@@ -85,12 +88,18 @@ function usePaneWidths({ tweaks, setTweak, open, reserve, workspaceRef }) {
   const wants = dragging ? { ...frozen.current, [dragging]: drags[dragging].size } : saved;
   widths = _PW_fit(wants, open, room.total, { narrow: room.narrow, reserve });
 
-  const style = {};
-  for (const name of open) style[`--w-${name}`] = `${widths[name]}px`;
+  const stageStyle = {};
+  let sidebarStyle;
+  for (const name of open) {
+    const px = `${widths[name]}px`;
+    if (name === "sidebar") sidebarStyle = { "--w-sidebar": px };
+    else stageStyle[`--w-${name}`] = px;
+  }
 
   const handle = (name) => ({
     edge: _PW_UI[name].edge,
     label: _PW_UI[name].label,
+    style: name === "sidebar" ? sidebarStyle : undefined,
     drag: drags[name],
     value: widths[name],
     min: _PW_PANES[name].min,
@@ -106,7 +115,7 @@ function usePaneWidths({ tweaks, setTweak, open, reserve, workspaceRef }) {
   const reset = () => setTweak(_PW_RESET);
   const browserRoom = room.total - (widths.sidebar ?? 0) - (widths.split ?? 0);
 
-  return { style, handle, reset, browserRoom };
+  return { stageStyle, sidebarStyle, handle, reset, browserRoom };
 }
 
 Object.assign(window, { usePaneWidths });

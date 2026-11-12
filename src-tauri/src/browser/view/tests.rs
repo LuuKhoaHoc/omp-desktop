@@ -385,6 +385,35 @@ fn input_reaches_the_page() {
 }
 
 #[test]
+fn the_page_cursor_is_read_at_a_point() {
+    let _chromium = lock(&CHROMIUM);
+    let Some((m, view, _seen)) = panel("view-cursor") else {
+        return;
+    };
+    let block = "position:absolute;left:0;width:200px;height:40px";
+    let page = format!(
+        "data:text/html,<body style=\"margin:0\">\
+         <a id=a href=\"%23\" style=\"{block};top:0\">link</a>\
+         <p style=\"{block};top:50px;margin:0\">words</p>\
+         <div style=\"{block};top:100px\"></div>\
+         <div style=\"{block};top:150px;cursor:url(x.png),grab\">drag</div>\
+         <div style=\"{block};top:200px;user-select:none\">label</div>"
+    );
+    view.navigate(&page).unwrap();
+    loaded(&view, "document.getElementById('a')");
+    for (y, cursor) in [
+        (20.0, "pointer"),
+        (70.0, "text"),
+        (120.0, "default"),
+        (170.0, "grab"),
+        (220.0, "default"),
+    ] {
+        assert_eq!(view.cursor_at(50.0, y).unwrap(), cursor, "y = {y}");
+    }
+    m.release("s1");
+}
+
+#[test]
 fn acting_on_the_page_holds_the_view_but_hovering_does_not() {
     let _chromium = lock(&CHROMIUM);
     let Some((m, view, _seen)) = panel("view-input-hold") else {

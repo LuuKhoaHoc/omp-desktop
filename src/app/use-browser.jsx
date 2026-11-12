@@ -105,6 +105,7 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
     const screen = _UBS.createScreen({
       view, canvas, sink, send,
       ack: (seq) => bridge.browserFrameAck(sid, seq),
+      cursorAt: (x, y) => bridge.browserCursor(sid, x, y).then((r) => (r.ok ? r.value : null)),
       onResize: (w, h, dpr) => {
         if (opening.pending) pendingSize = { w, h, dpr };
         else bridge.browserResize(sid, w, h, dpr);
