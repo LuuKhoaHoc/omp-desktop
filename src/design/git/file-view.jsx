@@ -3,24 +3,37 @@
    highlighted), old/new line numbers and hunk navigation. In the working
    tree the change is against HEAD and a changed file can be staged or
    discarded; while a commit is browsed it is that commit's change against
-   its first parent, read-only, and the head names the commit. Reuses
-   chat.css's .diff-line colours. */
+   its first parent, read-only, and the head names the commit (the strip
+   under it, git/commit-info.jsx, tells who and when and links the parents).
+   Runs of unchanged lines far from any change are folded to one row that
+   opens on a click (the "full" toggle opens them all). Reuses chat.css's
+   .diff-line colours. */
 
 const { Icon: _GV_Icon, CopyButton: _GV_Copy, GIT_STATUS_META: _GV_META } = window;
-const { hunkStarts: _GV_hunkStarts, splitPath: _GV_splitPath, diffText: _GV_diffText } = window.OMP_GIT_BROWSER;
+const { hunkStarts: _GV_hunkStarts, splitPath: _GV_splitPath, diffText: _GV_diffText, foldContext: _GV_foldContext } = window.OMP_GIT_BROWSER;
+const { GitCommitInfo: _GV_CommitInfo } = window;
 
-function GitFileView({ path, file, error, commit, onStage, onDiscard }) {
+// `jumpRef` receives { next, prev, toggleFull }: the browser's n / p / f keys.
+function GitFileView({ path, file, error, commit, onStage, onDiscard, onBrowse, jumpRef }) {
   const bodyRef = React.useRef(null);
   const scrollToLine = i => bodyRef.current?.querySelector(`[data-line="${i}"]`)?.scrollIntoView({ block: "center" });
   const [hunk, setHunk] = React.useState(0);
   const lines = file?.kind === "Text" ? file.lines : null;
   const hunks = React.useMemo(() => (lines ? _GV_hunkStarts(lines) : []), [lines]);
   const copyText = React.useMemo(() => (lines ? _GV_diffText(lines) : ""), [lines]);
+  // Folded runs of unchanged lines; `opened` holds the start of each run the
+  // reader unfolded and resets with the shown file or commit. `full` unfolds
+  // all and is the reader's mode: it stays while moving between files.
+  const [full, setFull] = React.useState(false);
+  const [opened, setOpened] = React.useState(() => new Set());
+  const runs = React.useMemo(() => (lines ? _GV_foldContext(lines) : []), [lines]);
+  const foldable = runs.some(r => r.kind === "fold");
+  const unfold = from => setOpened(prev => new Set(prev).add(from));
 
   // A newly shown file opens on its first change; a refresh of the same
   // file keeps the reader's place.
   const jumpPending = React.useRef(false);
-  React.useEffect(() => { setHunk(0); jumpPending.current = true; }, [path, commit?.id]);
+  React.useEffect(() => { setHunk(0); setOpened(new Set()); jumpPending.current = true; }, [path, commit?.id]);
   React.useEffect(() => {
     if (!jumpPending.current || !lines) return;
     jumpPending.current = false;
@@ -39,9 +52,12 @@ function GitFileView({ path, file, error, commit, onStage, onDiscard }) {
     scrollToLine(hunks[i]);
   };
 
+  if (jumpRef) jumpRef.current = { next: () => jump(shown + 1), prev: () => jump(shown - 1), toggleFull: () => setFull(v => !v) };
+
   if (!path) {
     return (
       <div className="gitb-pane gitb-view">
+        {commit && <_GV_CommitInfo commit={commit} onBrowse={onBrowse} />}
         <div className="gitb-empty tall">{OMP_TR("select a file")}</div>
       </div>
     );
@@ -73,17 +89,25 @@ function GitFileView({ path, file, error, commit, onStage, onDiscard }) {
         {file?.truncated && <span className="gitb-chip" title={OMP_TR("cut at the view cap: lines past 20 000 or a line's characters past 500")}>{OMP_TR("truncated")}</span>}
         {hunks.length > 0 && (
           <span className="gitb-hunks">
-            <button type="button" className="btn ghost icon" onClick={() => jump(shown - 1)} aria-label={OMP_TR("previous change")}><_GV_Icon name="arrowUp" size={11} /></button>
+            <button type="button" className="btn ghost icon" onClick={() => jump(shown - 1)} title={OMP_TR("previous change (p)")} aria-label={OMP_TR("previous change")}><_GV_Icon name="arrowUp" size={11} /></button>
             <span>{shown + 1}/{hunks.length}</span>
-            <button type="button" className="btn ghost icon" onClick={() => jump(shown + 1)} aria-label={OMP_TR("next change")}><_GV_Icon name="chev" size={11} /></button>
+            <button type="button" className="btn ghost icon" onClick={() => jump(shown + 1)} title={OMP_TR("next change (n)")} aria-label={OMP_TR("next change")}><_GV_Icon name="chev" size={11} /></button>
           </span>
         )}
+        {foldable && (
+          <button type="button" className={`btn ghost gitb-act gitb-toggle-full ${full ? "on" : ""}`} aria-pressed={full}
+            onClick={() => setFull(v => !v)}
+            title={full ? OMP_TR("fold unchanged lines (f)") : OMP_TR("show the whole file (f)")}>
+            <_GV_Icon name="layers" size={11} /> {full ? OMP_TR("changes only") : OMP_TR("full file")}
+          </button>
+        )}
         {actions && <>
-          <button type="button" className="btn ghost gitb-act" onClick={onStage} title="git add"><_GV_Icon name="check" size={11} /> {OMP_TR("stage")}</button>
+          <button type="button" className="btn ghost gitb-act" onClick={onStage} title={OMP_TR("git add (s)")}><_GV_Icon name="check" size={11} /> {OMP_TR("stage")}</button>
           <button type="button" className="btn ghost gitb-act danger" onClick={onDiscard} title={OMP_TR("restore from HEAD")}><_GV_Icon name="trash" size={11} /> {OMP_TR("discard")}</button>
         </>}
         {copyText && <_GV_Copy className="gitb-copy" label={OMP_TR("Copy diff")} text={copyText} />}
       </div>
+      {commit && <_GV_CommitInfo commit={commit} onBrowse={onBrowse} />}
       <div className="gitb-view-body mono selectable" ref={bodyRef}>
         {/* A refetch (refresh, stage, discard) keeps the previous content in
             view; "loading…" only when there is nothing to show yet. */}
@@ -96,14 +120,29 @@ function GitFileView({ path, file, error, commit, onStage, onDiscard }) {
         )}
         {lines && (
           <div className="gitb-lines">
-            {lines.map((l, i) => (
-              <div key={i} data-line={i} className={`gitb-line k-${l.kind}`}>
-                <span className="gitb-ln">{l.old ?? ""}</span>
-                <span className="gitb-ln">{l.new ?? ""}</span>
-                <span className="diff-mark">{l.kind === "add" ? "+" : l.kind === "rem" ? "−" : " "}</span>
-                <span className="gitb-code">{l.text}</span>
-              </div>
-            ))}
+            {runs.map(run => {
+              if (run.kind === "fold" && !full && !opened.has(run.from)) {
+                const n = run.to - run.from;
+                return (
+                  <button key={`f${run.from}`} type="button" className="gitb-fold" onClick={() => unfold(run.from)}
+                    title={OMP_TR("show these lines")}>
+                    <_GV_Icon name="chevR" size={10} />
+                    {window.OMP_I18N.plural(n, "{n} unchanged line", "{n} unchanged lines", { n })}
+                  </button>
+                );
+              }
+              return lines.slice(run.from, run.to).map((l, k) => {
+                const i = run.from + k;
+                return (
+                  <div key={i} data-line={i} className={`gitb-line k-${l.kind}`}>
+                    <span className="gitb-ln">{l.old ?? ""}</span>
+                    <span className="gitb-ln">{l.new ?? ""}</span>
+                    <span className="diff-mark">{l.kind === "add" ? "+" : l.kind === "rem" ? "−" : " "}</span>
+                    <span className="gitb-code">{l.text}</span>
+                  </div>
+                );
+              });
+            })}
           </div>
         )}
         {lines && lines.length === 0 && <div className="gitb-empty">{OMP_TR("empty file")}</div>}

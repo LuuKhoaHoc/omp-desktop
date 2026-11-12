@@ -4,6 +4,10 @@
 
 /* ── Stage: the pane takes the rail's column ───────────────────────────── */
 .stage.with-tree { grid-template-columns: minmax(0, 1fr) var(--w-tree, min(540px, 50%)); }
+/* Work / Insights full view: the panel is the only column. */
+.stage.with-tree.panel-full,
+.window.is-split .stage.with-tree.panel-full { grid-template-columns: minmax(0, 1fr); }
+.stage.panel-full > :not(.wp-panel):not(.st-host) { display: none; }
 .window.is-split .stage.with-tree { grid-template-columns: minmax(0, 1fr) var(--w-split, 320px) var(--w-tree, min(540px, 50%)); }
 
 .tree-drawer {

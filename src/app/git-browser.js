@@ -12,7 +12,9 @@
 // confirmation rule (`discardDeletes`), the refresh trigger counting
 // finished edit/write tool cards (`finishedEdits`), an edit card's path made
 // absolute (`absolutePath`) and the branch picker's filtered rows
-// (`branchMatches`).
+// (`branchMatches`), the tree rows a keyboard step walks (`listRows`,
+// `stepFile`), the unchanged-run folding of the file view (`foldContext`)
+// and the history pane's find (`historyMatches`, `stepMatch`).
 //
 // A tree node is Rust's `TreeNode`: `{ name, path, dir, status, changed,
 // children }`, children dirs first then files, `status` null when unchanged.
@@ -186,7 +188,90 @@
     return { local, remote, hidden: hits.length - local.length - remote.length };
   }
 
+  /** The files pane's rows for the name filter and the changed-only /
+   *  expansion state: `[{ node, depth, flat? }]` — a filter lists matching
+   *  files flat, otherwise the tree as expanded. The one place both the
+   *  pane and the keyboard step read the visible order from. */
+  function listRows(root, expanded, changedOnly, filter) {
+    if (filter.trim()) return filterFiles(root, filter, changedOnly).map(node => ({ node, depth: 0, flat: true }));
+    return flatten(root, expanded, changedOnly);
+  }
+
+  /** The file `delta` rows from `selected` among the visible rows (dirs are
+   *  skipped, no wrap-around); nothing selected yet (or the selection is
+   *  filtered out) starts at the first file going down, the last going up.
+   *  null when there is no file to move to. */
+  function stepFile(rows, selected, delta) {
+    const files = rows.filter(r => !r.node.dir);
+    if (!files.length) return null;
+    const at = files.findIndex(r => r.node.path === selected);
+    if (at < 0) return files[delta > 0 ? 0 : files.length - 1].node.path;
+    const to = Math.min(files.length - 1, Math.max(0, at + delta));
+    return to === at ? null : files[to].node.path;
+  }
+
+  /** Unchanged lines kept around each change in the folded file view. */
+  const CONTEXT_LINES = 3;
+  /** A run of unchanged lines is folded only when it hides at least this
+   *  many: a fold row for one or two lines costs more than it saves. */
+  const MIN_FOLD = 4;
+
+  /** The file view's lines cut into runs: `[{ kind: "lines" | "fold", from,
+   *  to }]` over line indices (`to` exclusive). Lines within `context` of a
+   *  change stay; a longer unchanged run between them becomes a `fold`. A
+   *  file with no change at all is one `lines` run: there is nothing to fold
+   *  toward, and an untouched file is read whole. */
+  function foldContext(lines, context = CONTEXT_LINES) {
+    const n = lines.length;
+    const keep = new Uint8Array(n);
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      if (lines[i].kind === "ctx") continue;
+      changed = true;
+      const hi = Math.min(n - 1, i + context);
+      for (let j = Math.max(0, i - context); j <= hi; j++) keep[j] = 1;
+    }
+    if (!changed) return n ? [{ kind: "lines", from: 0, to: n }] : [];
+    const runs = [];
+    for (let i = 0; i < n;) {
+      let j = i;
+      while (j < n && keep[j] === keep[i]) j++;
+      const fold = !keep[i] && j - i >= MIN_FOLD;
+      const kind = fold ? "fold" : "lines";
+      const last = runs[runs.length - 1];
+      if (last && last.kind === kind) last.to = j;
+      else runs.push({ kind, from: i, to: j });
+      i = j;
+    }
+    return runs;
+  }
+
+  /** Indices of the history rows that match `query`: every whitespace-
+   *  separated term (case-insensitive) must occur in the subject, author,
+   *  short or full sha, or a ref name. The working-tree row ("@") never
+   *  matches; a blank query matches nothing. */
+  function historyMatches(rows, query) {
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return [];
+    const hits = [];
+    rows.forEach((r, i) => {
+      if (r.id === "@") return;
+      const hay = [r.subject, r.author, r.short, r.id, ...r.refs.map(x => x.name)].join("\n").toLowerCase();
+      if (terms.every(t => hay.includes(t))) hits.push(i);
+    });
+    return hits;
+  }
+
+  /** The match cursor `delta` away from `at` among `count` matches, wrapping;
+   *  -1 (none chosen yet) steps to the first going down, the last going up. */
+  function stepMatch(count, at, delta) {
+    if (!count) return -1;
+    if (at < 0) return delta > 0 ? 0 : count - 1;
+    return (at + delta + count) % count;
+  }
+
   window.OMP_GIT_BROWSER = {
+    listRows, stepFile, CONTEXT_LINES, MIN_FOLD, foldContext, historyMatches, stepMatch,
     flatten, changedDirs, ancestorDirs, filterFiles, firstFile, hunkStarts,
     splitPath, relativeTime, diffText, discardDeletes, finishedEdits, absolutePath,
     MAX_BRANCH_ROWS, branchMatches,

@@ -239,6 +239,88 @@ check("branchMatches: past the row cap, locals fill first and the rest count as 
   assert.equal(m.hidden, 2);
 });
 
+// ── Keyboard stepping, folding and history find ──────────────────────────────
+
+const fnode = (path, status = null) => ({ name: path.split("/").at(-1), path, dir: false, status, changed: 0, children: [] });
+const dnode = (path, children) => ({ name: path, path, dir: true, status: null, changed: 0, children });
+const kinds = str => [...str].map((c, i) => ({ kind: c === "+" ? "add" : c === "-" ? "rem" : "ctx", old: i, new: i, text: `l${i}` }));
+
+check("stepFile moves through files only, in display order, without wrapping", () => {
+  const root = dnode("", [dnode("a", [fnode("a/x"), fnode("a/y")]), fnode("z")]);
+  const rows = G.listRows(root, new Set(["a"]), false, "");
+  assert.equal(G.stepFile(rows, "a/x", 1), "a/y");
+  assert.equal(G.stepFile(rows, "a/y", 1), "z");
+  assert.equal(G.stepFile(rows, "z", 1), null);
+  assert.equal(G.stepFile(rows, "a/x", -1), null);
+});
+
+check("stepFile: nothing selected starts at an end; a collapsed dir hides its files", () => {
+  const root = dnode("", [dnode("a", [fnode("a/x")]), fnode("z")]);
+  const collapsed = G.listRows(root, new Set(), false, "");
+  assert.equal(G.stepFile(collapsed, null, 1), "z");
+  assert.equal(G.stepFile(collapsed, "gone", -1), "z");
+  assert.equal(G.stepFile([], null, 1), null);
+});
+
+check("listRows: a filter lists the matching files flat, as the pane does", () => {
+  const root = dnode("", [dnode("a", [fnode("a/x.js"), fnode("a/y.md")])]);
+  const rows = G.listRows(root, new Set(), false, "x.js");
+  assert.deepEqual(rows.map(r => [r.node.path, r.flat]), [["a/x.js", true]]);
+});
+
+check("foldContext keeps three lines around a change and folds the long runs between", () => {
+  // 10 ctx, change, 2 ctx, change, 10 ctx
+  const lines = kinds("..........+..+..........");
+  const runs = G.foldContext(lines);
+  assert.deepEqual(runs, [
+    { kind: "fold", from: 0, to: 7 },
+    { kind: "lines", from: 7, to: 17 },
+    { kind: "fold", from: 17, to: 24 },
+  ]);
+});
+
+check("foldContext: a short unchanged run between changes is not folded", () => {
+  const runs = G.foldContext(kinds("+..........+"));
+  assert.deepEqual(runs.map(r => r.kind), ["lines", "fold", "lines"]);
+  assert.deepEqual(G.foldContext(kinds("+.........+")).map(r => r.kind), ["lines"]);
+});
+
+check("foldContext: an unchanged or empty file is one run, never folded", () => {
+  assert.deepEqual(G.foldContext(kinds("..........")), [{ kind: "lines", from: 0, to: 10 }]);
+  assert.deepEqual(G.foldContext([]), []);
+});
+
+check("foldContext covers every line exactly once, in order", () => {
+  const lines = kinds("....+......-.......+..");
+  const runs = G.foldContext(lines);
+  assert.equal(runs[0].from, 0);
+  assert.equal(runs.at(-1).to, lines.length);
+  for (let i = 1; i < runs.length; i++) assert.equal(runs[i].from, runs[i - 1].to);
+});
+
+const hrow = (id, subject, author, refs = []) => ({ id, short: id.slice(0, 7), subject, author, refs });
+
+check("historyMatches: every term must hit subject, author, sha or a ref; the worktree row never", () => {
+  const rows = [
+    { id: "@", short: "", subject: "", author: "", refs: [] },
+    hrow("a1b2c3d4e5", "fix login redirect", "Ada", [{ name: "develop" }]),
+    hrow("f6e5d4c3b2", "add login page", "Linus"),
+  ];
+  assert.deepEqual(G.historyMatches(rows, "login"), [1, 2]);
+  assert.deepEqual(G.historyMatches(rows, "LOGIN ada"), [1]);
+  assert.deepEqual(G.historyMatches(rows, "develop"), [1]);
+  assert.deepEqual(G.historyMatches(rows, "f6e5d4"), [2]);
+  assert.deepEqual(G.historyMatches(rows, "   "), []);
+});
+
+check("stepMatch wraps and starts at an end when nothing is chosen", () => {
+  assert.equal(G.stepMatch(3, -1, 1), 0);
+  assert.equal(G.stepMatch(3, -1, -1), 2);
+  assert.equal(G.stepMatch(3, 2, 1), 0);
+  assert.equal(G.stepMatch(3, 0, -1), 2);
+  assert.equal(G.stepMatch(0, -1, 1), -1);
+});
+
 // ── Done ──────────────────────────────────────────────────────────────────────
 
 console.log(`git-browser: ${passed} checks passed`);

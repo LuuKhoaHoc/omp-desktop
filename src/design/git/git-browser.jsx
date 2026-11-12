@@ -4,9 +4,13 @@
    (git/history.jsx). Opened from the toolbar's git button, the
    `desktop.panel.changes` chord, or a path in an edit card (initialPath).
    Every datum comes from app/use-git-browser.jsx (useGitBrowser); a history
-   click browses that commit read-only, the working-tree row returns. */
+   click browses that commit read-only, the working-tree row returns.
+   Keys (while no field has the focus): j / k the next / previous file,
+   n / p the next / previous change, f folded or full file, s stage the
+   file, / the file filter. */
 
 const { Icon: _GB_Icon, GitFileTree: _GB_Tree, GitFileView: _GB_View, GitHistory: _GB_History } = window;
+const { listRows: _GB_listRows, stepFile: _GB_stepFile } = window.OMP_GIT_BROWSER;
 
 // Memoised: App re-renders on every streamed frame, and none of them touch
 // these props (`edits` is a count, not the transcript).
@@ -14,6 +18,7 @@ const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath
   window.OMP_I18N.useLocale();
   const g = window.useGitBrowser({ bridge, initialPath, branch, edits });
   const rootRef = React.useRef(null);
+  const viewRef = React.useRef(null);   // the file view's { next, prev, toggleFull }
 
   // The dialog takes focus, so keystrokes never reach the hidden composer;
   // on close the focus goes back where it was (the composer, usually).
@@ -43,6 +48,30 @@ const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Single-key shortcuts for reading a diff, off while a field is being
+  // typed in (the filter, the history find) or a modifier is held (the
+  // window keymap owns those chords).
+  const onKeyDown = e => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+    const stepBy = delta => {
+      const rows = _GB_listRows(g.tree, g.expanded, Boolean(g.commitSha) || g.changedOnly, g.filter);
+      const next = _GB_stepFile(rows, g.selected, delta);
+      if (next) g.select(next);
+    };
+    switch (e.key) {
+      case "j": stepBy(1); break;
+      case "k": stepBy(-1); break;
+      case "n": viewRef.current?.next(); break;
+      case "p": viewRef.current?.prev(); break;
+      case "f": viewRef.current?.toggleFull(); break;
+      case "s": if (!g.commitSha && g.selected && g.file?.status) g.stage(g.selected); break;
+      case "/": rootRef.current?.querySelector(".gitb-files .gitb-filter-input")?.focus(); break;
+      default: return;
+    }
+    e.preventDefault();
+  };
+
   // The scrim closes on a click that both starts and ends on it, never on a
   // drag-select that merely ends there.
   const downOnScrim = React.useRef(false);
@@ -62,7 +91,7 @@ const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath
     <div className="gitb-scrim"
       onMouseDown={e => { downOnScrim.current = e.target === e.currentTarget; }}
       onClick={e => { if (downOnScrim.current && e.target === e.currentTarget) onClose(); downOnScrim.current = false; }}>
-      <div className="gitb" ref={rootRef} role="dialog" aria-modal="true" aria-label={OMP_TR("git browser")} tabIndex={-1}>
+      <div className="gitb" ref={rootRef} role="dialog" aria-modal="true" aria-label={OMP_TR("git browser")} tabIndex={-1} onKeyDown={onKeyDown}>
         <div className="gitb-head">
           <_GB_Icon name="branch" size={13} color="var(--accent)" />
           <span className="gitb-title">git</span>
@@ -86,7 +115,7 @@ const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath
               changedOnly={inCommit || g.changedOnly} onChangedOnly={inCommit ? null : g.setChangedOnly}
               filter={g.filter} onFilter={g.setFilter} changedCount={changed}
               commit={g.commit} truncated={g.truncated} />
-            <_GB_View path={g.selected} file={g.file} error={g.fileError} commit={g.commit}
+            <_GB_View path={g.selected} file={g.file} error={g.fileError} commit={g.commit} onBrowse={g.browse} jumpRef={viewRef}
               onStage={inCommit ? null : () => g.stage(g.selected)}
               onDiscard={inCommit ? null : () => g.discard(g.selected, g.file?.status ?? null)} />
             <_GB_History log={g.log} changedCount={changed}

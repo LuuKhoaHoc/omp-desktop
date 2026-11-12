@@ -13,7 +13,7 @@
    `emptyText` (the message for an empty list). */
 
 const { Icon: _GT_Icon } = window;
-const { flatten: _GT_flatten, filterFiles: _GT_filterFiles } = window.OMP_GIT_BROWSER;
+const { listRows: _GT_listRows } = window.OMP_GIT_BROWSER;
 
 const GIT_STATUS_META = {
   Modified:  { label: "M", color: "var(--amber)",  title: "modified" },
@@ -31,9 +31,27 @@ function GitFileTree({
     if (searched) return (root?.children ?? []).map(node => ({ node, depth: 0, flat: true }));
     // A name filter lists matching files flat: the tree would need every
     // ancestor expanded to show them, and the match is on the whole path.
-    if (filter.trim()) return _GT_filterFiles(root, filter, changedOnly).map(node => ({ node, depth: 0, flat: true }));
-    return _GT_flatten(root, expanded, changedOnly);
+    return _GT_listRows(root, expanded, changedOnly, filter);
   }, [root, expanded, changedOnly, filter, searched]);
+
+  // A selection moved by the keyboard (j / k) stays in view.
+  const treeRef = React.useRef(null);
+  React.useEffect(() => {
+    treeRef.current?.querySelector(".gitb-row.active")?.scrollIntoView({ block: "nearest" });
+  }, [selected]);
+
+  // Enter opens the first hit; Escape clears the filter, and an empty one
+  // hands the focus back to the browser so the next key (j, k, n…) acts.
+  const onFilterKey = e => {
+    if (e.key === "Enter") {
+      const first = rows.find(r => !r.node.dir);
+      if (first) { e.preventDefault(); onSelect(first.node.path); }
+    } else if (e.key === "Escape") {
+      if (filter) { e.preventDefault(); onFilter(""); return; }
+      const host = e.currentTarget.closest(".gitb");
+      if (host) { e.preventDefault(); host.focus(); }
+    }
+  };
 
   let empty = null;
   if (error) empty = error;
@@ -68,11 +86,11 @@ function GitFileTree({
       </div>
       <div className="gitb-filter">
         <_GT_Icon name="search" size={11} color="var(--fg-4)" />
-        <input className="gitb-filter-input mono" value={filter} onChange={e => onFilter(e.target.value)}
-          placeholder={OMP_TR("filter files")} spellCheck={false} />
+        <input className="gitb-filter-input mono" value={filter} onChange={e => onFilter(e.target.value)} onKeyDown={onFilterKey}
+          placeholder={OMP_TR("filter files")} title={OMP_TR("filter files (/)")} spellCheck={false} />
         {filter && <button type="button" className="btn ghost icon" onClick={() => onFilter("")} aria-label={OMP_TR("clear filter")}><_GT_Icon name="close" size={10} /></button>}
       </div>
-      <div className="gitb-tree" role="tree">
+      <div className="gitb-tree" role="tree" ref={treeRef}>
         {empty && <div className={`gitb-empty ${error ? "gitb-error" : ""}`}>{empty}</div>}
         {!error && rows.map(({ node, depth, flat }) => {
           const meta = node.status ? GIT_STATUS_META[node.status] : null;
