@@ -46,7 +46,11 @@ placeholder or `name`; the answer is the ticked option's label (several
 checkboxes of one group joined with `; `), the selected option's text, or
 the typed value. A hidden input is `name: value`; passwords and files are
 left out. So the message still makes sense once the page's source is no
-longer in the agent's context.
+longer in the agent's context. Radio groups and multi-option checkbox groups
+(two or more checkboxes sharing a `name` or `<fieldset>`) automatically get an
+**Other** row with a text input unless the group already defines one or sets
+`data-omp-no-other`; selecting it requires non-blank text and sends the typed
+text as that field's answer.
 
 **Anything the page sends itself: confirmed first.** A submit event (the
 page's own button when it has several, Enter in a field), a click on an

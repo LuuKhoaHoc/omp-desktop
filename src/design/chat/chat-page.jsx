@@ -62,7 +62,7 @@ function ChatPage({ source, kind, live, codeHtml, streaming }) {
     if (!running) return;
     let alive = true;
     setErr(null);
-    _cpRegister(P.wrapPage(source, kind, _cpTheme()))
+    _cpRegister(P.wrapPage(source, kind, _cpTheme(), { other: OMP_TR("Other"), otherPlaceholder: OMP_TR("Type your answer…") }))
       .then(id => alive && setUrl(P.pageUrl(id)), e => alive && setErr(String(e?.message ?? e)));
     return () => { alive = false; };
   }, [running, source, kind]);

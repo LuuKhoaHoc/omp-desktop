@@ -44,12 +44,51 @@ var own=function(l){if(!l)return"";var c=l.cloneNode(true);[].forEach.call(c.que
 var labelOf=function(el){var l=el.closest("label");if(!l&&el.id)[].some.call(document.querySelectorAll("label[for]"),function(x){return x.htmlFor===el.id&&(l=x);});return own(l);};
 var legendOf=function(el){var f=el.closest("fieldset"),g=f&&f.querySelector("legend");return g?txt(g.textContent):"";};
 var SUBMIT="button:not([type]),button[type=submit],input[type=submit],input[type=image]";
+var OTHER_LBL=__OMP_OTHER_LABEL__,OTHER_PH=__OMP_OTHER_PH__,OTHER_VAL="__omp_other__";
+var OTHER_TXT="input:not([type=radio],[type=checkbox],[type=range],[type=color],[type=file],[type=submit],[type=button],[type=reset],[type=image],[type=hidden]),textarea";
+var OTHER_RE=/^(?:(?:other|others|custom|khác|autre)(?![a-z0-9_])|その他|其他|其它)/i;
+var hasOther=function(els,box){if(box&&box.querySelector("[data-omp-other-text]"))return true;
+for(var i=0;i<els.length;i++){var el=els[i];if(el.hasAttribute("data-omp-other")||el.hasAttribute("data-omp-no-other")||(el.closest&&el.closest("[data-omp-no-other]")))return true;
+var lbl=labelOf(el);if(OTHER_RE.test(lbl)||OTHER_RE.test(String(el.value||"").trim()))return true;
+var wrap=el.closest&&el.closest("label");if(wrap&&wrap.querySelector(OTHER_TXT))return true;}
+return false;};
+var anchorOf=function(el){var l=el.closest&&el.closest("label");if(l)return l;
+var nx=el.nextElementSibling;if(nx&&nx.tagName==="LABEL"&&el.id&&nx.htmlFor===el.id)return nx;
+var p=el.parentElement;if(p&&p.tagName!=="FORM"&&p.tagName!=="FIELDSET"&&p.querySelectorAll("input[type=radio],input[type=checkbox]").length===1)return p;return el;};
+var addOtherRow=function(type,name,lastEl,idx){var row=document.createElement("div");row.className="omp-other";row.setAttribute("data-omp-other-row","1");
+var pick=document.createElement("label");pick.className="omp-other-pick";
+var tick=document.createElement("input");tick.type=type;tick.name=name||("__omp_other_"+idx);tick.value=OTHER_VAL;tick.setAttribute("data-omp-other","1");
+var span=document.createElement("span");span.textContent=OTHER_LBL;
+var inp=document.createElement("input");inp.type="text";inp.className="omp-other-input";inp.placeholder=OTHER_PH;inp.setAttribute("data-omp-other-text","1");
+pick.appendChild(tick);pick.appendChild(span);row.appendChild(pick);row.appendChild(inp);
+var sync=function(){var on=tick.checked;tick.setCustomValidity("");inp.required=on;inp.setCustomValidity(on&&!inp.value.trim()?OTHER_PH:"");};
+tick.addEventListener("change",function(){sync();if(tick.checked)inp.focus();});
+if(tick.form)tick.form.addEventListener("change",function(ev){if(ev.target!==tick&&ev.target.name===tick.name)sync();});
+inp.addEventListener("focus",function(){if(type==="radio"&&!tick.checked){tick.checked=true;tick.dispatchEvent(new Event("change",{bubbles:true}));}});
+inp.addEventListener("input",function(){var has=!!inp.value.trim();
+if(type==="radio"&&!tick.checked){tick.checked=true;tick.dispatchEvent(new Event("change",{bubbles:true}));}
+else if(type==="checkbox"&&tick.checked!==has){tick.checked=has;tick.dispatchEvent(new Event("change",{bubbles:true}));}
+sync();});
+anchorOf(lastEl).insertAdjacentElement("afterend",row);sync();};
+var enhanceOthers=function(){var idx=0;[].forEach.call(document.forms,function(f){var radios=Object.create(null),cbs=Object.create(null),fsCbs=[];
+[].forEach.call(f.elements,function(el){var t=String(el.type||"").toLowerCase();
+if(t==="radio"&&el.name){(radios[el.name]=radios[el.name]||[]).push(el);}
+else if(t==="checkbox"){if(el.name)(cbs[el.name]=cbs[el.name]||[]).push(el);var fs=el.closest&&el.closest("fieldset");if(fs)fsCbs.push({fs:fs,el:el});}});
+Object.keys(radios).forEach(function(k){var g=radios[k];if(!hasOther(g,g[0].closest&&g[0].closest("fieldset")))addOtherRow("radio",k,g[g.length-1],idx++);});
+var seenFs=[];Object.keys(cbs).forEach(function(k){var g=cbs[k];if(g.length<2)return;var fs=g[0].closest&&g[0].closest("fieldset");if(fs&&seenFs.indexOf(fs)<0)seenFs.push(fs);
+if(!hasOther(g,fs))addOtherRow("checkbox",k,g[g.length-1],idx++);});
+var byFs=[];fsCbs.forEach(function(x){if(seenFs.indexOf(x.fs)>=0)return;var hit=byFs.filter(function(y){return y.fs===x.fs;})[0];
+if(!hit){hit={fs:x.fs,els:[]};byFs.push(hit);}hit.els.push(x.el);});
+byFs.forEach(function(x){if(x.els.length>=2&&!hasOther(x.els,x.fs))addOtherRow("checkbox","",x.els[x.els.length-1],idx++);});});};
+var otherTextOf=function(el){var row=el.closest&&el.closest("[data-omp-other-row]"),inp=row&&row.querySelector("[data-omp-other-text]");return inp?String(inp.value).trim():"";};
 var collect=function(forms,submitter){var o={},lines=[],at=Object.create(null);
-forms.forEach(function(f){var mine=submitter&&submitter.form===f?submitter:undefined,fd;try{fd=new FormData(f,mine);}catch(_){fd=new FormData(f);}
-fd.forEach(function(v,k){if(typeof v!=="string")return;o[k]=k in o?[].concat(o[k],v):v;});
+forms.forEach(function(f){var mine=submitter&&submitter.form===f?submitter:undefined,fd,otherVals=Object.create(null);
+[].forEach.call(f.elements,function(el){if(el.hasAttribute("data-omp-other")&&el.checked&&el.name){var ov=otherTextOf(el);if(ov)(otherVals[el.name]=otherVals[el.name]||[]).push(ov);}});
+try{fd=new FormData(f,mine);}catch(_){fd=new FormData(f);}
+fd.forEach(function(v,k){if(typeof v!=="string")return;if(v===OTHER_VAL){var list=otherVals[k];if(!list||!list.length)return;v=list.shift();}o[k]=k in o?[].concat(o[k],v):v;});
 [].forEach.call(f.elements,function(el){var t=String(el.type||"").toLowerCase(),q,a;
 if(!el.name||el.disabled||/^(submit|button|reset|image|file|password|fieldset|output)$/.test(t))return;
-if(t==="radio"||t==="checkbox"){if(!el.checked)return;q=legendOf(el)||el.name;a=labelOf(el)||el.value;}
+if(t==="radio"||t==="checkbox"){if(!el.checked)return;q=legendOf(el)||el.name;a=el.hasAttribute("data-omp-other")?otherTextOf(el):labelOf(el)||el.value;}
 else if(el.tagName==="SELECT"){q=labelOf(el)||legendOf(el)||el.name;a=[].map.call(el.selectedOptions,function(x){return txt(x.textContent);}).join("; ");}
 else{q=t==="hidden"?el.name:labelOf(el)||txt(el.placeholder)||legendOf(el)||el.name;a=String(el.value).trim();}
 if(!a)return;
@@ -60,7 +99,7 @@ var seen="",scan=function(){var f=document.forms.length===1?document.forms[0]:nu
 var on=!!f&&subs.length<2,label=on&&subs[0]?txt(subs[0].textContent||subs[0].value).slice(0,80):"",key=on+"|"+label;
 if(on&&subs[0])subs[0].style.setProperty("display","none","important");
 if(key!==seen){seen=key;post({type:"form",on:on,label:label});}};
-var last=-1,measure=function(){var b=document.body;if(!b)return;scan();var h=Math.ceil(Math.max(b.scrollHeight,b.getBoundingClientRect().height));if(h!==last){last=h;post({type:"height",h:h});}};
+var last=-1,measure=function(){var b=document.body;if(!b)return;enhanceOthers();scan();var h=Math.ceil(Math.max(b.scrollHeight,b.getBoundingClientRect().height));if(h!==last){last=h;post({type:"height",h:h});}};
 addEventListener("DOMContentLoaded",function(){measure();if(window.ResizeObserver)new ResizeObserver(measure).observe(document.body);});
 addEventListener("load",function(){measure();[100,500,1500].forEach(function(t){setTimeout(measure,t);});});
 document.addEventListener("visibilitychange",measure);
@@ -112,6 +151,13 @@ document.addEventListener("click",function(e){var el=e.target&&e.target.closest&
 :where(${TEXT_INPUT},select,textarea){background:${mix("bg", 65)};border:1px solid var(--omp-line);border-radius:8px;padding:7px 10px;color:var(--omp-fg);outline:none;transition:border-color .12s,box-shadow .12s}
 :where(${TEXT_INPUT},select,textarea):where(:focus){border-color:var(--omp-accent);box-shadow:0 0 0 3px ${mix("accent", 22)}}
 :where(form,fieldset,label,.glass)>:where(${TEXT_INPUT},select,textarea){width:100%}
+:where(.omp-other){display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 10px;border:1px solid transparent;border-radius:8px;margin-top:2px;transition:background .12s,border-color .12s}
+:where(.omp-other:hover){background:${mix("fg", 6)}}
+:where(.omp-other:has(>label>${TICK}:checked)){background:${mix("accent", 13)};border-color:${mix("accent", 45)}}
+:where(.omp-other-pick){display:inline-flex;align-items:center;gap:8px;padding:2px 0;margin:0;border:0;background:transparent;cursor:pointer;flex:none}
+:where(.omp-other-pick:hover,:where(.omp-other-pick):has(>${TICK}:checked)){background:transparent;border-color:transparent}
+:where(.omp-other-pick>${TICK}){margin:0}
+:where(.omp-other>.omp-other-input){flex:1 1 180px;min-width:0;width:auto;padding:5px 9px}
 :where(form,fieldset,label,.glass)>:where(input:is([type=number],[type=date],[type=time])){width:auto;min-width:9em;justify-self:start}
 :where(textarea){display:block;min-height:76px;resize:vertical;line-height:1.5}
 :where(select:not([multiple],[size])){-webkit-appearance:none;appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 16px) 55%,calc(100% - 11px) 55%;background-size:5px 5px;background-repeat:no-repeat}
@@ -125,13 +171,18 @@ document.addEventListener("click",function(e){var el=e.target&&e.target.closest&
 :where(form>:where(${BUTTON})){justify-self:start}
 `;
 
+  const jsStr = (v) => JSON.stringify(String(v)).replace(/</g, "\\u003c");
+
   /** The document the iframe loads: theme variables and the defaults above,
    *  the bridge, then the source. */
-  function wrapPage(source, kind, theme = {}) {
+  function wrapPage(source, kind, theme = {}, labels = {}) {
     const t = (k, d) => cssValue(theme[k]) || d;
+    const bridge = BRIDGE
+      .replace("__OMP_OTHER_LABEL__", () => jsStr(labels.other || "Other"))
+      .replace("__OMP_OTHER_PH__", () => jsStr(labels.otherPlaceholder || "Type your answer…"));
     const head = `<meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>
 :root{color-scheme:${t("scheme", "dark")};--omp-bg:${t("bg", "#16161a")};--omp-surface:${t("surface", "#202024")};--omp-fg:${t("fg", "#ececec")};--omp-fg-2:${t("fg2", "#c8c8c8")};--omp-muted:${t("muted", "#8a867e")};--omp-accent:${t("accent", "#d9a04a")};--omp-line:${t("line", "#3a3a40")};--omp-font:${t("font", "system-ui, sans-serif")};--omp-mono:${t("mono", "monospace")}}${DEFAULTS}${kind === "svg" ? ":where(body){display:flex;justify-content:center}:where(svg){max-width:100%;height:auto}" : ""}
-</style><script>${BRIDGE}</script>`;
+</style><script>${bridge}</script>`;
     const src = String(source ?? "");
     const at = /<head(\s[^>]*)?>/i.exec(src);
     if (at) return src.slice(0, at.index + at[0].length) + head + src.slice(at.index + at[0].length);
