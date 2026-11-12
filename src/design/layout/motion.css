@@ -108,4 +108,5 @@
   :is(.rail, .wp-panel, .tree-drawer, .browser-dock, .wp-drawer, .project-sidebar),
   .split, .term-panel, .tb-sub, .tab, .motion-ghost, .motion-ghost > *,
   .chat-scroll, .ip-tab-stage, .st-section { animation: none; }
+  .tab-cluster, .tab-cluster-head, .tab-cluster-chev, .tab-cluster-chev svg { transition: none; }
 }

@@ -25,7 +25,8 @@
 .theme-kiln .status { border-top-color: transparent; background: var(--bg-app); }
 
 /* ── Selection: neutral, never the accent ──────────────────────────────── */
-.theme-kiln :is(.tab.active, .psb-row.active) { background: var(--kiln-select); }
+.theme-kiln :is(.tab.active, .tab-cluster.is-folded.active, .psb-row.active) { background: var(--kiln-select); }
+.theme-kiln .tab-cluster.is-folded.active .tab-cluster-head:hover { background: color-mix(in oklab, var(--fg) 6%, transparent); }
 .theme-kiln .tb-btn.on { color: var(--fg); background: var(--kiln-select); border-color: transparent; }
 .theme-kiln .chip.accent { background: var(--kiln-select); color: var(--fg-2); }
 .theme-kiln .composer-pill.on { background: var(--kiln-select); color: var(--fg); }

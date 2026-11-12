@@ -1,16 +1,19 @@
 /* ═════════════════════════════════════════════════════════════════════
    tab-group-chip.jsx — tab strip pieces shared with the project sidebar
 
-   TabCluster: a project (folder + profile) with several conversations in
-   the tab strip: its name once, then one tab per conversation and a "+"
-   for another in that project. Grouping itself is
-   `OMP_PROJECT_NAV.groupTabs` (app/project-nav.js); this file only renders.
+  TabCluster: a project (folder + profile) with several conversations in
+  the tab strip: an IDE-style folder head (click anywhere on the head
+  to fold/unfold horizontally), then when unfolded one tab per
+  conversation and a "+" for another in that project, or when folded a
+  compact chip with run dot, tab-number range and conversation count.
+  Grouping itself is `OMP_PROJECT_NAV.groupTabs` (app/project-nav.js);
+  this file only renders.
    Also TabRunDot, TabLabel, TabNumber, tabClickProps and the strip's "+"
    menu (NewTabMenu).
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon, RenameField } = window;
-const { groupTarget, membersNewestFirst, tabLabel } = window.OMP_PROJECT_NAV;
+const { groupRunState, groupDigits, membersNewestFirst, tabLabel } = window.OMP_PROJECT_NAV;
 
 // A tab's click props: select on click, close on middle-click, as in
 // browsers (#24). WebKit before Safari 18.2 / WebKitGTK 2.46 has no
@@ -63,7 +66,7 @@ function TabNumber({ label }) {
   return label ? <span className="tab-num" aria-hidden="true">{label}</span> : null;
 }
 
-function TabCluster({ group, activeId, digits, profileLabel, onSelect, onClose, onNewInProject, onRename, reorder }) {
+function TabCluster({ group, activeId, digits, profileLabel, folded = false, onToggleFold, onSelect, onClose, onNewInProject, onRename, reorder }) {
   // Member tab whose name is being edited inline (#32).
   const [renaming, setRenaming] = React.useState(null);
   const active  = group.tabs.find(t => t.id === activeId);
@@ -71,20 +74,42 @@ function TabCluster({ group, activeId, digits, profileLabel, onSelect, onClose, 
   // Drag to reorder (#40), on TabBar's `useDragReorder`: the head moves the
   // project along the strip, a tab moves within this project.
   const members = `members:${group.key}`;
+  const foldLabel = folded
+    ? OMP_TR("Expand {name}", { name: group.name })
+    : OMP_TR("Collapse {name}", { name: group.name });
+  const countLabel = window.OMP_I18N
+    ? window.OMP_I18N.plural(group.tabs.length, "{n} conversation", "{n} conversations")
+    : `${group.tabs.length} conversations`;
+  const headTip = folded
+    ? [group.path || group.name, countLabel, active?.name].filter(Boolean).join("\n")
+    : (group.path || group.name);
   return (
     <div {...reorder.itemProps("projects", group.key, "x")}
-      className={`tab-cluster${active ? " active" : ""}${reorder.dropClass("projects", group.key)}`}>
-      <button className="tab-cluster-head" title={group.path}
-        onClick={() => onSelect(groupTarget(group, activeId))}>
-        <Icon name="folder" size={11} color={active ? active.color : "var(--fg-4)"} />
+      className={`tab-cluster${folded ? " is-folded" : ""}${active ? " active" : ""}${reorder.dropClass("projects", group.key)}`}>
+      {folded && (
+        <span className="tab-bar-mark" style={{ background: active ? active.color : "transparent" }} />
+      )}
+      <button type="button"
+        className="tab-cluster-head"
+        title={headTip}
+        aria-label={foldLabel}
+        aria-expanded={!folded}
+        onClick={() => onToggleFold?.(group.key)}>
+        <Icon name="folder" size={11} color={active ? active.color : "var(--fg-3)"} />
+        {folded && <TabRunDot state={groupRunState(group.tabs)} />}
         <span className="tab-name">{group.name}</span>
         {profile && (
           <span className="chip muted tab-profile" title={`${OMP_TR("profile:")} ${profile}`}>{profile}</span>
         )}
+        {folded && <TabNumber label={groupDigits(group, digits)} />}
+        {folded && <span className="tab-count">{group.tabs.length}</span>}
+        <span className="tab-cluster-chev" aria-hidden="true">
+          <Icon name="chevR" size={10} />
+        </span>
       </button>
       {/* Newest first, the order the sidebar lists them and "go to tab N"
           counts in. */}
-      {membersNewestFirst(group).map(t => {
+      {!folded && membersNewestFirst(group).map(t => {
         const on = t.id === activeId;
         // A conversation not named yet still carries its folder's name,
         // which the head already shows.
@@ -112,10 +137,12 @@ function TabCluster({ group, activeId, digits, profileLabel, onSelect, onClose, 
           </div>
         );
       })}
-      <button className="tab-cluster-new" title={OMP_TR("new conversation in this project")}
-        onClick={() => onNewInProject?.(group.path, group.profile)}>
-        <Icon name="plus" size={10} />
-      </button>
+      {!folded && (
+        <button type="button" className="tab-cluster-new" title={OMP_TR("new conversation in this project")}
+          onClick={() => onNewInProject?.(group.path, group.profile)}>
+          <Icon name="plus" size={10} />
+        </button>
+      )}
     </div>
   );
 }

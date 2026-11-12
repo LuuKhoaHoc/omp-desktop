@@ -71,6 +71,7 @@ function WindowChrome({ project, start, end, controls = WINDOW_CONTROLS }) {
 // tabClickProps (select on click, close on middle-click): tab-group-chip.jsx.
 function TabBar({
   projects, activeId, onSelect, onClose, onRename, onNewInProject, onReorder,
+  foldedGroups = {}, onToggleFold,
   profiles = [],
   settings, onSelectSettings, onCloseSettings,
   terminals, newTab,
@@ -95,7 +96,7 @@ function TabBar({
   const front = settings?.active ? "settings" : terminals?.active ?? activeId;
   React.useEffect(() => {
     const frame = requestAnimationFrame(() =>
-      scrollRef.current?.querySelector(".tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+      scrollRef.current?.querySelector(".tab.active, .tab-cluster.is-folded.active")?.scrollIntoView({ block: "nearest", inline: "nearest" }));
     return () => cancelAnimationFrame(frame);
   }, [front]);
   return (
@@ -111,6 +112,8 @@ function TabBar({
               activeId={activeId}
               digits={digits}
               profileLabel={profileLabel}
+              folded={!!foldedGroups[group.key]}
+              onToggleFold={onToggleFold}
               onSelect={onSelect}
               onClose={onClose}
               onNewInProject={onNewInProject}

@@ -388,4 +388,48 @@ check("groupDigits: one digit, a range, a range cut at nine, or nothing", () => 
   assert.equal(N.groupDigits(z, digits), "");
 });
 
+// ── Folded tab-bar project clusters ─────────────────────────────────────────
+
+check("parseFoldedGroups accepts non-empty folder keys, drops tab: keys and caps entries", () => {
+  assert.deepEqual(N.parseFoldedGroups(null), {});
+  assert.deepEqual(N.parseFoldedGroups("not json"), {});
+  assert.deepEqual(N.parseFoldedGroups("{}"), {});
+  assert.deepEqual(
+    N.parseFoldedGroups(JSON.stringify(["default|/a", "", 42, "tab:s1", "default|/a", "work|/b"])),
+    { "default|/a": true, "work|/b": true },
+  );
+  const many = Array.from({ length: 250 }, (_, i) => `default|/p${i}`);
+  assert.equal(Object.keys(N.parseFoldedGroups(JSON.stringify(many))).length, 200);
+});
+
+check("serializeFoldedGroups writes only truthy non-ephemeral keys", () => {
+  assert.equal(
+    N.serializeFoldedGroups({ "default|/a": true, "default|/b": false, "tab:s1": true, "work|/c": true }),
+    JSON.stringify(["default|/a", "work|/c"]),
+  );
+  assert.equal(N.serializeFoldedGroups({}), "[]");
+});
+
+check("toggleFoldedGroup flips a project key cleanly and ignores ephemeral tab: keys", () => {
+  const f1 = N.toggleFoldedGroup({}, "default|/a");
+  assert.deepEqual(f1, { "default|/a": true });
+  const f2 = N.toggleFoldedGroup(f1, "default|/a");
+  assert.deepEqual(f2, {});
+  assert.equal(N.toggleFoldedGroup(f1, "tab:s1"), f1);
+});
+
+check("pruneFoldedGroups clears a key only when a multi-tab project drops to <=1 tab", () => {
+  const folded = { "default|/a": true, "default|/b": true };
+  // Startup restore (0 -> 1 -> 2): never clears before tab 2 lands.
+  assert.equal(N.pruneFoldedGroups(folded, [], [tab("a1", "/a")]), folded);
+  assert.equal(N.pruneFoldedGroups(folded, [tab("a1", "/a")], [tab("a1", "/a"), tab("a2", "/a")]), folded);
+  // Closing 1 of 3 keeps the group multi-tab, so fold stays.
+  const threeA = [tab("a1", "/a"), tab("a2", "/a"), tab("a3", "/a"), tab("b1", "/b"), tab("b2", "/b")];
+  const twoA = [tab("a1", "/a"), tab("a2", "/a"), tab("b1", "/b"), tab("b2", "/b")];
+  assert.equal(N.pruneFoldedGroups(folded, threeA, twoA), folded);
+  // Closing 1 of 2 drops /a below multi-tab, clearing only /a while /b stays folded.
+  const oneA = [tab("a1", "/a"), tab("b1", "/b"), tab("b2", "/b")];
+  assert.deepEqual(N.pruneFoldedGroups(folded, twoA, oneA), { "default|/b": true });
+});
+
 console.log(`project-nav: ${passed} checks passed`);

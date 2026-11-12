@@ -20,19 +20,19 @@
    ends the drag. Wrapped as an IIFE (AGENTS.md "IIFE rule"). */
 
 (function () {
-  const { pastThreshold, dropSlot } = window.OMP_DRAG_REORDER;
+  const { pastThreshold, dropSlot, dropSlotWrap } = window.OMP_DRAG_REORDER;
   // Controls inside an item that keep their own press. `data-no-reorder`
   // marks a region inside an item (a dropdown) that only its own nested
   // items may drag from.
-  const NO_DRAG = "input, textarea, .tab-close, .tab-cluster-new, .psb-act, .psb-chev, [data-no-reorder]";
+  const NO_DRAG = "input, textarea, .tab-close, .tab-cluster-new, .psb-act, .wp-chip button, [data-no-reorder]";
 
   function span(el, axis) {
     const r = el.getBoundingClientRect();
+    if (axis === "wrap") return { id: el.dataset.reorderId, left: r.left, right: r.right, top: r.top, bottom: r.bottom };
     return axis === "y"
       ? { id: el.dataset.reorderId, start: r.top, end: r.bottom }
       : { id: el.dataset.reorderId, start: r.left, end: r.right };
   }
-
   function useDragReorder(onDrop) {
     // `{ list, id, targetId, after }` while a drag is past the threshold.
     const [drag, setDrag] = React.useState(null);
@@ -49,7 +49,8 @@
       const stop = e.target.closest(NO_DRAG);
       if (stop && item.contains(stop)) return;
       const { reorderList: list, reorderId: id } = item.dataset;
-      const axis = item.dataset.reorderAxis === "y" ? "y" : "x";
+      const rawAxis = item.dataset.reorderAxis;
+      const axis = rawAxis === "y" || rawAxis === "wrap" ? rawAxis : "x";
       const { pointerId, clientX: x0, clientY: y0 } = e;
       let started = false;
       let cancelled = false;
@@ -68,7 +69,9 @@
         const items = [...container.querySelectorAll("[data-reorder-id]")]
           .filter(el => el.dataset.reorderList === list)
           .map(el => span(el, axis));
-        slot = dropSlot(items, id, axis === "y" ? ev.clientY : ev.clientX);
+        slot = axis === "wrap"
+          ? dropSlotWrap(items, id, ev.clientX, ev.clientY)
+          : dropSlot(items, id, axis === "y" ? ev.clientY : ev.clientX);
         show({ list, id, targetId: slot ? slot.targetId : null, after: !!slot?.after });
       };
       const end = () => {

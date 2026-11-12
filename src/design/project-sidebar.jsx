@@ -10,7 +10,7 @@
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon, TabRunDot, TabLabel, TabNumber, RenameField } = window;
-const { groupTabs, groupRunState, groupTarget, groupDigits, tabDigits, membersNewestFirst, basename, parentName } = window.OMP_PROJECT_NAV;
+const { groupTabs, groupRunState, groupDigits, tabDigits, membersNewestFirst, basename, parentName } = window.OMP_PROJECT_NAV;
 
 function ProjectSidebar({
   tabs, activeId, recents, profileLabel,
@@ -80,32 +80,42 @@ function ProjectSidebar({
                   that tab. */}
               <div className={`psb-row psb-project ${containsActive && !expanded ? "active" : ""}`}>
                 {multi ? (
-                  <button className={`psb-chev ${expanded ? "open" : ""}`}
-                    title={expanded ? OMP_TR("collapse") : OMP_TR("expand")} aria-expanded={expanded}
-                    onClick={e => { e.stopPropagation(); toggle(group.key); }}>
-                    <Icon name="chevR" size={10} />
-                  </button>
-                ) : <span className="psb-chev-spacer" />}
-                {editing ? (
-                  <div className="psb-main psb-editing">
+                  <button className="psb-main" title={cardTip} aria-expanded={expanded}
+                    onClick={() => toggle(group.key)}>
+                    <span className={`psb-chev ${expanded ? "open" : ""}`} aria-hidden="true">
+                      <Icon name="chevR" size={10} />
+                    </span>
                     {folderIcon}
-                    {renameField(group.tabs[0])}
-                  </div>
-                ) : (
-                  <button className="psb-main" title={cardTip}
-                    onClick={() => onSelectTab(groupTarget(group, activeId))}
-                    onDoubleClick={() => { if (!multi) startRename(group.tabs[0].id); }}>
-                    {folderIcon}
-                    {multi
-                      ? <span className="psb-name">{group.name}</span>
-                      : <TabLabel tab={group.tabs[0]} className="psb-name" />}
+                    <span className="psb-name">{group.name}</span>
                     {profile && (
                       <span className="chip muted tab-profile" title={`${OMP_TR("profile:")} ${profile}`}>{profile}</span>
                     )}
                     <TabRunDot state={groupRunState(group.tabs)} />
                     {!expanded && <TabNumber label={groupDigits(group, digits)} />}
-                    {multi && <span className="tab-count psb-count">{group.tabs.length}</span>}
+                    <span className="tab-count psb-count">{group.tabs.length}</span>
                   </button>
+                ) : (
+                  <>
+                    <span className="psb-chev-spacer" />
+                    {editing ? (
+                      <div className="psb-main psb-editing">
+                        {folderIcon}
+                        {renameField(group.tabs[0])}
+                      </div>
+                    ) : (
+                      <button className="psb-main" title={cardTip}
+                        onClick={() => onSelectTab(group.tabs[0].id)}
+                        onDoubleClick={() => startRename(group.tabs[0].id)}>
+                        {folderIcon}
+                        <TabLabel tab={group.tabs[0]} className="psb-name" />
+                        {profile && (
+                          <span className="chip muted tab-profile" title={`${OMP_TR("profile:")} ${profile}`}>{profile}</span>
+                        )}
+                        <TabRunDot state={group.tabs[0].runState} />
+                        <TabNumber label={digits.get(group.tabs[0].id)} />
+                      </button>
+                    )}
+                  </>
                 )}
                 <span className="psb-actions">
                   {group.path && actButton(OMP_TR("new conversation here"), "plus", 10, () => onNewInProject(group.path, group.profile))}

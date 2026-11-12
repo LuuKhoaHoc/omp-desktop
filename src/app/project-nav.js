@@ -290,6 +290,72 @@
     };
   }
 
+  const FOLDED_TAB_GROUPS_KEY = "omp-desktop:folded-tab-groups";
+  const MAX_FOLDED_GROUPS = 200;
+
+  /** Parses the stored folded project keys (`localStorage` JSON array of
+   *  group keys) into `{ [key]: true }`. Ephemeral `tab:` keys and invalid
+   *  entries are dropped; capped at MAX_FOLDED_GROUPS. */
+  function parseFoldedGroups(raw) {
+    if (!raw || typeof raw !== "string") return {};
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { return {}; }
+    if (!Array.isArray(parsed)) return {};
+    const out = {};
+    let count = 0;
+    for (const key of parsed) {
+      if (typeof key !== "string" || !key || key.startsWith("tab:") || out[key]) continue;
+      out[key] = true;
+      count++;
+      if (count >= MAX_FOLDED_GROUPS) break;
+    }
+    return out;
+  }
+
+  function serializeFoldedGroups(folded) {
+    const keys = [];
+    for (const key of Object.keys(folded || {})) {
+      if (!folded[key] || typeof key !== "string" || key.startsWith("tab:")) continue;
+      keys.push(key);
+      if (keys.length >= MAX_FOLDED_GROUPS) break;
+    }
+    return JSON.stringify(keys);
+  }
+
+  /** Toggles `key` in a `{ [key]: true }` fold map without mutating it.
+   *  Pathless `tab:` keys never group and are ignored. */
+  function toggleFoldedGroup(folded, key) {
+    const base = folded || {};
+    if (typeof key !== "string" || !key || key.startsWith("tab:")) return base;
+    if (base[key]) {
+      const next = { ...base };
+      delete next[key];
+      return next;
+    }
+    return { ...base, [key]: true };
+  }
+
+  /** Clears folded state for any project that had ≥2 tabs in `prevTabs` and
+   *  now has ≤1 in `nextTabs`. Using the transition instead of "currently ≤1"
+   *  keeps startup restore (0 → 1 → 2) from clearing persisted folds while
+   *  the first tab lands, and still resets a project if the user closes it
+   *  down to one tab so a later second tab opens unfolded. */
+  function pruneFoldedGroups(folded, prevTabs, nextTabs) {
+    const base = folded || {};
+    if (!Object.keys(base).length) return base;
+    const prevMulti = new Set(groupTabs(prevTabs || []).filter(g => g.tabs.length > 1).map(g => g.key));
+    if (!prevMulti.size) return base;
+    const nextMulti = new Set(groupTabs(nextTabs || []).filter(g => g.tabs.length > 1).map(g => g.key));
+    let next = null;
+    for (const key of prevMulti) {
+      if (base[key] && !nextMulti.has(key)) {
+        if (!next) next = { ...base };
+        delete next[key];
+      }
+    }
+    return next || base;
+  }
+
   window.OMP_PROJECT_NAV = {
     normPath,
     basename,
@@ -315,5 +381,10 @@
     tabLayout,
     restoreSpec,
     RESUME_PROMPT,
+    FOLDED_TAB_GROUPS_KEY,
+    parseFoldedGroups,
+    serializeFoldedGroups,
+    toggleFoldedGroup,
+    pruneFoldedGroups,
   };
 })();

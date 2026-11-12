@@ -80,8 +80,7 @@
 }
 .psb-act:hover { background: var(--bg-active); color: var(--fg); }
 .psb-head-act { width: 1.5rem; height: 1.5rem; text-transform: none; }
-.psb-act:focus-visible,
-.psb-chev:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.psb-act:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 /* `.psb-foot` (settings, history, usage) is styled with the other
    controls in toolbar.css. */

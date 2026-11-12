@@ -48,7 +48,7 @@ body:is(.theme-night, .theme-kiln) { font-feature-settings: normal; letter-spaci
 
 /* ── Window chrome + tabs ──────────────────────────────────────────────── */
 :is(.theme-night, .theme-kiln) .chrome { background: var(--bg-window); border-bottom-color: var(--line-soft); }
-:is(.theme-night, .theme-kiln) .tab { border-radius: 8px; }
+:is(.theme-night, .theme-kiln) :is(.tab, .tab-cluster.is-folded) { border-radius: 8px; }
 :is(.theme-night, .theme-kiln) .tb-btn { border-radius: 8px; }
 
 /* ── Project sidebar ───────────────────────────────────────────────────── */
@@ -201,7 +201,6 @@ body:is(.theme-night, .theme-kiln) { font-feature-settings: normal; letter-spaci
 }
 :is(.theme-night, .theme-kiln) .composer-pill:hover { background: var(--bg-hover); border-color: transparent; }
 :is(.theme-night, .theme-kiln) .composer-pill.on { background: var(--accent-soft); border-color: transparent; }
-:is(.theme-night, .theme-kiln) .composer-pill .dot.live { animation: none; }
 
 /* ── Side rail (context / radar / subagents / minimap / widgets) ───────── */
 :is(.theme-night, .theme-kiln) .rail {
