@@ -1447,6 +1447,7 @@
       name: _tabNameFor(entry.path, "new session"),
       sessionFile: null,
       autoRenameArmed: true,
+      autoRenameRefine: true,
       autoRenameInFlight: false,
       autoRenameTurns: 0,
       autoRenameLeft: 0,
@@ -1746,7 +1747,7 @@
     if (!activeSessionId || !sessionRegistry.has(activeSessionId)) return;
     const entry = sessionRegistry.get(activeSessionId);
     if (!entry.autoRenameInFlight) return;
-    const untitledLabel = _tabNameFor(entry.path, "new session");
+    const untitledLabel = _tabNameFor(entry.path, entry.autoRenameRefine === false ? "resumed" : "new session");
     const rearm = STITLE.shouldRearmAfterAbort(state.rpcState, entry.name, untitledLabel);
     sessionRegistry.set(activeSessionId, {
       ...entry,
@@ -1793,19 +1794,19 @@
       sessionFile: resume ?? null,
       // Auto-rename state machine (src/app/session-title.js): a fresh tab
       // is armed to ask omp for a session title after its first completed
-      // turn (RPC mode never auto-titles); a resume keeps its saved name
-      // and stays unarmed. `inFlight` spans the `/rename` send until its
-      // outcome is confirmed, gating both the one-shot trigger and the
-      // suppression of the builtin's outcome note. After the initial
-      // rename, the title is refreshed every REFINE_EVERY_TURNS completed
-      // agent turns (`turns` counts them, reset on each title write)
-      // while `left` budget lasts; a resume starts with no budget because
-      // `get_state` cannot tell a saved auto-title from a manual one, and
-      // manual titles must never be overwritten. `sessionId` binds this
-      // state to the omp session it was granted for (set by the first
-      // `get_state` that finds it armed or budgeted, see `_applyRpcState`
-      // and `STITLE.isRenameStateStale`).
-      autoRenameArmed: !resume,
+      // turn (RPC mode never auto-titles); a resumed tab starts armed only
+      // for a one-shot initial title if `get_state` still reports an empty
+      // `sessionName` (once a saved `sessionName` is seen, it disarms
+      // without touching it). `autoRenameRefine` gates whether that initial
+      // rename grants the `REFINE_MAX` periodic refresh budget (fresh only;
+      // resumed tabs stay at `0` because `get_state` cannot tell a saved
+      // auto-title from a manual one). `inFlight` spans the `/rename` send
+      // until its outcome is confirmed. `sessionId` binds this state to the
+      // omp session it was granted for (set by the first `get_state` that
+      // finds it armed or budgeted, see `_applyRpcState` and
+      // `STITLE.isRenameStateStale`).
+      autoRenameArmed: true,
+      autoRenameRefine: !resume,
       autoRenameInFlight: false,
       autoRenameTurns: 0,
       autoRenameLeft: 0,
@@ -3003,6 +3004,10 @@
     // `sessionId`, which a stale snapshot cannot misreport, unlike a title.
     if (activeSessionId && sessionRegistry.has(activeSessionId)) {
       let entry = sessionRegistry.get(activeSessionId);
+      if (STITLE.shouldDisarmTitled(rpcState, entry.autoRenameArmed)) {
+        entry = { ...entry, autoRenameArmed: false };
+        sessionRegistry.set(activeSessionId, entry);
+      }
       // A budget that has no session binding yet (a fresh tab before its
       // first send, or `_resetForNewFile` after branch/fork, which mints a
       // new omp session id) binds to the session omp reports now; only a
@@ -3028,7 +3033,7 @@
       if (sessionPrefs.autoName && STITLE.shouldAutoRename(rpcState, entry.autoRenameArmed, lastTurnOk)) {
         sessionRegistry.set(activeSessionId, {
           ...entry, autoRenameArmed: false, autoRenameInFlight: true,
-          autoRenameLeft: STITLE.REFINE_MAX, autoRenameTurns: 0,
+          autoRenameLeft: STITLE.initialRefineBudget(entry.autoRenameRefine !== false), autoRenameTurns: 0,
         });
         _send({ type: "prompt", message: "/rename" });
       } else if (sessionPrefs.autoName && !entry.autoRenameInFlight &&

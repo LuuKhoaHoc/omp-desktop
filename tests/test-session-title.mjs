@@ -76,6 +76,27 @@ check("a null snapshot never fires", () => {
   assert.equal(T.shouldAutoRename(null, true, OK), false);
 });
 
+// ── shouldDisarmTitled & initialRefineBudget ─────────────────────────────
+
+check("a resumed tab that already has a sessionName disarms immediately", () => {
+  assert.equal(T.shouldDisarmTitled({ sessionName: "Fix login bug" }, true), true);
+});
+
+check("an untitled resumed tab stays armed for its one-shot rename", () => {
+  assert.equal(T.shouldDisarmTitled({ sessionName: "" }, true), false);
+  assert.equal(T.shouldDisarmTitled({ sessionName: null }, true), false);
+  assert.equal(T.shouldDisarmTitled({}, true), false);
+  assert.equal(T.shouldDisarmTitled(null, true), false);
+});
+
+check("an already-disarmed tab never asks to disarm again", () => {
+  assert.equal(T.shouldDisarmTitled({ sessionName: "Fix login bug" }, false), false);
+});
+
+check("fresh tabs grant REFINE_MAX refreshes; untitled resumes grant 0", () => {
+  assert.equal(T.initialRefineBudget(true), T.REFINE_MAX);
+  assert.equal(T.initialRefineBudget(false), 0);
+});
 
 // ── shouldRefineTitle ───────────────────────────────────────────────────
 

@@ -42,6 +42,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Auto-title on resumed tabs: a conversation resumed from History or restored at startup now gets a one-shot `/rename` when `sessionName` is still empty (saved titles are left untouched and never refreshed).
+
 - Window controls and command-bridge hints follow the host OS: macOS keeps the left traffic lights and `Cmd+K`, Windows keeps the right minimize/maximize/close buttons and `Ctrl+K`, and Linux enables native OS window decorations (`tauri.linux.conf.json`) without macOS dots in the header and advertises `Ctrl+K` (or the user's rebound shortcut).
 - Header "+" opens a menu (omp chat or Terminal tab) again instead of starting a chat straight away, so a terminal tab no longer needs the tab strip turned on. Ctrl+N still starts a chat.
 - After a comment on a selection (a chat quote, lines in the files panel) the prompt box has the focus, so Enter, or Ctrl+Enter when that is your send key, sends right away. The comment form adds on the same key. Before, the keys went nowhere once the form closed.

@@ -15,11 +15,11 @@
 // <script> tags. Regression: test-session-title.mjs.
 (function () {
   /** Whether this `get_state` snapshot should fire the automatic `/rename`
-   *  for a fresh tab: the tab is still armed (fresh — not a resume — and the
-   *  send happens at most once per arming), no assistant turn has ended in
-   *  error/abort (`lastTurnOk` — omp counts error/aborted assistant
-   *  messages in `messageCount`, so without this a failed first exchange,
-   *  e.g. a fresh profile before `/login`, would silently spend the
+   *  for an untitled tab: the tab is still armed (a fresh tab or an untitled
+   *  resumed tab, and the send happens at most once per arming), no assistant
+   *  turn has ended in error/abort (`lastTurnOk` — omp counts error/aborted
+   *  assistant messages in `messageCount`, so without this a failed first
+   *  exchange, e.g. a fresh profile before `/login`, would silently spend the
    *  one-shot), the session is idle (never mid-turn), the first exchange is
    *  fully persisted (`messageCount >= 2` = user + assistant), and omp has
    *  not titled the session yet. An empty `sessionName` counts as untitled,
@@ -33,6 +33,21 @@
     return typeof rpcState.messageCount === "number" && rpcState.messageCount >= 2;
   }
 
+  /** Whether an armed tab should be disarmed because `get_state` already
+   *  reports a saved `sessionName` (e.g. a resumed conversation whose title
+   *  is already set): `get_state` cannot tell a saved auto-title from a
+   *  manual one, so a titled resume must disarm without touching it or
+   *  granting a refresh budget. */
+  function shouldDisarmTitled(rpcState, armed) {
+    return !!(armed && rpcState && rpcState.sessionName);
+  }
+
+  /** Refresh budget granted when the initial automatic `/rename` fires:
+   *  fresh conversations get `REFINE_MAX` periodic refreshes; an untitled
+   *  resumed conversation gets its single initial title (`0` refreshes). */
+  function initialRefineBudget(allowRefine) {
+    return allowRefine ? REFINE_MAX : 0;
+  }
   // Refinement cadence: every REFINE_EVERY_TURNS terminal agent turns after
   // a title was generated, at most REFINE_MAX refreshes per conversation.
   // 5 turns ≈ one tiny-model call per meaningful chunk of work, and omp
@@ -168,7 +183,8 @@
   }
 
   window.OMP_SESSION_TITLE = {
-    shouldAutoRename, shouldRefineTitle, isAutoRenameNote, sessionTitleFromEvent,
+    shouldAutoRename, shouldDisarmTitled, initialRefineBudget,
+    shouldRefineTitle, isAutoRenameNote, sessionTitleFromEvent,
     isManualRename, isRenameStateStale, shouldRearmAfterAbort, countsAsRefineTurn,
     manualRename, dropPendingNote,
     REFINE_EVERY_TURNS, REFINE_MAX,
