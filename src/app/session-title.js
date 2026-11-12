@@ -99,11 +99,24 @@
     return RENAME_NOTE_PREFIXES.some(p => t.startsWith(p));
   }
 
+  /** omp's title as a tab label. The generator can copy private-use icon
+   *  characters (Nerd Font glyphs such as U+F0773) from the conversation
+   *  into the title; the tab's font draws them as an icon and the header's
+   *  as a missing-glyph box. Those, other control characters and any left
+   *  over space runs are dropped. Returns "" when nothing is left. */
+  function cleanTabTitle(raw) {
+    if (typeof raw !== "string") return "";
+    return raw
+      .replace(/[\u0000-\u001f\u007f-\u009f\ue000-\uf8ff\u{f0000}-\u{ffffd}\u{100000}-\u{10fffd}]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   /** `session_info_update`'s title as a usable tab name, or null when the
-   *  frame carries nothing to rename to (missing/empty/non-string). */
+   *  frame carries nothing to rename to (missing/empty/non-string, or only
+   *  characters `cleanTabTitle` drops). */
   function sessionTitleFromEvent(ev) {
-    const raw = ev && typeof ev.title === "string" ? ev.title.trim() : "";
-    return raw || null;
+    return cleanTabTitle(ev && ev.title) || null;
   }
 
   /** After omp's `abort` response, whether the one-shot should be armed
@@ -184,7 +197,7 @@
 
   window.OMP_SESSION_TITLE = {
     shouldAutoRename, shouldDisarmTitled, initialRefineBudget,
-    shouldRefineTitle, isAutoRenameNote, sessionTitleFromEvent,
+    shouldRefineTitle, isAutoRenameNote, sessionTitleFromEvent, cleanTabTitle,
     isManualRename, isRenameStateStale, shouldRearmAfterAbort, countsAsRefineTurn,
     manualRename, dropPendingNote,
     REFINE_EVERY_TURNS, REFINE_MAX,

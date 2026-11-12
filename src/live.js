@@ -1845,7 +1845,7 @@
   }) {
     _lastSessionMs = Math.max(Date.now(), _lastSessionMs + 1);
     const id = `session-${_lastSessionMs}`;
-    const tabName = name || _tabNameFor(cwd, resume ? "resumed" : "new session");
+    const tabName = STITLE.cleanTabTitle(name) || _tabNameFor(cwd, resume ? "resumed" : "new session");
     const color = resume ? "var(--cyan)" : "var(--lilac)";
     // Register in tab list before starting omp so the tab shows immediately.
     // Register with null branch — chip hidden until git resolves. `repoRoot`:
@@ -3031,9 +3031,10 @@
     // Only update the tab name if omp provides an explicit human-readable
     // sessionName. The sessionFile is a timestamp ID — leave the folder-based
     // name set at tab-open time intact when sessionName is absent.
-    if (rpcState.sessionName && activeSessionId && sessionRegistry.has(activeSessionId)) {
+    const savedTitle = STITLE.cleanTabTitle(rpcState.sessionName);
+    if (savedTitle && activeSessionId && sessionRegistry.has(activeSessionId)) {
       const entry = sessionRegistry.get(activeSessionId);
-      sessionRegistry.set(activeSessionId, { ...entry, name: rpcState.sessionName });
+      sessionRegistry.set(activeSessionId, { ...entry, name: savedTitle });
     }
     // Remember which conversation this tab runs, for `resumeSession`'s
     // focus-existing lookup. Re-read: the `sessionName` write above may have

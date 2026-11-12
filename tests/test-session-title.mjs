@@ -180,6 +180,14 @@ check("a missing or non-string title yields null", () => {
   assert.equal(T.sessionTitleFromEvent(null), null);
 });
 
+check("private-use icon glyphs and control characters are dropped from a title", () => {
+  assert.equal(T.sessionTitleFromEvent({ title: "\u{f0773} RESET: Integrate CRM APIs" }), "RESET: Integrate CRM APIs");
+  assert.equal(T.cleanTabTitle("\ue0a0 API:\u0007  Refine  changelog\u{100000}"), "API: Refine changelog");
+  assert.equal(T.cleanTabTitle("Tiếng Việt: sửa lỗi"), "Tiếng Việt: sửa lỗi");
+  assert.equal(T.sessionTitleFromEvent({ title: "\u{f0773}\ue000" }), null);
+  assert.equal(T.cleanTabTitle(undefined), "");
+});
+
 
 // ── isManualRename ──────────────────────────────────────────────────────
 

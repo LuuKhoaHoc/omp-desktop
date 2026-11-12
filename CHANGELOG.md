@@ -43,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Tab titles: icon characters (private-use Nerd Font glyphs) and control characters in a generated session title are dropped, so a tab and the header no longer show a stray icon or an empty box before the title.
+
 - Auto-title on resumed tabs: a conversation resumed from History or restored at startup now gets a one-shot `/rename` when `sessionName` is still empty (saved titles are left untouched and never refreshed).
 
 - Window controls and command-bridge hints follow the host OS: macOS keeps the left traffic lights and `Cmd+K`, Windows keeps the right minimize/maximize/close buttons and `Ctrl+K`, and Linux enables native OS window decorations (`tauri.linux.conf.json`) without macOS dots in the header and advertises `Ctrl+K` (or the user's rebound shortcut).
