@@ -43,13 +43,14 @@ function ToolButton({ icon, title, onClick, pressed, disabled, color, size = 16,
 }
 
 // ── Header ────────────────────────────────────────────────────────────
-/** nav: { sidebarOpen, onToggleSidebar, newTab: { project, onChat, onTerminal }, onHistory } */
+/** nav: { sidebarOpen, onToggleSidebar, tabStrip, newTab: { project, onChat, onTerminal }, onHistory } */
 function HeaderStart({ nav }) {
   return (
     <div className="hd-cluster">
       <ToolButton icon="sidebar" title={_tbTip("project sidebar", "desktop.sidebar.toggle")}
         pressed={nav.sidebarOpen} onClick={nav.onToggleSidebar} />
-      <window.NewTabMenu header chatChord={_tbChord("desktop.chat.new")} {...nav.newTab} />
+      {/* The tab strip carries its own new-tab menu while it is shown. */}
+      {!nav.tabStrip && <window.NewTabMenu header chatChord={_tbChord("desktop.chat.new")} {...nav.newTab} />}
       {/* The sidebar's footer holds history; with it closed, the header does. */}
       {!nav.sidebarOpen && (
         <ToolButton icon="clock" title={_tbTip("conversation history", "desktop.history.open")} onClick={nav.onHistory} />
@@ -75,7 +76,7 @@ function HeaderEnd({ onCommands }) {
 /**
  * rail, subagents, terminal: { open, onToggle }
  * tree:     { open, onToggle, onRefresh, canRefresh }
- * work, insights: { open, onToggle } (fork panels; optional)
+ * work, insights: { open, onToggle, fullView, onFullView(on) } (fork panels; optional)
  * browser:  { open, onToggle, annotate, canAnnotate, onAnnotate(on), fullView, onFullView(on) }
  * files:    { open, onToggle, fullView, onFullView(on) }
  * onGit
@@ -109,7 +110,19 @@ function PanelRail({ rail, subagents, tree, browser, files, terminal, work, insi
       )}
       {(work || insights) && <span className="pr-sep" />}
       {work && <ToolButton icon="tag" title={_tbTip("work: tickets", "desktop.panel.work")} pressed={work.open} onClick={work.onToggle} />}
+      {work?.open && (
+        <span className="tb-sub" role="group" aria-label={OMP_TR("work panel")}>
+          <ToolButton icon="focus" size={14} title={OMP_TR("work panel full view")} pressed={work.fullView}
+            onClick={() => work.onFullView(!work.fullView)} />
+        </span>
+      )}
       {insights && <ToolButton icon="test" title={_tbTip("insights: diagrams and test cases", "desktop.panel.insights")} pressed={insights.open} onClick={insights.onToggle} />}
+      {insights?.open && (
+        <span className="tb-sub" role="group" aria-label={OMP_TR("insights panel")}>
+          <ToolButton icon="focus" size={14} title={OMP_TR("insights panel full view")} pressed={insights.fullView}
+            onClick={() => insights.onFullView(!insights.fullView)} />
+        </span>
+      )}
       <span className="pr-sep" />
       <ToolButton icon="diff2" title={_tbTip("git browser", "desktop.panel.changes")} onClick={onGit} />
       <span className="pr-fill" />

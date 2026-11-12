@@ -31,7 +31,10 @@ const {
 const { routeSubmit: _routeSubmit } = window.OMP_SLASH;
 const { mergeIntoMessage: _mergeBrowserChips, browserCommand: _browserCommand, MIN_WIDTH: _AL_BROWSER_MIN } = window.OMP_BROWSER;
 const { mergeIntoMessage: _mergeFileMarks } = window.OMP_FILE_COMMENTS;
-const { recentRows, groupKey, moveGroup, moveMember, shiftGroup, listedTabs } = window.OMP_PROJECT_NAV;
+const {
+  recentRows, groupKey, moveGroup, moveMember, shiftGroup, listedTabs,
+  FOLDED_TAB_GROUPS_KEY, parseFoldedGroups, serializeFoldedGroups, toggleFoldedGroup, pruneFoldedGroups,
+} = window.OMP_PROJECT_NAV;
 const {
   entryOf, updateEntry, pruneEntries, seedEntries,
   PLAN_IDLE, togglePlan, enterPlan, approvePlan, annotatePlan, markPlanSent,
@@ -85,6 +88,9 @@ function App() {
   // the conversation tree (prompt-cache navigator; design/conversation-tree.jsx,
   // app/use-conversation-tree.jsx) or the browser panel — one at a time.
   const [sides, setSides] = React.useState({});
+  // Work / Insights full view: the panel takes the whole stage. Per side kind,
+  // so closing or switching the panel drops it.
+  const [wideSide, setWideSide] = React.useState(null);
   // Plan mode is per tab (issue #28; app/session-ui.js): one entry per
   // session id, read through `plan` and written through `updatePlan` below.
   const [plans, setPlans] = React.useState({});
@@ -389,7 +395,12 @@ function App() {
     // The user's own stop sends the draft when Settings › Composer says so;
     // a hands-free pause always does, it is the end of their turn.
     return runVoiceAction(dictationActionSeq, setDictationErrors, "Voice to text",
-      b => action === "start" ? b.dictationStart() : b.dictationStop({ send: !!t.dictationSend || (auto && handsFreeArmed) }))
+      b => action === "start"
+        ? b.dictationStart({
+            autoStopMs: window.OMP_LOCAL_STT.localAutoStopMs(t.dictationAutoStop, t.handsFree),
+            sendOnAutoStop: !!t.dictationSend || !!t.handsFree,
+          })
+        : b.dictationStop({ send: !!t.dictationSend || (auto && handsFreeArmed) }))
       .then(ok => { if (!ok && action === "start") setHandsFreeTab(null); return ok; });
   };
   const dictationFailed = !!(dictation?.error || dictationErrors[planKey]);
@@ -406,8 +417,10 @@ function App() {
   // Settings › Composer › Stop after a pause: no new dictated text for that
   // long stops the capture as the user's own stop, so "Send voice to text on
   // stop" applies to it too. Every text change re-arms the timer.
-  const dictationAutoStopMs = window.OMP_LIVE_VOICE.DICTATION.autoStopDelay(dictation,
-    handsFreeArmed ? window.OMP_LIVE_VOICE.HANDS_FREE.pause(t.dictationAutoStop) : t.dictationAutoStop);
+  const dictationAutoStopMs = dictation?.engine === "local"
+    ? null
+    : window.OMP_LIVE_VOICE.DICTATION.autoStopDelay(dictation,
+        handsFreeArmed ? window.OMP_LIVE_VOICE.HANDS_FREE.pause(t.dictationAutoStop) : t.dictationAutoStop);
   React.useEffect(() => {
     if (dictationAutoStopMs == null) return undefined;
     const timer = setTimeout(() => requestDictationAction("stop", { auto: true }), dictationAutoStopMs);
@@ -918,6 +931,27 @@ function App() {
   const showSidebar   = t.sidebar ?? true;
   const toggleSidebar = () => setTweak("sidebar", !showSidebar);
   const showTabStrip  = !!t.tabBar || ttabs.tabs.length > 0 || stab.open;
+  const [foldedTabGroups, setFoldedTabGroups] = React.useState(() => {
+    try { return parseFoldedGroups(localStorage.getItem(FOLDED_TAB_GROUPS_KEY)); }
+    catch { return {}; }
+  });
+  const prevSessionsRef = React.useRef(sessions);
+  React.useEffect(() => {
+    const prev = prevSessionsRef.current;
+    prevSessionsRef.current = sessions;
+    if (prev === sessions) return;
+    setFoldedTabGroups(f => pruneFoldedGroups(f, prev, sessions));
+  }, [sessions]);
+  React.useEffect(() => {
+    try {
+      const raw = serializeFoldedGroups(foldedTabGroups);
+      if (raw === "[]") localStorage.removeItem(FOLDED_TAB_GROUPS_KEY);
+      else localStorage.setItem(FOLDED_TAB_GROUPS_KEY, raw);
+    } catch (_) { /* private mode / quota */ }
+  }, [foldedTabGroups]);
+  const handleToggleFoldTabGroup = React.useCallback(key => {
+    setFoldedTabGroups(f => toggleFoldedGroup(f, key));
+  }, []);
 
   // A recent project: focus its open tab in the active profile, else spawn.
   const handleOpenRecent = async path => {
@@ -1098,7 +1132,9 @@ function App() {
   const workspaceRef = React.useRef(null);
   const browserFull = side === "browser" && browser.fullView;
   const filesFull = side === "files" && files.fullView;
-  const splitShown = showSplit && !browserFull && !filesFull;
+  const panelFull = (side === "work" || side === "insights") && wideSide === side;
+  React.useEffect(() => { if (wideSide && side !== wideSide) setWideSide(null); }, [side, wideSide]);
+  const splitShown = showSplit && !browserFull && !filesFull && !panelFull;
   // Fork: Work and Insights take the conversation tree's column (and width).
   const sideRail = side === "files" ? "files" : side === "tree" || side === "work" || side === "insights" ? "tree" : side !== "browser" && showRail ? "rail" : null;
   const panes = usePaneWidths({
@@ -1153,7 +1189,7 @@ function App() {
         <div className={`window scanlines ${showSplit ? "is-split" : ""}${streaming ? " is-running" : ""}`}>
           <WindowChrome project={activeProject}
             start={<HeaderStart nav={{
-              sidebarOpen: showSidebar, onToggleSidebar: toggleSidebar,
+              sidebarOpen: showSidebar, onToggleSidebar: toggleSidebar, tabStrip: showTabStrip,
               newTab: { project: activeProject.id ? activeProject : null, onChat: newChat, onTerminal: openTerminalTab },
               onHistory: () => setHistoryOpen(true),
             }} />}
@@ -1165,13 +1201,14 @@ function App() {
             profiles={profiles}
             projects={sessions}
             activeId={stab.active || ttabs.active ? null : activeSessionId}
+            foldedGroups={foldedTabGroups}
+            onToggleFold={handleToggleFoldTabGroup}
             onSelect={handleSelectTab}
             onClose={handleCloseTab}
             onRename={handleRenameTab}
             onNewInProject={handleNewInProject}
             onReorder={handleReorder}
             settings={{ open: stab.open, active: stab.active, changed: settingsChanged }}
-            onSelectSettings={() => openSettings()}
             onCloseSettings={closeSettings}
             terminals={{ tabs: ttabs.tabs, active: ttabs.active, onSelect: selectTerminalTab, onClose: closeTerminalTab }}
             newTab={{
@@ -1202,7 +1239,7 @@ function App() {
               />
             )}
             {showSidebar && <ResizeHandle className="at-sidebar" {...panes.handle("sidebar")} />}
-            <div ref={stageRef} style={panes.stageStyle} className={`stage ${side === "browser" ? `with-browser${browserFull ? " browser-full" : ""}` : sideRail ? `with-${sideRail}${filesFull ? " files-full" : ""}` : ""}`}>
+            <div ref={stageRef} style={panes.stageStyle} className={`stage ${side === "browser" ? `with-browser${browserFull ? " browser-full" : ""}` : sideRail ? `with-${sideRail}${filesFull ? " files-full" : ""}${panelFull ? " panel-full" : ""}` : ""}`}>
               <main className="session" onFocusCapture={prAutomation.onConversationFocus}>
                 {noTab ? (
                   <EmptyWorkspace notes={workspaceNotes} screen={t.startScreen} paused={stab.active} />
@@ -1230,6 +1267,8 @@ function App() {
                     followOutput={t.followOutput}
                     submitKey={t.submitKey}
                     onEdit={streaming ? null : handleEditPrompt}
+                    startScreen={t.startScreen}
+                    startPaused={stab.active}
                   />
                   <ChatQuotePopover onAdd={addQuote} submitKey={t.submitKey} />
                   <TerminalPanels sessions={sessions} activeId={planKey} terminal={terminal} />
@@ -1402,8 +1441,8 @@ function App() {
                 fullView: files.fullView, onFullView: files.setFullView,
               }}
               terminal={{ open: _TERM_entryOf(terminal.state, planKey).open, onToggle: () => terminal.toggle(planKey) }}
-              work={{ open: side === "work", onToggle: () => toggleSide("work") }}
-              insights={{ open: side === "insights", onToggle: () => toggleSide("insights") }}
+              work={{ open: side === "work", onToggle: () => toggleSide("work"), fullView: wideSide === "work", onFullView: on => setWideSide(on ? "work" : null) }}
+              insights={{ open: side === "insights", onToggle: () => toggleSide("insights"), fullView: wideSide === "insights", onFullView: on => setWideSide(on ? "insights" : null) }}
               onGit={() => setGitOpen({ path: null })}
             />
           </div>
