@@ -222,17 +222,36 @@
   position: relative; flex: none;
   display: flex; align-items: stretch;
   border-right: 1px solid var(--line-soft);
+  transition: background 120ms, color 120ms;
 }
+.tab-cluster.is-folded { overflow: hidden; }
 .tab-cluster-head {
   appearance: none; border: 0; background: transparent;
-  display: flex; align-items: center; gap: 6px;
-  padding: 0 8px 0 12px;
-  color: var(--fg-4); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 10px 0 12px;
+  color: var(--fg-3); cursor: pointer;
+  transition: color 120ms, background 120ms;
 }
-.tab-cluster-head .tab-name { font-size: var(--d-text-xs); max-width: 120px; }
 .tab-cluster.active .tab-cluster-head { color: var(--fg-2); }
-.tab-cluster-head:hover { color: var(--fg); background: var(--bg-hover); }
-.tab-cluster-head:focus-visible, .tab-cluster-new:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tab-cluster:not(.is-folded) .tab-cluster-head:hover { color: var(--fg); background: var(--bg-hover); }
+.tab-cluster.is-folded.active { color: var(--fg); background: var(--bg-surface); }
+.tab-cluster.is-folded.active .tab-cluster-head { color: var(--fg); }
+.tab-cluster.is-folded:not(.active):hover { background: var(--bg-hover); }
+.tab-cluster.is-folded:hover .tab-cluster-head { color: var(--fg); }
+.tab-cluster.is-folded .tab-count { color: var(--fg-3); background: var(--bg-hover); }
+.tab-cluster.is-folded:not(.active):hover .tab-count { background: var(--bg-active); }
+.tab-cluster.is-folded.active .tab-count { color: var(--fg-2); background: var(--bg-active); }
+.tab-cluster-chev {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--fg-4);
+  transition: color 120ms;
+}
+.tab-cluster-chev svg { transition: transform 120ms var(--ease-out); }
+.tab-cluster-head:hover .tab-cluster-chev { color: var(--fg-2); }
+.tab-cluster-head[aria-expanded="true"] .tab-cluster-chev svg { transform: rotate(180deg); }
+.tab-cluster-head .tab-name { font-size: var(--d-text-xs); max-width: 120px; }
+.tab-cluster-head:focus-visible,
+.tab-cluster-new:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tab-cluster > .tab { min-width: 0; padding: 0 6px 0 10px; gap: 6px; border-right: 0; }
 .tab-cluster > .tab .tab-name { max-width: 160px; }
 /* A hairline between two conversations, shorter than the strip. */
@@ -292,18 +311,13 @@
 .tab-run-dot {
   width: 6px; height: 6px; border-radius: 50%; flex: none;
 }
-.tab-run-dot.running { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 30%, transparent); animation: tab-run-pulse 1.6s ease-in-out infinite; }
-/* The agent yielded, a background job will wake it: a hollow ring, slower. */
-.tab-run-dot.background { box-shadow: inset 0 0 0 1.5px var(--accent); animation: tab-run-pulse 2.6s ease-in-out infinite; }
+.tab-run-dot.running { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 28%, transparent); }
+/* The agent yielded, a background job will wake it: a hollow ring. */
+.tab-run-dot.background { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .tab-run-dot.waiting-user { background: var(--amber); }
 .tab-run-dot.failed { background: var(--rose); }
 /* omp is retrying a failed request: an amber ring that spins. */
 .tab-run-dot.retrying { box-sizing: border-box; border: 1.5px solid var(--amber); border-top-color: transparent; animation: spin 1s linear infinite; }
-@keyframes tab-run-pulse {
-  /* Stepped like every endless loop (styles.css, motion utilities). */
-  0%, 100% { opacity: 1; animation-timing-function: steps(4); }
-  50% { opacity: 0.45; animation-timing-function: steps(4); }
-}
 .tab-close {
   width: 1rem; height: 1rem; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;

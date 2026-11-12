@@ -400,23 +400,15 @@ input, textarea { font: inherit; color: inherit; background: transparent; border
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* ── Common motion utilities ──────────────────────────────────────────── */
-/* The endless decorative loops (shimmer, pulseDot, drift; tab-run-pulse in
-   layout/chrome.css, wdg-attn-* in layout/widgets.css) step through each
-   keyframe interval, whatever timing the rule using them names: a smooth
-   loop makes the compositor draw every display frame (120/s) for as long as
-   it runs. Measured on a release build streaming a recorded session: webview
-   CPU 8.4 s → 2.8 s per 30 s, mostly the GPU process. Transient spinners
-   (spin, page load, update download) stay smooth. */
+/* Endless decorative loops (shimmer; wdg-attn-* in layout/widgets.css)
+   step through each keyframe interval so the compositor stays quiet when
+   idle; status dots are static (no pulse loops). Transient spinners (spin,
+   page load, update download) stay smooth. */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes shimmer {
   /* background-position repaints the text: 12 steps per sweep. */
   0% { background-position: -200% 0; animation-timing-function: steps(12); }
   100% { background-position: 200% 0; }
-}
-/* Opacity only: a size change in four steps read as a stutter. */
-@keyframes pulseDot {
-  0%, 100% { opacity: 1; animation-timing-function: steps(4); }
-  50% { opacity: 0.55; animation-timing-function: steps(4); }
 }
 @keyframes typeBlink {
   0%, 50% { opacity: 1; }
@@ -425,10 +417,6 @@ input, textarea { font: inherit; color: inherit; background: transparent; border
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(8px) scale(0.99); }
   to { opacity: 1; transform: none; }
-}
-@keyframes drift {
-  0%, 100% { transform: translate(0, 0); animation-timing-function: steps(4); }
-  50% { transform: translate(0, -3px); animation-timing-function: steps(4); }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -483,13 +471,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; border
   display: inline-block; width: 6px; height: 6px; border-radius: 50%;
   background: var(--fg-4);
 }
-.dot.live { background: var(--accent); box-shadow: 0 0 0 0 var(--accent-glow); animation: pulseDot 1.4s ease-in-out infinite; }
-/* Loops always on screen, whatever the tab does: they run only while the
-   active tab streams (`.window.is-running`, app-live.jsx). Even a stepped
-   endless loop keeps an idle window compositing every frame (measured: 3.5 s
-   of webview CPU per idle 15 s, 0.08 s without). */
-.window:not(.is-running) :is(.status-cell, .composer-pill) > .dot.live,
-.window:not(.is-running) .radar-cell.on { animation: none; }
+.dot.live { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 25%, transparent); }
 .dot.warn { background: var(--amber); }
 .dot.error { background: var(--rose); }
 

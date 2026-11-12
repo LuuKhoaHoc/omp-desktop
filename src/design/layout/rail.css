@@ -149,13 +149,13 @@
 .pr-ci-dot.is-success { background: var(--diff-add-fg); }
 .pr-ci-dot.is-failure { background: var(--rose); }
 .pr-ci-dot.is-queued { background: none; border: 1px solid var(--fg-3); }
-.pr-ci-dot.is-running { background: var(--amber); animation: pulseDot 1.2s ease-in-out infinite; }
+.pr-ci-dot.is-running { background: var(--amber); }
 .pr-ci-bar { display: flex; gap: 1px; height: 5px; border-radius: 3px; overflow: hidden; background: var(--line); }
 .pr-ci-seg { min-width: 2px; }
 .pr-ci-seg.is-success { background: var(--diff-add-fg); }
 .pr-ci-seg.is-failure { background: var(--rose); }
 .pr-ci-seg.is-neutral { background: var(--fg-4); }
-.pr-ci-seg.is-running { background: var(--amber); animation: tab-run-pulse 1.2s ease-in-out infinite; }
+.pr-ci-seg.is-running { background: var(--amber); }
 .pr-ci-seg.is-queued { background: none; }
 .pr-ci-list { list-style: none; margin: 0; padding: 0; max-height: 168px; overflow-y: auto; overscroll-behavior: contain; }
 .pr-changes .pr-ci-list button { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; padding: 3px 4px; border-radius: 4px; color: var(--fg-2); font-size: var(--d-text-xs) !important; text-align: left; }
@@ -163,7 +163,7 @@
 .pr-ci-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pr-ci-word { flex: none; color: var(--fg-3); }
 @media (prefers-reduced-motion: reduce) {
-  .pr-ci-glyph, .pr-ci-dot, .pr-ci-seg { animation: none !important; }
+  .pr-ci-glyph { animation: none !important; }
 }
 .pr-changes-menu { position: fixed; z-index: 1000; box-sizing: border-box; width: min(250px, calc(100vw - 16px)); padding: 5px; overflow-y: auto; border: 1px solid var(--line-bright); border-radius: 10px; background: var(--bg-elevated); color: var(--fg); box-shadow: var(--shadow-pop); font-size: var(--d-text-sm); }
 .pr-changes-menu > button { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 28px; padding: 5px 7px; border: 0; border-radius: 5px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
@@ -205,7 +205,7 @@
   background: var(--line-soft);
   transition: background 240ms var(--ease-out);
 }
-.radar-cell.on { animation: drift 2.4s var(--ease-out) infinite; box-shadow: 0 0 4px currentColor; }
+.radar-cell.on { opacity: 0.95; }
 .radar-foot {
   display: flex; justify-content: space-between;
   font-size: var(--d-text-xs);
@@ -249,7 +249,7 @@
   opacity: 1 !important;
 }
 .minimap-cell.live {
-  animation: pulseDot 1.8s ease-in-out infinite;
+  outline: 1px solid color-mix(in oklab, var(--accent) 60%, transparent);
 }
 
 .minimap-legend {

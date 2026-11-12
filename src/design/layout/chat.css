@@ -7,6 +7,9 @@
   position: relative;
   display: flex;
 }
+/* Start screen behind a conversation with no message yet. */
+.chat-empty-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.chat-wrap .chat-scroll.is-empty { background: transparent; }
 .chat-scroll {
   flex: 1;
   overflow-y: auto; overflow-x: hidden;
@@ -204,8 +207,7 @@
 .pulse-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--cyan);
-  box-shadow: 0 0 0 0 color-mix(in oklab, var(--cyan) 40%, transparent);
-  animation: pulseDot 1.4s ease-in-out infinite;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--cyan) 25%, transparent);
 }
 
 /* ── Tool card ─────────────────────────────────────────────────────── */

@@ -157,7 +157,7 @@ function TaskAgentRow({ sa, onInspect }) {
           style={{ cursor: hasBody ? "pointer" : "default" }}>
           <span className="dot" style={{
             background: clr, flexShrink: 0,
-            ...(isRunning ? { animation: "pulseDot 1.4s ease-in-out infinite" } : {}),
+            ...(isRunning ? { boxShadow: "0 0 0 2px color-mix(in oklab, var(--accent) 25%, transparent)" } : {}),
           }} />
           <span className="ta-agent">{sa.agent}</span>
           {hint && <span className="ta-hint">· {hint}</span>}
@@ -214,7 +214,7 @@ function ToolCard({ msg, idx, highlighted, onInspectSubagent, onOpenFile, onPrev
           <span className="tool-title selectable">{msg.title}</span>
           <div className="tool-card-spacer" />
           {running ? (
-            <span className="chip accent" style={{ animation: "pulseDot 1.4s infinite" }}>
+            <span className="chip accent">
               <span className="dot live" /> {OMP_TR("running")}
             </span>
           ) : (

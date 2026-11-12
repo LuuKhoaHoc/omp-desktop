@@ -20,7 +20,6 @@
 .wdg-attn.tone-error { --wdg-attn: var(--rose); }
 .rail-card.wdg-attn { animation: wdg-attn-border 1.5s ease-in-out infinite; }
 .wdg-attn > .rail-card-head .wdg-dot { background: var(--wdg-attn); animation: wdg-attn-dot 1.5s ease-in-out infinite; }
-.wdg-attn > .rail-card-head .wdg-dot.pulse-dot { animation: pulseDot 1.4s ease-in-out infinite, wdg-attn-dot 1.5s ease-in-out infinite; }
 /* Stepped like every endless loop (styles.css, motion utilities). */
 @keyframes wdg-attn-border {
   0%, 100% { border-color: color-mix(in oklab, var(--wdg-attn) 25%, var(--line)); animation-timing-function: steps(4); }

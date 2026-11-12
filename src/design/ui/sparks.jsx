@@ -69,10 +69,7 @@ const ActivityRadar = ({ activity, tps }) => {
         {cells.map((c, i) => (
           <div key={i}
             className={`radar-cell ${c ? "on" : ""}`}
-            style={{
-              background: c ? _SP_TOOL_META[c.k]?.color : "transparent",
-              animationDelay: `${i * 30}ms`,
-            }}
+            style={{ background: c ? _SP_TOOL_META[c.k]?.color : "transparent" }}
             title={c ? `t-${60 - i}s · ${c.k}` : ""} />
         ))}
       </div>
