@@ -1157,7 +1157,7 @@ function App() {
               newTab: { project: activeProject.id ? activeProject : null, onChat: newChat, onTerminal: openTerminalTab },
               onHistory: () => setHistoryOpen(true),
             }} />}
-            end={<HeaderEnd onCommands={() => setBridgeOpen(true)} />} />
+            end={<HeaderEnd onCommands={() => openBridge("commands")} />} />
           {/* Tabs live in the sidebar; the strip is opt-in (Settings → Layout)
               and comes back while a terminal tab or Settings is open, the
               tabs the sidebar does not list. */}
@@ -1418,7 +1418,7 @@ function App() {
       <CommandBridge
         open={bridgeOpen}
         initialView={bridgeView}
-        onClose={() => setBridgeOpen(false)}
+        onClose={() => { setBridgeOpen(false); setBridgeView("commands"); }}
         onPick={handleCommand}
         onPickModel={handlePickModel}
         onPickLogin={handlePickLogin}

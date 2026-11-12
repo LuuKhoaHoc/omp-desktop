@@ -408,4 +408,13 @@ check("a skill token omp would not invoke does not count", () => {
   assert.equal(inv("${x} /skill:code-review"), true); // `${` is not the shell sigil
 });
 
+check("new command supports reset and clear aliases", () => {
+  assert.equal(S.slashMenu(S.LOCAL_COMMANDS, "/reset")[0]?.name, "new");
+  assert.equal(S.slashMenu(S.LOCAL_COMMANDS, "/clear")[0]?.name, "new");
+  assert.equal(S.isCommandInvocation(S.LOCAL_COMMANDS, "/reset"), true);
+  assert.equal(S.isCommandInvocation(S.LOCAL_COMMANDS, "/clear"), true);
+  assert.equal(S.matchesQuery(S.LOCAL_COMMANDS.find(c => c.name === "new"), "reset"), true);
+  assert.equal(S.matchesQuery(S.LOCAL_COMMANDS.find(c => c.name === "new"), "clear"), true);
+});
+
 console.log(`\n${passed} checks passed.`);

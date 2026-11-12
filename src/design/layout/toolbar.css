@@ -22,16 +22,38 @@
 /* The bridge: a search field's shape, the way into commands and models. */
 .hd-bridge {
   display: flex; align-items: center; gap: 8px;
-  height: 28px; padding: 0 6px 0 10px; min-width: 220px;
-  border: 1px solid var(--line); border-radius: 8px;
-  background: var(--bg-input); color: var(--fg-4);
-  font: inherit; font-size: var(--d-text-sm); cursor: pointer;
-  transition: border-color var(--motion-fast, 140ms) var(--ease-out), color var(--motion-fast, 140ms) var(--ease-out);
+  height: 28px; padding: 0 8px 0 10px; min-width: 220px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg-surface); color: var(--fg-3);
+  font: inherit; font-size: var(--d-text-xs); cursor: pointer; user-select: none;
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--line) 20%, transparent);
+  transition: color 120ms var(--ease-out), border-color 120ms var(--ease-out), background 120ms var(--ease-out), box-shadow 120ms var(--ease-out);
 }
-.hd-bridge:hover { color: var(--fg-2); border-color: var(--line-bright); }
+.hd-bridge:hover {
+  color: var(--fg);
+  border-color: var(--line-bright);
+  background: var(--bg-hover);
+  box-shadow: 0 2px 4px color-mix(in oklab, var(--line) 30%, transparent);
+}
+.hd-bridge:active { transform: translateY(0.5px); }
 .hd-bridge:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.hd-bridge-label { flex: 1; text-align: left; }
-.hd-bridge .kbd { margin-left: auto; }
+.hd-bridge svg { color: var(--fg-3); flex: none; transition: color 120ms var(--ease-out); }
+.hd-bridge:hover svg { color: var(--fg); }
+.hd-bridge-label { flex: 1; text-align: left; letter-spacing: -0.01em; }
+.hd-bridge .kbd {
+  margin-left: auto;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+  padding: 1px 5px; border-radius: 4px;
+  background: color-mix(in oklab, var(--line) 45%, transparent);
+  border: 1px solid var(--line);
+  color: var(--fg-3);
+  line-height: 1.3;
+}
+.hd-bridge:hover .kbd {
+  color: var(--fg-2);
+  border-color: var(--line-bright);
+  background: color-mix(in oklab, var(--line) 75%, transparent);
+}
 @media (max-width: 900px) {
   .hd-bridge { min-width: 0; }
   .hd-bridge-label { display: none; }

@@ -856,10 +856,13 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
   React.useEffect(() => {
     if (open) {
       setQ("");
-      setView(initialView);
+      setView(initialView || "commands");
       setTimeout(() => inputRef.current?.focus(), 30);
+    } else {
+      setQ("");
+      setView("commands");
     }
-  }, [open]);
+  }, [open, initialView]);
 
   React.useEffect(() => {
     if (!open || view !== "models") return undefined;
@@ -873,13 +876,21 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
   React.useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape" || !open) return;
-      if (view === "models") { if (initialView === "models") onClose(); else { setView("commands"); setQ(""); } }
-      else if (view === "login") { if (initialView === "login") onClose(); else { setView("commands"); setQ(""); } }
-      else onClose();
+      if (view === "models") {
+        if (initialView === "models") { setQ(""); setView("commands"); onClose(); }
+        else { setView("commands"); setQ(""); }
+      } else if (view === "login") {
+        if (initialView === "login") { setQ(""); setView("commands"); onClose(); }
+        else { setView("commands"); setQ(""); }
+      } else {
+        setQ("");
+        setView("commands");
+        onClose();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, view]);
+  }, [open, onClose, view, initialView]);
 
   if (!open) return null;
 
@@ -893,7 +904,7 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
     const modelRow = (m, group) => (
       <button key={`${group}:${window.modelKey(m)}`}
         className={`bridge-row ${m.id === currentModelId ? "active" : ""}`}
-        onClick={() => { onPickModel(m); onClose(); }}>
+        onClick={() => { onPickModel(m); setQ(""); setView("commands"); onClose(); }}>
         <span className="bridge-glyph">
           {m.id === currentModelId
             ? <Icon name="check" size={10} color="var(--accent)" />
@@ -906,7 +917,7 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
       </button>
     );
     return (
-      <div className="bridge-scrim" onClick={onClose}>
+      <div className="bridge-scrim" onClick={() => { setQ(""); setView("commands"); onClose(); }}>
         <div className="bridge slide-in" onClick={(e) => e.stopPropagation()}>
           <div className="bridge-input-row">
             <button className="btn icon ghost" title={OMP_TR("back")}
@@ -957,7 +968,7 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
   // ── Login view ───────────────────────────────────────────────────────────
   if (view === "login") {
     return (
-      <div className="bridge-scrim" onClick={onClose}>
+      <div className="bridge-scrim" onClick={() => { setQ(""); setView("commands"); onClose(); }}>
         <div className="bridge slide-in" onClick={(e) => e.stopPropagation()}>
           <div className="bridge-input-row">
             <button className="btn icon ghost" title={OMP_TR("back")}
@@ -983,7 +994,7 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
               {loginProviders !== null && loginProviders.map((p) => (
                 <button key={p.id}
                   className={`bridge-row ${p.authenticated ? "active" : ""}`}
-                  onClick={() => { if (p.available) { onPickLogin(p); onClose(); } }}>
+                  onClick={() => { if (p.available) { onPickLogin(p); setQ(""); setView("commands"); onClose(); } }}>
                   <span className="bridge-glyph">
                     {p.authenticated
                       ? <Icon name="check" size={10} color="var(--accent)" />
@@ -1018,7 +1029,7 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
   const bridgeHint = hintFor("desktop.commands.open", window.OMP_PLATFORM?.defaultBridgeHint?.() ?? "Ctrl+K");
 
   return (
-    <div className="bridge-scrim" onClick={onClose}>
+    <div className="bridge-scrim" onClick={() => { setQ(""); setView("commands"); onClose(); }}>
       <div className="bridge slide-in" onClick={(e) => e.stopPropagation()}>
         <div className="bridge-input-row">
           <Icon name="command" size={14} color="var(--accent)" />
@@ -1040,8 +1051,8 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
                     onClick={() => {
                       if (isModel) { setQ(""); setView("models"); }
                       else if (isLogin) { setQ(""); setView("login"); }
-                      else if (isDesktop(c)) { onPick(c); onClose(); }
-                      else { onInsertDraft(slashInsertText(c)); onClose(); }
+                      else if (isDesktop(c)) { onPick(c); setQ(""); setView("commands"); onClose(); }
+                      else { onInsertDraft(slashInsertText(c)); setQ(""); setView("commands"); onClose(); }
                     }}>
                     <span className="bridge-glyph">{c.icon}</span>
                     <span className="bridge-cmd-name mono" style={{ color: "var(--accent)" }}>/{c.name}</span>

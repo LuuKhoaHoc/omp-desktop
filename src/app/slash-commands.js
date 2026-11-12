@@ -34,7 +34,7 @@
     { name: "live",      hint: "live voice: start, pause, resume, stop, mute, unmute", icon: "◉", group: "Mode"    },
     { name: "steer",     hint: "interrupt and redirect mid-tool",              icon: "↺", group: "Mode"    },
     { name: "compact",   hint: "compact context window",                       icon: "▤", group: "Session" },
-    { name: "new",       hint: "start a fresh session (history kept on disk)", icon: "↺", group: "Session" },
+    { name: "new",       hint: "start a fresh session (history kept on disk)", icon: "↺", group: "Session", aliases: ["reset", "clear"] },
     { name: "history",   hint: "browse and resume saved sessions",             icon: "◷", group: "Session" },
     { name: "branch",    hint: "re-ask a prompt or fork, from the conversation tree", icon: "⑂", group: "Session" },
     { name: "tree",      hint: "conversation tree with prompt-cache status",   icon: "⑂", group: "Session" },
@@ -50,7 +50,7 @@
     { name: "expand-all",   hint: "expand every tool card and thinking block in this tab",   icon: "▾", group: "View" },
     { name: "check-updates", hint: "check for OMP Desktop updates",            icon: "↑", group: "View"    },
     { name: "terminal",  hint: "show or hide this tab's shell panel",          icon: "▸", group: "View"    },
-  ].map((c) => Object.freeze({ ...c, source: DESKTOP, aliases: [] })));
+  ].map((c) => Object.freeze({ ...c, source: DESKTOP, aliases: c.aliases ?? [] })));
 
   const SOURCE_STYLE = {
     builtin: { group: "Commands", icon: "›" },
