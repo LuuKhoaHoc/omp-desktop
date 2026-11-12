@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Work panel: ticket drawer header adds **Copy issue** (single-line `repo#iid`), **Copy link**, and **Add to chat** buttons to copy clean references or insert a draft into the composer.
+- Command bridge: `/reset` and `/clear` work as aliases for `/new` to start a fresh session.
 - Tabs cut off mid-turn by closing the app (a reply being written, a retry wait, a question left open) pick up where they stopped on the next launch: the tab reopens and omp is asked to continue. Needs "Reopen tabs on launch". Tabs that were idle, or that only had background jobs left, are not touched.
 - Desktop-native local voice to text (Settings → Voice): alongside omp's built-in dictation, choose **Desktop-native (Qwen3-ASR / Whisper Turbo + Silero VAD + Vulkan/CPU)** to run speech-to-text offline directly in the app. Supports Qwen3-ASR 0.6B/1.7B, Whisper large-v3-turbo (with `PhoWhisper` / `vi` language support and custom vocabulary hints), and Silero VAD pause segmentation via a warm persistent worker with GPU/Vulkan auto-detection and CPU fallback.
 - Hands-free conversation (Settings → Composer → Voice): voice to text you start becomes a conversation. A pause ends your turn and sends it, and the microphone opens again when the reply is over: after it has been read aloud when Read replies aloud is on under Voice, straight away when it is off (the panel says which; hands-free never turns reading on). Stopping voice to text yourself, `end` on its panel, an error or another tab ends it. Listening runs on omp's on-device dictation, so it needs no Codex login.
@@ -44,6 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Command bridge: opening from the header search button always resets to the commands view instead of reopening a stale models or login picker.
 - Tab titles: icon characters (private-use Nerd Font glyphs) and control characters in a generated session title are dropped, so a tab and the header no longer show a stray icon or an empty box before the title.
 
 - Auto-title on resumed tabs: a conversation resumed from History or restored at startup now gets a one-shot `/rename` when `sessionName` is still empty (saved titles are left untouched and never refreshed).
@@ -57,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Insights panel: diagram cards start collapsed by default and render lazily on first expand (caching rendered output and pausing hidden-tab polling).
 - Composer: Image and File are one Attach button (the system file dialog; a picked image goes in as a path the agent reads as an image, a pasted one still shows a thumbnail). The key hints (send, newline; steer and abort while a run is going) moved from their own line under the pills into the prompt box beside the buttons.
 - Layout after OpenChamber, Claude Desktop and Codex: one header row (sidebar toggle, new conversation, title, a command field for the bridge) instead of title bar + toolbar + tab strip; panel toggles in a column at the window's right edge (rail cards, conversation tree, subagents, browser, work, insights, git; terminal at the foot); settings, history and usage in the project sidebar's footer; the tab's approval mode and omp profile in the composer beside model / thinking / plan / goal. Tabs are listed in the sidebar; the tab strip is opt-in (Settings → Layout → Tab strip) and comes back while a terminal tab or Settings is open.
 - Settings → Agent → Models: pick the model and thinking level of each omp role (Default, Fast, Thinking, Architect, Subtask, Advisor, …) and of each subagent (scout, reviewer, task, your own agents) from the tab's model list, per profile. Written to omp's `modelRoles` / `task.agentModelOverrides`; ↺ reset clears an entry.
