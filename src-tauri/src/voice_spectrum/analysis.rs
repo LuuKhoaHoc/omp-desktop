@@ -48,15 +48,36 @@ impl Ring {
 
     /// Mixes interleaved `frames` of `channels` samples (any format cpal
     /// reports) down to mono `f32`.
+    #[cfg(test)]
     pub fn push_interleaved<T: Sample>(&mut self, frames: &[T], channels: usize)
     where
         f32: FromSample<T>,
     {
+        self.push_interleaved_to(frames, channels, None);
+    }
+
+    /// Same as [`Self::push_interleaved`], also appending each mono sample to
+    /// `tap` when provided (capped to avoid unbounded growth if a consumer stalls).
+    pub fn push_interleaved_to<T: Sample>(
+        &mut self,
+        frames: &[T],
+        channels: usize,
+        mut tap: Option<&mut Vec<f32>>,
+    ) where
+        f32: FromSample<T>,
+    {
+        const TAP_MAX_SAMPLES: usize = 96_000;
         let channels = channels.max(1);
         #[allow(clippy::cast_precision_loss)] // a channel count, far below 2^23
         let scale = 1.0 / channels as f32;
         for frame in frames.chunks_exact(channels) {
-            self.push(frame.iter().map(|&s| s.to_sample::<f32>()).sum::<f32>() * scale);
+            let mono = frame.iter().map(|&s| s.to_sample::<f32>()).sum::<f32>() * scale;
+            self.push(mono);
+            if let Some(buf) = tap.as_deref_mut() {
+                if buf.len() < TAP_MAX_SAMPLES {
+                    buf.push(mono);
+                }
+            }
         }
     }
 

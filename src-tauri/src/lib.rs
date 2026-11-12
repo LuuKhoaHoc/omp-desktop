@@ -24,6 +24,7 @@ mod git_watcher;
 mod goal_config;
 mod json_store;
 mod keybindings;
+mod local_stt;
 mod model_config;
 mod model_usage;
 mod navigation_guard;
@@ -1163,6 +1164,78 @@ async fn voice_spectrum_stop(
     .await
 }
 
+/// Status snapshot of desktop-native local speech-to-text (`uv` runtime,
+/// downloaded GGUF models, and active settings).
+#[tauri::command]
+async fn local_stt_status(
+    stt: State<'_, Arc<local_stt::LocalSttManager>>,
+) -> Result<local_stt::StatusSnapshot, String> {
+    with_blocking(&stt, |s| Ok(s.status())).await
+}
+
+/// Update `local-stt.json` settings (`engine`, `model`, `backend`, `language`,
+/// `vocabulary`, `contextPrompt`).
+#[tauri::command]
+async fn local_stt_set_config(
+    patch: local_stt::config::ConfigPatch,
+    stt: State<'_, Arc<local_stt::LocalSttManager>>,
+) -> Result<local_stt::StatusSnapshot, String> {
+    with_blocking(&stt, move |s| s.set_config(patch)).await
+}
+
+/// Install the isolated `uv` Python environment (`transcribe-cpp==0.4.1`)
+/// and companion Silero VAD v6.2 GGUF.
+#[tauri::command]
+async fn local_stt_install_runtime(
+    app: AppHandle,
+    stt: State<'_, Arc<local_stt::LocalSttManager>>,
+) -> Result<local_stt::StatusSnapshot, String> {
+    with_blocking(&stt, move |s| s.install_runtime(&app)).await
+}
+
+/// Download and SHA-256-verify a local STT GGUF model (`qwen3-asr-0.6b` or
+/// `whisper-large-v3-turbo`), installing the runtime and VAD if missing.
+#[tauri::command]
+async fn local_stt_install_model(
+    model_id: String,
+    app: AppHandle,
+    stt: State<'_, Arc<local_stt::LocalSttManager>>,
+) -> Result<local_stt::StatusSnapshot, String> {
+    with_blocking(&stt, move |s| s.install_model(&app, &model_id)).await
+}
+
+/// Delete a cached local STT model GGUF from disk.
+#[tauri::command]
+async fn local_stt_delete_model(
+    model_id: String,
+    stt: State<'_, Arc<local_stt::LocalSttManager>>,
+) -> Result<local_stt::StatusSnapshot, String> {
+    with_blocking(&stt, move |s| s.delete_model(&model_id)).await
+}
+
+/// Start a desktop-native local dictation capture using Qwen3-ASR / Whisper
+/// Turbo + Silero VAD.
+#[tauri::command]
+async fn local_stt_start(
+    capture_id: String,
+    auto_stop_ms: Option<u32>,
+    app: AppHandle,
+    stt: State<'_, Arc<local_stt::LocalSttManager>>,
+) -> Result<(), String> {
+    let stt = Arc::clone(&stt);
+    off_ipc(move || stt.start(app, capture_id, auto_stop_ms)).await?
+}
+
+/// Stop or cancel an active desktop-native local dictation capture.
+#[tauri::command]
+async fn local_stt_stop(
+    capture_id: Option<String>,
+    cancel: bool,
+    stt: State<'_, Arc<local_stt::LocalSttManager>>,
+) -> Result<String, String> {
+    with_blocking(&stt, move |s| Ok(s.stop(capture_id.as_deref(), cancel))).await
+}
+
 /// Manual refresh of one card; a malformed id is ignored.
 #[tauri::command]
 fn widgets_refresh(plugin_id: String, host: State<'_, Arc<widgets::WidgetHost>>) {
@@ -1612,6 +1685,9 @@ pub(crate) fn kill_child_processes(app: &AppHandle) {
     if let Some(terminal) = app.try_state::<Arc<terminal::TerminalManager>>() {
         terminal.shutdown_all();
     }
+    if let Some(stt) = app.try_state::<Arc<local_stt::LocalSttManager>>() {
+        stt.shutdown();
+    }
 }
 
 /// "Ask before closing a busy tab" (#37, Settings → Session): whether a
@@ -1782,6 +1858,15 @@ fn setup(app: &tauri::App) {
     app.manage(Arc::new(open_tabs::OpenTabsStore::new(config_file(
         "open-tabs.json",
     ))));
+    // Desktop-native local STT (`local-stt.json` + `<app_cache_dir>/local-stt`).
+    app.manage(Arc::new(local_stt::LocalSttManager::new(
+        config_file("local-stt.json"),
+        app.path()
+            .app_cache_dir()
+            .ok()
+            .map(|dir| dir.join("local-stt")),
+        Arc::clone(&app.state::<Arc<voice_spectrum::VoiceSpectrum>>()),
+    )));
     // Phone remote access: settings in <app_config_dir>/remote.json, devices
     // in remote-devices.json; started once from the saved settings.
     remote::bridge::install(app, resolved_config_dir.clone()); // `config_file` still borrows it
@@ -1956,6 +2041,13 @@ pub fn run() {
             widgets_refresh,
             voice_spectrum_start,
             voice_spectrum_stop,
+            local_stt_status,
+            local_stt_set_config,
+            local_stt_install_runtime,
+            local_stt_install_model,
+            local_stt_delete_model,
+            local_stt_start,
+            local_stt_stop,
             usage_stats,
             goal_continuation_get,
             goal_continuation_set,
