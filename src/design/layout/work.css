@@ -255,7 +255,8 @@
   border-left: 1px solid var(--line); box-shadow: var(--shadow-window); z-index: 5;
 }
 .wp-drawer:focus { outline: none; }
-.wp-drawer-head { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--line-soft); }
+.wp-drawer-head { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--line-soft); }
+.wp-add-chat { height: 26px; padding: 0 8px; gap: 5px; font-size: var(--d-text-xs); white-space: nowrap; }
 .wp-state { font-size: var(--d-text-xs); padding: 2px 8px; border-radius: 99px; background: color-mix(in oklab, var(--lime) 14%, transparent); color: var(--lime); }
 .wp-state.closed { background: var(--bg-hover); color: var(--fg-3); }
 .wp-drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }

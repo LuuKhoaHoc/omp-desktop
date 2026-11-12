@@ -309,7 +309,29 @@
     };
   }
 
-  const api = { PLATFORMS, OPEN, CLOSED, transports, validate, members, client, boardColumns, columnFor, moveEdit, parseJson, parseDiscussions };
+  /** Clean single-line issue reference, e.g. "phan-quyen-xac-thuc#31".
+   *  Uses the tail segment of `raw.references.full` when available so even
+   *  single-project tickets include their repo slug, falling back to `key`. */
+  function formatIssueRef(ticket) {
+    if (!ticket) return "";
+    const full = String(ticket.raw?.references?.full ?? "").trim();
+    if (full) return full.split("/").filter(Boolean).pop() || full;
+    const key = String(ticket.key ?? "").trim();
+    if (key) return key;
+    return ticket.id != null ? `#${ticket.id}` : "";
+  }
+
+  /** Draft text inserted into the chat composer by "Add to chat". */
+  function formatIssueChatDraft(ticket) {
+    if (!ticket) return "";
+    const ref = formatIssueRef(ticket);
+    const title = String(ticket.title ?? "").trim();
+    const url = String(ticket.url ?? "").trim();
+    const head = title ? `${ref}: ${title}` : ref;
+    return url ? `${head}\n${url}` : head;
+  }
+
+  const api = { PLATFORMS, OPEN, CLOSED, transports, validate, members, client, boardColumns, columnFor, moveEdit, parseJson, parseDiscussions, formatIssueRef, formatIssueChatDraft };
   if (typeof window !== "undefined") window.OMP_WORK = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

@@ -55,7 +55,7 @@ function _wpAgo(iso) {
 }
 
 // ── Ticket drawer ─────────────────────────────────────────────────────────
-function _WP_Drawer({ ticket, client, columns, onClose, onSaved }) {
+function _WP_Drawer({ ticket, client, columns, onAddToChat, onClose, onSaved }) {
   const [title, setTitle] = React.useState(ticket.title);
   const [body, setBody] = React.useState(ticket.body);
   const [labels, setLabels] = React.useState(ticket.labels.join(", "));
@@ -66,7 +66,8 @@ function _WP_Drawer({ ticket, client, columns, onClose, onSaved }) {
   const [note, setNote] = React.useState(null);
   const [threads, setThreads] = React.useState(null);
   const [notesErr, setNotesErr] = React.useState(null);
-  React.useEffect(() => { setTitle(ticket.title); setBody(ticket.body); setLabels(ticket.labels.join(", ")); setErr(null); }, [ticket.id, ticket.updatedAt]);
+  const [copied, setCopied] = React.useState(null);
+  React.useEffect(() => { setTitle(ticket.title); setBody(ticket.body); setLabels(ticket.labels.join(", ")); setErr(null); setCopied(null); }, [ticket.id, ticket.updatedAt]);
   const loadNotes = React.useCallback(() => {
     if (!client.hasNotes) return;
     client.notes(ticket).then(t => { setThreads(t); setNotesErr(null); }, e => setNotesErr(String(e?.message ?? e)));
@@ -106,6 +107,20 @@ function _WP_Drawer({ ticket, client, columns, onClose, onSaved }) {
     return () => ro.disconnect();
   }, [title, ticket.id]);
   React.useEffect(() => { if (!note) return; const id = setTimeout(() => setNote(null), 2400); return () => clearTimeout(id); }, [note]);
+  React.useEffect(() => { if (!copied) return; const id = setTimeout(() => setCopied(null), 1800); return () => clearTimeout(id); }, [copied]);
+  const issueRef = window.OMP_WORK?.formatIssueRef?.(ticket) || ticket.key;
+  const copyText = (kind, text) => {
+    if (!text) return;
+    const p = navigator.clipboard?.writeText?.(text);
+    if (p && typeof p.then === "function") {
+      p.then(() => setCopied(kind), () => {});
+    }
+  };
+  const addToChat = () => {
+    const draft = window.OMP_WORK?.formatIssueChatDraft?.(ticket) || issueRef;
+    if (onAddToChat) { onAddToChat(draft); setCopied("chat"); }
+    else copyText("chat", draft);
+  };
   return (
     <aside ref={panelRef} tabIndex={-1} role="dialog" className="wp-drawer" aria-label={OMP_TR("ticket {key}", { key: ticket.key })}
       onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); if (dirty) save(); } }}>
@@ -113,6 +128,28 @@ function _WP_Drawer({ ticket, client, columns, onClose, onSaved }) {
         <Key k={ticket.key} full={ticket.raw?.references?.full} />
         <span className={`wp-state ${ticket.state}`}>{ticket.stateName || ticket.state}</span>
         <span style={{ flex: 1 }} />
+        <button type="button" className="btn icon ghost"
+          title={copied === "ref" ? OMP_TR("Copied") : OMP_TR("Copy issue: {ref}", { ref: issueRef })}
+          aria-label={OMP_TR("Copy issue")}
+          onClick={() => copyText("ref", issueRef)}>
+          <_WP_Icon name={copied === "ref" ? "check" : "copy"} size={13} color={copied === "ref" ? "var(--accent)" : undefined} />
+        </button>
+        {ticket.url && (
+          <button type="button" className="btn icon ghost"
+            title={copied === "link" ? OMP_TR("Copied") : OMP_TR("Copy link")}
+            aria-label={OMP_TR("Copy link")}
+            onClick={() => copyText("link", ticket.url)}>
+            <_WP_Icon name={copied === "link" ? "check" : "link"} size={13} color={copied === "link" ? "var(--accent)" : undefined} />
+          </button>
+        )}
+        {onAddToChat && (
+          <button type="button" className="btn ghost small wp-add-chat"
+            title={OMP_TR("Add issue to chat composer")}
+            onClick={addToChat}>
+            <_WP_Icon name={copied === "chat" ? "check" : "conversation"} size={12} color={copied === "chat" ? "var(--accent)" : undefined} />
+            <span>{copied === "chat" ? OMP_TR("Added") : OMP_TR("Add to chat")}</span>
+          </button>
+        )}
         {ticket.url && <button type="button" className="btn icon ghost" title={OMP_TR("open in browser")} aria-label={OMP_TR("open in browser")} onClick={() => window.OMP_BRIDGE?.openExternalUrl?.(ticket.url) ?? window.__TAURI__?.core?.invoke("open_url_external", { url: ticket.url })}><_WP_Icon name="external" size={13} /></button>}
         <button type="button" className="btn icon ghost" title={OMP_TR("close (Esc)")} aria-label={OMP_TR("close")} onClick={onClose}><_WP_Icon name="close" size={13} /></button>
       </div>
@@ -279,7 +316,7 @@ function _WP_List({ tickets, activeId, onOpen }) {
 const _wpNewView = connId => ({ id: `v${Date.now().toString(36)}`, connId, name: "", kind: "issues", project: "", scope: "project",
   who: "all", members: "", columns: "", team: "", branch: "" });
 
-function WorkPanel() {
+function WorkPanel({ onAddToChat } = {}) {
   const W = window.OMP_WORK, V = window.OMP_WORK_VIEWS, R = window.OMP_WORK_REVIEW;
   const { _WP_ConnectionForm: ConnForm, _WP_ViewForm: ViewForm, _WP_ViewMenu: ViewMenu,
     _WP_AssigneeFilter: AssigneeFilter, _WP_LabelFilter: LabelFilter,
@@ -436,7 +473,7 @@ function WorkPanel() {
         )}
       </div>
       {open && <div className="wp-drawer-scrim" onClick={() => setOpen(null)} aria-hidden="true" />}
-      {open && kind === "issues" && <_WP_Drawer ticket={open} client={client} columns={columns} onClose={() => setOpen(null)} onSaved={replace} />}
+      {open && kind === "issues" && <_WP_Drawer ticket={open} client={client} columns={columns} onAddToChat={onAddToChat} onClose={() => setOpen(null)} onSaved={replace} />}
       {open && kind === "mrs" && <MrDrawer mr={open} client={client} onClose={() => setOpen(null)} onChanged={replace} />}
       {open && kind === "pipelines" && <PipeDrawer pipe={open} client={client} onClose={() => setOpen(null)} onChanged={replace} />}
     </div>

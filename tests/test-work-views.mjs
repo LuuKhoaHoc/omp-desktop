@@ -145,4 +145,13 @@ await check("choices: a group's unreadable member list falls back to people on i
   await assert.rejects(V.loadChoices("labels", g, async () => { throw new Error("boom"); }), /boom/);
 });
 
+await check("formatIssueRef and formatIssueChatDraft build single-line refs and chat snippets", () => {
+  const t = { id: "1:31", key: "#31", title: "Auth roles", url: "https://git.example.com/erp/phan-quyen-xac-thuc/-/issues/31", raw: { references: { full: "erp/phan-quyen-xac-thuc#31" } } };
+  assert.equal(W.formatIssueRef(t), "phan-quyen-xac-thuc#31");
+  assert.equal(W.formatIssueChatDraft(t), "phan-quyen-xac-thuc#31: Auth roles\nhttps://git.example.com/erp/phan-quyen-xac-thuc/-/issues/31");
+  assert.equal(W.formatIssueRef({ id: "9", key: "repo#9" }), "repo#9");
+  assert.equal(W.formatIssueRef({ id: "9" }), "#9");
+  assert.equal(W.formatIssueChatDraft(null), "");
+});
+
 console.log(`test-work-views: ${passed} checks passed`);

@@ -1325,7 +1325,7 @@ function App() {
                 {side === "browser" && <BrowserDock ui={browser} stageRef={stageRef} room={panes.browserRoom} />}
               </div>
               {side === "browser" ? null : side === "work" ? (
-                <WorkPanel />
+                <WorkPanel onAddToChat={handleInsertDraft} />
               ) : side === "insights" ? (
                 <InsightsPanel projectPath={activeProject.path ?? null} onAsk={handleInsertDraft} />
               ) : side === "files" ? (

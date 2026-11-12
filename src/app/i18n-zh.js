@@ -1462,4 +1462,9 @@ window.OMP_I18N.add("zh", {
   "Pipelines need one project: GitLab lists them per project.": "流水线需要指定单个项目：GitLab 按项目列出流水线。",
   "List the team's usernames.": "请列出团队成员的用户名。",
   "Usernames are letters, digits, '.', '_' or '-'.": "用户名只能包含字母、数字、'.'、'_' 或 '-'。",
+  "Copy issue: {ref}": "复制议题：{ref}",
+  "Copy issue": "复制议题",
+  "Add issue to chat composer": "添加到聊天输入框",
+  "Added": "已添加",
+  "Add to chat": "添加到聊天",
 });
