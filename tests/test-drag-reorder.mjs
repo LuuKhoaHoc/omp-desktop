@@ -58,32 +58,27 @@ check("an item missing from the list never gets a slot", () => {
   assert.equal(D.dropSlot([], "a", 10), null);
 });
 
-// Two wrapped rows of two chips each:
-// row 0 (y 0..24):   a [0,100)   b [110,210)
-// row 1 (y 30..54):  c [0,100)   d [110,210)
-const wrapped = [
-  { id: "a", left: 0, right: 100, top: 0, bottom: 24 },
-  { id: "b", left: 110, right: 210, top: 0, bottom: 24 },
-  { id: "c", left: 0, right: 100, top: 30, bottom: 54 },
-  { id: "d", left: 110, right: 210, top: 30, bottom: 54 },
-];
-
-check("dropSlotWrap picks the row under y, not row 0's x overlap", () => {
-  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 20, 42), { targetId: "c", after: false });
-  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 180, 42), { targetId: "d", after: true });
-  assert.deepEqual(D.dropSlotWrap(wrapped, "d", 20, 12), { targetId: "a", after: false });
+check("edgeScroll holds still in the middle and speeds up towards an edge", () => {
+  // A scroller spanning 100..500: 48px zones at both ends.
+  assert.equal(D.edgeScroll(300, 100, 500), 0);
+  assert.equal(D.edgeScroll(148, 100, 500), 0);
+  assert.equal(D.edgeScroll(452, 100, 500), 0);
+  assert.ok(D.edgeScroll(140, 100, 500) < 0 && D.edgeScroll(460, 100, 500) > 0);
+  assert.ok(D.edgeScroll(110, 100, 500) < D.edgeScroll(140, 100, 500), "nearer the start edge scrolls back faster");
+  assert.equal(D.edgeScroll(460, 100, 500), -D.edgeScroll(140, 100, 500));
 });
 
-check("dropSlotWrap stays on the pointer's row at row end vs next row start", () => {
-  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 190, 12), { targetId: "b", after: true });
-  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 20, 42), { targetId: "c", after: false });
+check("edgeScroll is capped at and past the edge", () => {
+  assert.equal(D.edgeScroll(100, 100, 500), -D.EDGE_SCROLL_MAX_PX);
+  assert.equal(D.edgeScroll(-40, 100, 500), -D.EDGE_SCROLL_MAX_PX);
+  assert.equal(D.edgeScroll(900, 100, 500), D.EDGE_SCROLL_MAX_PX);
 });
 
-check("dropSlotWrap skips adjacent no-ops across row boundaries and handles outside y", () => {
-  assert.equal(D.dropSlotWrap(wrapped, "b", 20, 42), null);
-  assert.equal(D.dropSlotWrap(wrapped, "c", 190, 12), null);
-  assert.deepEqual(D.dropSlotWrap(wrapped, "d", 20, -20), { targetId: "a", after: false });
-  assert.deepEqual(D.dropSlotWrap(wrapped, "a", 190, 100), { targetId: "d", after: true });
+check("edgeScroll leaves the middle of a small scroller alone", () => {
+  // 60px tall: the zones shrink to a third each instead of meeting.
+  assert.equal(D.edgeScroll(30, 0, 60), 0);
+  assert.ok(D.edgeScroll(5, 0, 60) < 0 && D.edgeScroll(55, 0, 60) > 0);
+  assert.equal(D.edgeScroll(10, 20, 20), 0);
 });
 
 check("reorderList moves items before/after target and rejects unknown ids", () => {
@@ -91,6 +86,17 @@ check("reorderList moves items before/after target and rejects unknown ids", () 
   assert.deepEqual(D.reorderList(["a", "b", "c", "d"], "d", "b", false), ["a", "d", "b", "c"]);
   assert.equal(D.reorderList(["a", "b"], "missing", "a", false), null);
   assert.equal(D.reorderList(["a", "b"], "a", "missing", false), null);
+});
+
+check("shiftList moves an item one place and refuses to leave the list", () => {
+  assert.deepEqual(D.shiftList(["a", "b", "c"], "b", -1), ["b", "a", "c"]);
+  assert.deepEqual(D.shiftList(["a", "b", "c"], "b", 1), ["a", "c", "b"]);
+  assert.equal(D.shiftList(["a", "b", "c"], "a", -1), null);
+  assert.equal(D.shiftList(["a", "b", "c"], "c", 1), null);
+  assert.equal(D.shiftList(["a", "b"], "missing", 1), null);
+  const values = ["a", "b"];
+  D.shiftList(values, "a", 1);
+  assert.deepEqual(values, ["a", "b"], "the input list is not changed");
 });
 
 console.log(`drag-reorder: ${passed} checks passed`);

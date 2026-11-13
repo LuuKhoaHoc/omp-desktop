@@ -14,9 +14,10 @@
 
    Issue layouts: list (dense rows) and board (columns = open / label columns /
    closed, or Linear's workflow states). A card moves by drag and drop or
-   from the keyboard (focus a card, Alt+←/→). The drawer edits title, body
-   (markdown with preview), labels and state, and comments; a save checks
-   the ticket did not change on the server first.
+   from the keyboard (focus a card, Alt+←/→); a label column moves the same
+   two ways from its header, and the view keeps the new order. The drawer
+   edits title, body (markdown with preview), labels and state, and
+   comments; a save checks the ticket did not change on the server first.
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon: _WP_Icon, MarkdownContent: _WP_Markdown } = window;
@@ -213,19 +214,6 @@ function _wpPriorityLabel(label) {
   const s = String(label ?? "").replace(/^priority\s*(?:::|:|-|\/)\s*/i, "").trim() || String(label ?? "");
   return s === s.toUpperCase() && s.length > 3 ? s[0] + s.slice(1).toLowerCase() : s;
 }
-function _wpColMeta(col) {
-  const raw = String(col ?? "");
-  const cleaned = raw.replace(/^(?:status\s*(?:-|::|:|\/)\s*)/i, "").trim() || raw;
-  const label = cleaned === cleaned.toUpperCase() && cleaned.length > 3
-    ? cleaned.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
-    : cleaned;
-  const low = raw.toLowerCase();
-  const tone = /block|reject|fail|hold|stuck/.test(low) ? "blocked"
-    : /done|close|resolv|merg|complete|ship/.test(low) ? "done"
-    : /assign|progress|doing|active|review|test|qa|wip/.test(low) ? "active"
-    : "idle";
-  return { label, tone };
-}
 function _wpSplitLabels(labels, columns) {
   const visible = labels.filter(l => !columns.includes(l));
   const pri = visible.find(l => _WP_PRI_RE.test(l.trim())) ?? null;
@@ -267,24 +255,56 @@ function _WP_Card({ t, active, onOpen, onMove, columns }) {
   );
 }
 
-function _WP_Board({ tickets, columns, activeId, onOpen, onMove }) {
+function _WP_Board({ tickets, columns, activeId, onOpen, onMove, onReorder }) {
+  const W = window.OMP_WORK, D = window.OMP_DRAG_REORDER, colMeta = window.OMP_WORK_VIEWS.columnMeta;
   const [over, setOver] = React.useState(null);
+  // Label columns trade places among themselves; Open and Closed keep the ends.
+  const labelCols = onReorder ? columns.filter(c => c !== W.OPEN && c !== W.CLOSED) : [];
+  const canMove = labelCols.length > 1;
+  const reorder = window.useDragReorder((_list, src, target, after) => {
+    const next = D.reorderList(labelCols, src, target, after);
+    if (next) onReorder(next);
+  });
+  const boardRef = React.useRef(null);
+  // The column a key press moved: its header takes the focus back once the
+  // board is drawn in the new order.
+  const refocus = React.useRef(null);
+  React.useLayoutEffect(() => {
+    const col = refocus.current;
+    if (col === null) return;
+    refocus.current = null;
+    [...boardRef.current.querySelectorAll(".wp-col")].find(el => el.dataset.reorderId === col)?.querySelector(".wp-col-head")?.focus();
+  });
+  const nudge = (e, col) => {
+    if (!e.altKey || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+    e.preventDefault();
+    const next = D.shiftList(labelCols, col, e.key === "ArrowLeft" ? -1 : 1);
+    if (!next) return;
+    refocus.current = col;
+    onReorder(next);
+  };
   return (
-    <div className="wp-board">
+    <div className="wp-board" ref={boardRef} data-reorder-scroll="" onPointerDown={canMove ? reorder.onPointerDown : undefined}>
       {columns.map(col => {
         const items = tickets.filter(t => t.column === col);
-        const meta = _wpColMeta(col);
+        const meta = colMeta(col);
+        const movable = canMove && labelCols.includes(col);
         return (
-          <section key={col} className={`wp-col${over === col ? " over" : ""}`} aria-label={col}
+          <section key={col} className={`wp-col${over === col ? " over" : ""}${movable ? reorder.dropClass("cols", col) : ""}`} aria-label={col}
+            {...(movable ? reorder.itemProps("cols", col, "x") : {})}
             onDragOver={e => { e.preventDefault(); if (over !== col) setOver(col); }}
             onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(o => (o === col ? null : o)); }}
             onDrop={e => { e.preventDefault(); setOver(null); const t = tickets.find(x => x.id === e.dataTransfer.getData("text/omp-ticket")); if (t && t.column !== col) onMove(t, col); }}>
-            <header className="wp-col-head" title={col}>
+            <header className={`wp-col-head${movable ? " movable" : ""}`}
+              {...(movable ? {
+                tabIndex: 0, "aria-keyshortcuts": "Alt+ArrowLeft Alt+ArrowRight", onKeyDown: e => nudge(e, col),
+                title: OMP_TR("{name}: drag, or press Alt+← / Alt+→, to move the column", { name: col }),
+              } : { title: col })}>
               <span className={`wp-col-dot ${meta.tone}`} aria-hidden="true" />
               <span className="wp-col-name">{meta.label}</span>
               <span className="wp-col-count">{items.length}</span>
             </header>
-            <div className="wp-col-body">
+            <div className="wp-col-body" data-no-reorder="">
               {items.map(t => <_WP_Card key={t.id} t={t} active={t.id === activeId} onOpen={onOpen} onMove={onMove} columns={columns} />)}
               {items.length === 0 && <div className="wp-col-empty">{over === col ? OMP_TR("Release to move here") : OMP_TR("No tickets")}</div>}
             </div>
@@ -304,7 +324,7 @@ function _WP_List({ tickets, activeId, onOpen }) {
           <span className={`wp-dot ${t.state}`} aria-label={t.state} />
           <Key k={t.key} full={t.raw?.references?.full} />
           <span className="wp-row-title">{t.title}</span>
-          <span className="wp-row-col" title={t.column}>{_wpColMeta(t.column).label}</span>
+          <span className="wp-row-col" title={t.column}>{window.OMP_WORK_VIEWS.columnMeta(t.column).label}</span>
           <span className="wp-row-ago mono">{_wpAgo(t.updatedAt)}</span>
         </button>
       ))}
@@ -344,7 +364,15 @@ function WorkPanel({ onAddToChat } = {}) {
     try { const list = await client.list(); setItems(list); setColumns(kind === "issues" ? client.columns() : []); setState({ loading: false, error: null }); }
     catch (e) { setState({ loading: false, error: String(e?.message ?? e) }); }
   }, [client]); // eslint-disable-line
-  React.useEffect(() => { setItems([]); setOpen(null); setWhoFilter(""); setLabelFilter(""); refresh(); }, [refresh]);
+  // `view.columns` as a column drag on the board just wrote it: the tickets
+  // are already here, so that one change of view is not a reason to refetch.
+  const reseated = React.useRef(null);
+  React.useEffect(() => {
+    const columnsOnly = reseated.current !== null && reseated.current === view?.columns;
+    reseated.current = null;
+    if (columnsOnly) return;
+    setItems([]); setOpen(null); setWhoFilter(""); setLabelFilter(""); refresh();
+  }, [refresh]); // eslint-disable-line
   React.useEffect(() => { localStorage.setItem(_WP_LAYOUT, layout); }, [layout]);
 
   const persist = next => { setStore(next); _wpSaveAll(next); };
@@ -362,6 +390,18 @@ function WorkPanel({ onAddToChat } = {}) {
     setItems(list => list.map(x => (x.id === t.id ? { ...x, column: col } : x))); // optimistic
     try { replace(await client.move(t, col)); }
     catch (e) { replace(prev); setState(s => ({ ...s, error: OMP_TR("Move failed: {err}", { err: String(e?.message ?? e) }) })); }
+  };
+  // The view keeps the board's new column order, and each ticket takes its
+  // seat again: one carrying two column labels sits in the first of them.
+  const reorderColumns = labels => {
+    const next = { ...view, columns: labels.join(", ") };
+    const t = V.resolve(next, conns);
+    const seat = x => ({ ...x, column: W.columnFor(t, x.state, x.labels) });
+    reseated.current = next.columns;
+    persist({ conns, views: upsert(views, next) });
+    setColumns(W.boardColumns(t));
+    setItems(list => list.map(seat));
+    setOpen(o => o && seat(o));
   };
   if (editing || !target) {
     const ev = editing?.view, ec = editing?.conn;
@@ -452,7 +492,8 @@ function WorkPanel({ onAddToChat } = {}) {
       <div className="wp-scroll">
         {kind === "mrs" ? <MrList items={shown} activeId={open?.id} onOpen={setOpen} />
           : kind === "pipelines" ? <PipeList items={shown} activeId={open?.id} onOpen={setOpen} />
-          : layout === "board" ? <_WP_Board tickets={shown} columns={boardCols} activeId={open?.id} onOpen={setOpen} onMove={move} />
+          : layout === "board" ? <_WP_Board tickets={shown} columns={boardCols} activeId={open?.id} onOpen={setOpen} onMove={move}
+            onReorder={target.platform !== "linear" && !state.loading ? reorderColumns : null} />
           : <_WP_List tickets={shown} activeId={open?.id} onOpen={setOpen} />}
         {!state.loading && !state.error && items.length === 0 && (
           <div className="wp-empty-line pad">

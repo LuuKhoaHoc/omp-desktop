@@ -52,9 +52,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - File button in the composer, beside Image: pick any files with the system's file dialog (it opens in the tab's project folder) and their paths go into the prompt at the cursor as `@path` mentions, the same as dropping them; omp reads them when you send. Image still attaches pasted-style thumbnails.
 - Subagent manager: each agent's row shows the model it runs on (full id in the tooltip; the rail card's rows carry it in theirs). Before, only the inspector did.
 - Close button on the composer's voice to text and live voice error lines; a panel that only showed the error goes away with it.
+- Work panel board: drag a label column by its header, or focus the header and press Alt+← / Alt+→, to change the column order without opening Edit view. The view saves the order; Open and Closed stay at the ends, and the board scrolls when the drag reaches its edge.
+- Work panel, Edit view: a button adds every remaining label of a picked column's scope at once (for example all `STATUS - …` labels).
 
 ### Fixed
 
+- Drag to reorder on Linux (Work panel board columns, tabs, sidebar rows): the drag no longer selects text and then dies as a text drag. The Linux webview only understands `-webkit-user-select`, which the reorder styles lacked.
 - Settings tab: clicking it in the tab strip shows Settings again after a chat tab was picked. The click did nothing, so the only way back was the sidebar's Settings button or the shortcut.
 - Command bridge: opening from the header search button always resets to the commands view instead of reopening a stale models or login picker.
 - The header no longer shows a second new-tab (+) button while the tab strip, which has its own, is visible.
@@ -72,6 +75,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Browser annotations: the comment popover opens as soon as an element or area is picked instead of after its screenshot was taken and decoded (the capture alone measured 25–150 ms). The screenshot is taken meanwhile; a comment saved before it is ready becomes a chip once it is.
+- Work panel, Edit view: board columns are a list in board order between the fixed Open and Closed rows instead of wrapped chips. Each row shows the name the board will use beside the label, and moves by drag, its ↑ ↓ buttons or Alt+↑ / Alt+↓; Delete removes it. The label list opens as soon as the add field has the focus.
 - Insights panel: diagram cards start collapsed by default and render lazily on first expand (caching rendered output and pausing hidden-tab polling).
 - Reduced continuous GPU/compositor repaints by replacing infinite dot-pulse and radar-cell drift CSS loops (`.dot.live`, `.pulse-dot`, `.tab-run-dot`, running tool/subagent marks, minimap live highlight, PR check dots/bars, and activity radar cells) with static status dots.
 

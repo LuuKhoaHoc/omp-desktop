@@ -154,4 +154,34 @@ await check("formatIssueRef and formatIssueChatDraft build single-line refs and 
   assert.equal(W.formatIssueChatDraft(null), "");
 });
 
+await check("columnMeta names a column as the board does and picks its tone", () => {
+  assert.deepEqual(V.columnMeta("STATUS - ON HOLD"), { label: "On Hold", tone: "blocked" });
+  assert.deepEqual(V.columnMeta("status::doing"), { label: "doing", tone: "active" });
+  assert.deepEqual(V.columnMeta("Closed"), { label: "Closed", tone: "done" });
+  assert.deepEqual(V.columnMeta("backlog"), { label: "backlog", tone: "idle" });
+  assert.deepEqual(V.columnMeta("QA"), { label: "QA", tone: "active" }, "a short all-caps name stays as written");
+});
+
+await check("columnSuggestion offers the rest of the scope a picked column belongs to", () => {
+  const labels = ["bug", "STATUS - DOING", "STATUS - ON HOLD", "STATUS - REVIEW", "type::feature", "front-end"].map(value => ({ value }));
+  assert.deepEqual(V.columnSuggestion(labels, ["STATUS - DOING"]), { scope: "STATUS", labels: ["STATUS - ON HOLD", "STATUS - REVIEW"] });
+  assert.equal(V.columnSuggestion(labels, ["STATUS - DOING", "STATUS - ON HOLD", "STATUS - REVIEW"]), null, "nothing left to add");
+  assert.equal(V.columnSuggestion(labels, ["type::feature"]), null, "the only label of its scope is already picked");
+  // A plain first column does not hide the scope of a later one.
+  assert.deepEqual(V.columnSuggestion(labels, ["bug", "STATUS - REVIEW"])?.labels, ["STATUS - DOING", "STATUS - ON HOLD"]);
+});
+
+await check("columnSuggestion with no scoped column picked needs a workflow scope with two labels", () => {
+  const flow = ["bug", "workflow::ready", "workflow::doing", "type::a", "type::b"].map(value => ({ value }));
+  assert.deepEqual(V.columnSuggestion(flow, []), { scope: "workflow", labels: ["workflow::ready", "workflow::doing"] });
+  assert.deepEqual(V.columnSuggestion(flow, ["bug"])?.scope, "workflow");
+  assert.equal(V.columnSuggestion(["type::a", "type::b", "front-end", "status::only"].map(value => ({ value })), []), null);
+  assert.equal(V.columnSuggestion([], []), null);
+});
+
+await check("columnsOf reads the stored column string the board and the form share", () => {
+  assert.deepEqual(W.columnsOf({ columns: " doing , review,, done " }), ["doing", "review", "done"]);
+  assert.deepEqual(W.columnsOf({}), []);
+});
+
 console.log(`test-work-views: ${passed} checks passed`);

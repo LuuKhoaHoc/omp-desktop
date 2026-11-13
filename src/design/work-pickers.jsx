@@ -5,7 +5,9 @@
    free text stays allowed for anything the list does not hold.
 
    _WPF_Combo: one value (project/group/repo/team, branch).
-   _WPF_Multi: an ordered set (team usernames, board columns) as chips.
+   _WPF_Multi: a set (team usernames) as chips.
+   _WPF_Columns: the board's label columns, an ordered list between the
+   fixed Open and Closed rows; a row moves by drag, its buttons or Alt+↑/↓.
    _wpfUseChoices: the choices of one kind for the form's current view,
    loaded after a short pause and cached per connection, scope and place.
    ═════════════════════════════════════════════════════════════════════ */
@@ -86,7 +88,9 @@ function _WPF_Combo({ value, onChange, choices, placeholder, mono, hint }) {
   );
 }
 
-function _WPF_Multi({ values, onChange, choices, placeholder, hint, ordered }) {
+/** Typing into a picker that adds to `values`: the query, the open list of
+ *  choices not picked yet, and the keys (Enter or a comma adds free text). */
+function _wpfUseAdder(values, onChange, choices) {
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState(0);
   const [q, setQ] = React.useState("");
@@ -95,39 +99,135 @@ function _WPF_Multi({ values, onChange, choices, placeholder, hint, ordered }) {
   window.useActiveRowIntoView(listRef, active, open);
   const add = v => { if (v && !values.includes(v)) onChange([...values, v]); setQ(""); setActive(0); };
   const enter = Object.assign(add, { free: () => q.trim() && add(q.trim()) });
+  const onKeyDown = e => {
+    if (e.key === ",") { e.preventDefault(); enter.free(); return; }
+    _wpfKeys(e, { open, setOpen, items, active, setActive, onEnter: enter });
+  };
+  const input = {
+    value: q, role: "combobox", "aria-expanded": open, onKeyDown,
+    onChange: e => { setQ(e.target.value); setOpen(true); setActive(0); },
+  };
+  const list = open && items.length > 0 && <_WPF_Options items={items} active={active} onPick={add} listRef={listRef} />;
+  return { q, setOpen, input, list };
+}
+
+function _WPF_Multi({ values, onChange, choices, placeholder, hint }) {
+  const adder = _wpfUseAdder(values, onChange, choices);
   const drop = v => onChange(values.filter(x => x !== v));
-  const shift = (i, d) => { const n = [...values]; [n[i], n[i + d]] = [n[i + d], n[i]]; onChange(n); };
   const nameOf = v => choices.list.find(o => o.value === v)?.label;
-  const canDrag = Boolean(ordered && values.length > 1);
-  const reorder = window.useDragReorder((_list, srcId, targetId, after) => {
-    const next = window.OMP_DRAG_REORDER?.reorderList?.(values, srcId, targetId, after);
-    if (next) onChange(next);
-  });
   return (
     <div className="wp-pick">
-      <div className="wp-chips" onPointerDown={canDrag ? reorder.onPointerDown : undefined}
+      <div className="wp-chips"
         onMouseDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.querySelector("input")?.focus(); } }}>
-        {values.map((v, i) => (
-          <span key={v} className={`wp-chip${canDrag ? reorder.dropClass("chips", v) : ""}`}
-            {...(canDrag ? reorder.itemProps("chips", v, "wrap") : {})} title={nameOf(v) ?? v}>
-            {ordered && i > 0 && <button type="button" aria-label={OMP_TR("move {name} left", { name: v })} onClick={() => shift(i, -1)}>‹</button>}
+        {values.map(v => (
+          <span key={v} className="wp-chip" title={nameOf(v) ?? v}>
             <span>{v}</span>
-            {ordered && i < values.length - 1 && <button type="button" aria-label={OMP_TR("move {name} right", { name: v })} onClick={() => shift(i, 1)}>›</button>}
             <button type="button" aria-label={OMP_TR("remove {name}", { name: v })} onClick={() => drop(v)}>×</button>
           </span>
         ))}
-        <input value={q} placeholder={values.length ? OMP_TR("Add…") : placeholder} role="combobox" aria-expanded={open}
-          onChange={e => { setQ(e.target.value); setOpen(true); setActive(0); }}
+        <input {...adder.input} placeholder={values.length ? OMP_TR("Add…") : placeholder}
           onKeyDown={e => {
-            if (e.key === "Backspace" && !q && values.length) { drop(values[values.length - 1]); return; }
-            if (e.key === "," ) { e.preventDefault(); enter.free(); return; }
-            _wpfKeys(e, { open, setOpen, items, active, setActive, onEnter: enter });
+            if (e.key === "Backspace" && !adder.q && values.length) { drop(values[values.length - 1]); return; }
+            adder.input.onKeyDown(e);
           }} />
       </div>
-      {open && items.length > 0 && <_WPF_Options items={items} active={active} onPick={add} listRef={listRef} />}
+      {adder.list}
       <_WPF_Status choices={choices} empty={hint} />
     </div>
   );
 }
 
-Object.assign(window, { _WPF_Combo, _WPF_Multi, _wpfUseChoices });
+function _WPF_Columns({ values, onChange, choices, placeholder }) {
+  const W = window.OMP_WORK, V = window.OMP_WORK_VIEWS, D = window.OMP_DRAG_REORDER, Icon = window.Icon;
+  const adder = _wpfUseAdder(values, onChange, choices);
+  const rootRef = React.useRef(null);
+  // After a move or a removal: the row (and the control in it) that takes
+  // the focus once the list is drawn again; with no row left, the input.
+  const refocus = React.useRef(null);
+  React.useLayoutEffect(() => {
+    const want = refocus.current;
+    if (!want) return;
+    refocus.current = null;
+    const row = [...rootRef.current.querySelectorAll("[data-col]")].find(el => el.dataset.col === want.col);
+    ((want.act && row?.querySelector(`[data-act="${want.act}"]:not(:disabled)`)) || row || rootRef.current.querySelector("input"))?.focus();
+  });
+  const shift = (v, d, act) => {
+    const next = D.shiftList(values, v, d);
+    if (!next) return;
+    refocus.current = { col: v, act };
+    onChange(next);
+  };
+  const drop = i => {
+    refocus.current = { col: values[i + 1] ?? values[i - 1] };
+    onChange(values.filter((_, k) => k !== i));
+  };
+  const canDrag = values.length > 1;
+  const reorder = window.useDragReorder((_list, src, target, after) => {
+    const next = D.reorderList(values, src, target, after);
+    if (next) onChange(next);
+  });
+  const more = V.columnSuggestion(choices.list, values);
+  const fixed = (name, note) => (
+    <li className="wp-cols-row fixed">
+      <span aria-hidden="true" />
+      <span className={`wp-col-dot ${V.columnMeta(name).tone}`} aria-hidden="true" />
+      <span className="wp-cols-text"><span className="wp-cols-name">{name}</span><span className="wp-cols-raw">{note}</span></span>
+    </li>
+  );
+  const hint = !values.length ? OMP_TR("Add labels to put columns between Open and Closed.")
+    : canDrag ? OMP_TR("Top to bottom here is left to right on the board. A ticket with several of these labels sits in the first. Drag a row, or press Alt+↑ / Alt+↓ on it, to reorder.")
+    : null;
+  return (
+    <div className="wp-cols" ref={rootRef}>
+      <ol className="wp-cols-list" data-reorder-scroll="" onPointerDown={canDrag ? reorder.onPointerDown : undefined}>
+        {fixed(W.OPEN, OMP_TR("always first"))}
+        {values.map((v, i) => {
+          const meta = V.columnMeta(v);
+          return (
+            <li key={v} data-col={v} tabIndex={0} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Delete"
+              className={`wp-cols-row${canDrag ? ` movable${reorder.dropClass("cols", v)}` : ""}`}
+              {...(canDrag ? reorder.itemProps("cols", v, "y") : {})}
+              onKeyDown={e => {
+                if (e.target !== e.currentTarget) return;
+                if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) { e.preventDefault(); shift(v, e.key === "ArrowUp" ? -1 : 1); }
+                else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); drop(i); }
+              }}>
+              <span className={canDrag ? "wp-grip" : ""} aria-hidden="true" />
+              <span className={`wp-col-dot ${meta.tone}`} aria-hidden="true" />
+              <span className="wp-cols-text">
+                <span className="wp-cols-name">{meta.label}</span>
+                {meta.label !== v && <span className="wp-cols-raw" title={v}>{v}</span>}
+              </span>
+              <span className="wp-cols-acts" data-no-reorder="">
+                <button type="button" className="btn icon ghost" data-act="up" disabled={i === 0}
+                  aria-label={OMP_TR("move {name} up", { name: v })} title={OMP_TR("Move up")} onClick={() => shift(v, -1, "up")}>
+                  <Icon name="arrowUp" size={12} /></button>
+                <button type="button" className="btn icon ghost wp-flip" data-act="down" disabled={i === values.length - 1}
+                  aria-label={OMP_TR("move {name} down", { name: v })} title={OMP_TR("Move down")} onClick={() => shift(v, 1, "down")}>
+                  <Icon name="arrowUp" size={12} /></button>
+                <button type="button" className="btn icon ghost" aria-label={OMP_TR("remove {name}", { name: v })} title={OMP_TR("Remove")}
+                  onClick={() => drop(i)}><Icon name="close" size={11} /></button>
+              </span>
+            </li>
+          );
+        })}
+        {fixed(W.CLOSED, OMP_TR("always last"))}
+      </ol>
+      <div className="wp-pick">
+        <input {...adder.input} aria-label={OMP_TR("Add a column")} placeholder={values.length ? OMP_TR("Add a column…") : placeholder}
+          onFocus={() => adder.setOpen(true)} onBlur={() => adder.setOpen(false)} />
+        {adder.list}
+      </div>
+      {more && (
+        <button type="button" className="btn ghost small wp-cols-more" title={more.labels.join(", ")}
+          onClick={() => { refocus.current = { col: more.labels[0] }; onChange([...values, ...more.labels]); }}>
+          <Icon name="plus" size={11} />
+          {OMP_I18N.plural(more.labels.length, "Add {n} “{scope}” label", "Add {n} “{scope}” labels", { scope: more.scope })}
+        </button>
+      )}
+      <_WPF_Status choices={choices} empty={hint} />
+    </div>
+  );
+}
+
+Object.assign(window, { _WPF_Combo, _WPF_Multi, _WPF_Columns, _wpfUseChoices });

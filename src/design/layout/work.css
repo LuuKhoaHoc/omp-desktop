@@ -150,6 +150,14 @@
 }
 .wp-col.over { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 6%, var(--bg-window)); }
 .wp-col-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px; }
+/* A label column moves from its header (ui/use-drag-reorder.js); the bar
+   that marks the landing side sits in the middle of the gap. */
+.wp-col-head.movable { cursor: grab; -webkit-user-select: none; user-select: none; border-radius: 11px 11px 0 0; }
+.wp-col-head.movable:hover .wp-col-name { color: var(--fg); }
+.wp-col-head.movable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wp-col.reorder-src { border-style: dashed; }
+.wp-col[data-reorder-axis].drop-before::after { left: -7px; border-radius: 1px; }
+.wp-col[data-reorder-axis].drop-after::after { right: -7px; border-radius: 1px; }
 .wp-col-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--fg-3); }
 .wp-col-dot.active { background: var(--accent); }
 .wp-col-dot.done { background: var(--lime); }
@@ -357,11 +365,26 @@
 .wp-chip button { all: unset; cursor: pointer; padding: 0 4px; color: var(--fg-3); }
 .wp-chip button:hover { color: var(--fg); }
 .wp-chip button:focus-visible { color: var(--fg); outline: 2px solid var(--accent); border-radius: 3px; }
-.wp-chip[data-reorder-id] { cursor: grab; touch-action: none; user-select: none; }
-.wp-chip.reorder-src { opacity: 0.55; }
-.wp-chip.reorder-src > * { opacity: 1; }
-[data-reorder-axis="wrap"].drop-before::after { top: 0; bottom: 0; left: -4px; width: 2px; border-radius: 1px; }
-[data-reorder-axis="wrap"].drop-after::after { top: 0; bottom: 0; right: -4px; width: 2px; border-radius: 1px; }
+/* Board columns: the board's order, top to bottom, between the two fixed
+   rows. The grip is drawn (two columns of dots), not an icon. */
+.wp-cols { display: flex; flex-direction: column; gap: 6px; }
+.wp-cols-list { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 2px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-input); }
+.wp-cols-row { display: grid; grid-template-columns: 8px 7px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 30px; padding: 0 4px 0 8px; border-radius: 6px; color: var(--fg); font-size: var(--d-text-sm); }
+.wp-cols-row.fixed { color: var(--fg-2); }
+.wp-cols-row.movable { cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
+.wp-cols-row:not(.fixed):hover { background: var(--bg-hover); }
+.wp-cols-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wp-cols-row[data-reorder-axis].drop-before::after { top: -2px; border-radius: 1px; }
+.wp-cols-row[data-reorder-axis].drop-after::after { bottom: -2px; border-radius: 1px; }
+.wp-grip { height: 12px; background: radial-gradient(circle, var(--fg-3) 1px, transparent 1.3px) 0 0 / 4px 4px; }
+.wp-cols-row:hover .wp-grip, .wp-cols-row:focus-visible .wp-grip { background-image: radial-gradient(circle, var(--fg) 1px, transparent 1.3px); }
+.wp-cols-text { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.wp-cols-name { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-cols-raw { min-width: 0; color: var(--fg-3); font-size: var(--d-text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-cols-acts { display: flex; gap: 2px; }
+.wp-cols-acts .btn.icon { width: 24px; height: 24px; }
+.wp-flip .ui-icon { transform: rotate(180deg); }
+.wp-cols-more { align-self: flex-start; gap: 5px; }
 .wp-edit { height: 28px; padding: 0 10px; gap: 6px; font-size: var(--d-text-sm); }
 /* Comment threads */
 .wp-notes { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }

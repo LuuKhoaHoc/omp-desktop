@@ -26,7 +26,7 @@ existed become a connection plus one Issues view on first load.
 | Project / Group / Repository / Team | `group/project` (or id), a group path, `owner/name`, Linear team key |
 | Whose (GitLab) | Issues: assigned to me / team / all. MRs: mine / to review / team / all |
 | Team usernames | For "team": issues assigned to, or MRs opened by, any of them (one request per person) |
-| Board columns | Issues: labels used as columns between Open and Closed (drag or `‹ ›` to order) |
+| Board columns | Issues: labels used as columns between Open and Closed. The form lists them top to bottom in board order: drag a row, use its ↑ ↓ buttons or press `Alt+↑` / `Alt+↓` on it; `Delete` removes it. When the tracker has more labels of a picked column's scope (`status::…`, `STATUS - …`), one button adds them all |
 | Branch | Pipelines: one ref only (empty: every ref, merge requests included) |
 
 Edit the open view from **Edit view** in the panel head (or "✎ Edit this view…"
@@ -64,6 +64,10 @@ cancelling stays in the browser.
   views; **Board / list** toggles the layout. Drag a card to another column,
   or focus it and press `Alt+←` / `Alt+→`. Moving changes the column label
   (GitLab/GitHub) or the workflow state (Linear); Closed closes the ticket.
+  A label column moves the same two ways from its header (GitLab/GitHub; Open
+  and Closed keep the ends): the view saves the new order and the tickets
+  already loaded take their seats again, without a refetch. A ticket that
+  carries several column labels sits in the first of them.
 - **Quick filters**: search text plus **Assignee** / **Author**, **Label**,
   and **Closed** toggles narrow the active view without altering its saved query.
 - **Drawer**: click a ticket. Edit title, labels and the markdown body

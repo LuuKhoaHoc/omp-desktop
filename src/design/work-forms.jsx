@@ -110,7 +110,6 @@ function _WP_ViewForm({ initial, conns, onSave, onCancel, onDelete, onEditConn }
   const labels = window._wpfUseChoices(v.kind === "issues" ? "labels" : "none", target);
   const branches = window._wpfUseChoices(v.kind === "pipelines" ? "branches" : "none", target);
   const list = s => window.OMP_WORK.members({ members: s });
-  const cols = s => String(s ?? "").split(",").map(x => x.trim()).filter(Boolean);
   return (
     <form className="wp-form" onSubmit={e => { e.preventDefault(); if (!problems.length) onSave(v); }}>
       <div className="wp-form-title">{onDelete ? OMP_TR("Edit view") : OMP_TR("New view")}</div>
@@ -157,8 +156,7 @@ function _WP_ViewForm({ initial, conns, onSave, onCancel, onDelete, onEditConn }
       )}
       {v.kind === "issues" && platform !== "linear" && (
         <div className="wp-field"><span>{OMP_TR("Board columns")} <em>{OMP_TR("optional")}</em></span>
-          <_WPF_Multi values={cols(v.columns)} onChange={a => set("columns", a.join(", "))} choices={labels} placeholder={OMP_TR("Pick labels")} ordered
-            hint={OMP_TR("Labels shown as columns between Open and Closed, in this order (drag or ‹ › to reorder).")} /></div>
+          <_WPF_Columns values={window.OMP_WORK.columnsOf(v)} onChange={a => set("columns", a.join(", "))} choices={labels} placeholder={OMP_TR("Pick labels")} /></div>
       )}
       <_WPF_Foot problems={problems} test={test} onTest={runTest} onCancel={onCancel} onDelete={onDelete} />
     </form>

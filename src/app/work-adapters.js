@@ -331,7 +331,7 @@
     return url ? `${head}\n${url}` : head;
   }
 
-  const api = { PLATFORMS, OPEN, CLOSED, transports, validate, members, client, boardColumns, columnFor, moveEdit, parseJson, parseDiscussions, formatIssueRef, formatIssueChatDraft };
+  const api = { PLATFORMS, OPEN, CLOSED, transports, validate, members, client, columnsOf, boardColumns, columnFor, moveEdit, parseJson, parseDiscussions, formatIssueRef, formatIssueChatDraft };
   if (typeof window !== "undefined") window.OMP_WORK = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

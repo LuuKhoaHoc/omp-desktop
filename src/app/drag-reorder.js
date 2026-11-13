@@ -1,7 +1,8 @@
-// Drag-to-reorder geometry (issue #40): where a dragged tab-bar item or
-// sidebar row would land. Pure; the pointer handling around it is
-// `design/ui/use-drag-reorder.js`, the reorder itself `OMP_PROJECT_NAV`'s
-// `moveGroup` / `moveMember`.
+// Drag-to-reorder geometry (issue #40): where a dragged tab-bar item,
+// sidebar row or Work panel column would land, and how fast the list
+// scrolls while the pointer rests at its edge. Pure; the pointer handling
+// around it is `design/ui/use-drag-reorder.js`, the reorder itself
+// `OMP_PROJECT_NAV`'s `moveGroup` / `moveMember` or `reorderList` here.
 //
 // Exposes `window.OMP_DRAG_REORDER`; wrapped as an IIFE per the project
 // rule for plain <script> tags (see AGENTS.md "IIFE rule").
@@ -31,43 +32,25 @@
       : { targetId: items[items.length - 1].id, after: true };
   }
 
-  /** Drop position for item `srcId` inside a wrapped multi-row flex list
-   *  (`items` in DOM order, each `{ id, left, right, top, bottom }`). Picks
-   *  the visual row closest to `y`, then the horizontal slot on that row so
-   *  the indicator stays on the row under the pointer. */
-  function dropSlotWrap(items, srcId, x, y) {
-    const from = items.findIndex(it => it.id === srcId);
-    if (from < 0) return null;
-    const rows = [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const last = rows[rows.length - 1];
-      if (last && it.top < last.bottom && it.bottom > last.top) {
-        last.top = Math.min(last.top, it.top);
-        last.bottom = Math.max(last.bottom, it.bottom);
-        last.items.push({ item: it, index: i });
-      } else {
-        rows.push({ top: it.top, bottom: it.bottom, items: [{ item: it, index: i }] });
-      }
-    }
-    let row = rows[0];
-    let bestDist = Infinity;
-    let bestMidDist = Infinity;
-    for (const r of rows) {
-      const dist = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
-      const midDist = Math.abs(y - (r.top + r.bottom) / 2);
-      if (dist < bestDist || (dist === bestDist && midDist < bestMidDist)) {
-        row = r;
-        bestDist = dist;
-        bestMidDist = midDist;
-      }
-    }
-    const k = row.items.findIndex(({ item }) => x < (item.left + item.right) / 2);
-    const slot = k >= 0 ? row.items[k].index : row.items[row.items.length - 1].index + 1;
-    if (slot === from || slot === from + 1) return null;
-    return k >= 0
-      ? { targetId: row.items[k].item.id, after: false }
-      : { targetId: row.items[row.items.length - 1].item.id, after: true };
+  /** Pointer distance from a scroller's edge, in CSS px, where a drag
+   *  starts scrolling it, and the step per frame at the edge itself. */
+  const EDGE_SCROLL_ZONE_PX = 48;
+  const EDGE_SCROLL_MAX_PX = 18;
+
+  /** Scroll step per frame for a pointer at `pos` on the drag axis, in a
+   *  scroller spanning `start`..`end`: 0 away from the edges, growing to
+   *  ±EDGE_SCROLL_MAX_PX as the pointer reaches or passes one (negative
+   *  towards `start`). The zones never cover more than a third of a small
+   *  scroller each, so its middle always holds still. */
+  function edgeScroll(pos, start, end) {
+    const zone = Math.min(EDGE_SCROLL_ZONE_PX, (end - start) / 3);
+    if (!(zone > 0)) return 0;
+    const before = start + zone - pos;
+    const after = pos - (end - zone);
+    const depth = Math.max(before, after);
+    if (depth <= 0) return 0;
+    const step = Math.ceil(EDGE_SCROLL_MAX_PX * Math.min(1, depth / zone));
+    return before > after ? -step : step;
   }
 
   /** Move `srcId` before/after `targetId` in `values`, or `null` if missing. */
@@ -81,5 +64,16 @@
     return next;
   }
 
-  window.OMP_DRAG_REORDER = { DRAG_THRESHOLD_PX, pastThreshold, dropSlot, dropSlotWrap, reorderList };
+  /** `id` moved `delta` places in `values`, or `null` when it is missing
+   *  or would leave the list. */
+  function shiftList(values, id, delta) {
+    const from = values.indexOf(id);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= values.length) return null;
+    const next = [...values];
+    next.splice(to, 0, next.splice(from, 1)[0]);
+    return next;
+  }
+
+  window.OMP_DRAG_REORDER = { DRAG_THRESHOLD_PX, EDGE_SCROLL_MAX_PX, pastThreshold, dropSlot, edgeScroll, reorderList, shiftList };
 })();

@@ -124,7 +124,49 @@
     }
   }
 
-  const api = { KINDS, kinds, whoOptions, migrate, resolve, validateView, choiceRequests, parseChoices, loadChoices };
+  // ── Board columns ───────────────────────────────────────────────────────
+  /** How the board names and tones a column: a "status" scope is dropped
+   *  ("STATUS - ON HOLD" → "On Hold"), and the name picks the dot's tone. */
+  function columnMeta(col) {
+    const raw = String(col ?? "");
+    const cleaned = raw.replace(/^(?:status\s*(?:-|::|:|\/)\s*)/i, "").trim() || raw;
+    const label = cleaned === cleaned.toUpperCase() && cleaned.length > 3
+      ? cleaned.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+      : cleaned;
+    const low = raw.toLowerCase();
+    const tone = /block|reject|fail|hold|stuck/.test(low) ? "blocked"
+      : /done|close|resolv|merg|complete|ship/.test(low) ? "done"
+      : /assign|progress|doing|active|review|test|qa|wip/.test(low) ? "active"
+      : "idle";
+    return { label, tone };
+  }
+
+  /** The scope of a scoped label, as written ("status::doing" → "status",
+   *  "STATUS - ON HOLD" → "STATUS", "workflow/ready" → "workflow"); "" for
+   *  a plain one. A bare hyphen is part of a name ("front-end"). */
+  function labelScope(label) {
+    const m = /^(.+?)(?:\s*::\s*|\s*:\s*|\s+-\s+|\s*\/\s*)\S/.exec(String(label ?? ""));
+    return m ? m[1].trim() : "";
+  }
+  const FLOW_SCOPES = ["status", "state", "stage", "workflow", "column", "board"];
+
+  /** The labels that would finish a board in one step: those sharing the
+   *  scope of a column already picked, or, with no scoped column yet, a
+   *  workflow scope the tracker holds at least two labels of. `labels` are
+   *  the tracker's choices (`{ value }`), `chosen` the picked columns.
+   *  `{ scope, labels }` (the scope as its first label writes it, the
+   *  labels in the tracker's order, without the picked ones), or `null`. */
+  function columnSuggestion(labels, chosen) {
+    const values = labels.map(o => o.value);
+    const low = v => labelScope(v).toLowerCase();
+    const want = chosen.map(low).find(Boolean)
+      ?? FLOW_SCOPES.find(s => values.filter(v => low(v) === s).length > 1);
+    if (!want) return null;
+    const rest = values.filter(v => low(v) === want && !chosen.includes(v));
+    return rest.length ? { scope: labelScope(rest[0]), labels: rest } : null;
+  }
+
+  const api = { KINDS, kinds, whoOptions, migrate, resolve, validateView, choiceRequests, parseChoices, loadChoices, columnMeta, columnSuggestion };
   if (typeof window !== "undefined") window.OMP_WORK_VIEWS = api;
   if (typeof module !== "undefined") module.exports = api;
 })();
