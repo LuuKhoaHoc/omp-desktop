@@ -10,9 +10,8 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
 
-/// (file name, content): the same text as `examples/commands/`.
-const COMMANDS: [(&str, &str); 1] =
-    [("swarm.md", include_str!("../../examples/commands/swarm.md"))];
+/// (file name, content), from `src-tauri/bundled/commands/`.
+const COMMANDS: [(&str, &str); 1] = [("swarm.md", include_str!("../bundled/commands/swarm.md"))];
 
 /// Write each bundled command that is missing into `<agent dir>/commands/`.
 fn install(agent_dir: &Path) -> io::Result<()> {
