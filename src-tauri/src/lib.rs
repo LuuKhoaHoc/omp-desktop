@@ -11,6 +11,7 @@ mod agent;
 mod approval;
 mod approval_mode;
 mod browser;
+mod bundled_commands;
 mod chat_pages;
 mod child_path;
 mod child_run;
@@ -122,6 +123,13 @@ fn start_session(
     app: tauri::AppHandle,
 ) -> Result<String, String> {
     let profile = store.resolve(args.profile.as_deref())?;
+    if let Ok(home) = app.path().home_dir() {
+        bundled_commands::install_for(
+            &home,
+            profile,
+            std::env::var_os("PI_CODING_AGENT_DIR").as_deref(),
+        );
+    }
     if let Some(r) = args.resume.as_deref() {
         saved_sessions::validate_resume(&app, r, profile)?;
     }
