@@ -70,6 +70,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Browser annotations: the comment popover opens as soon as an element or area is picked instead of after its screenshot was taken and decoded (the capture alone measured 25–150 ms). The screenshot is taken meanwhile; a comment saved before it is ready becomes a chip once it is.
 - Insights panel: diagram cards start collapsed by default and render lazily on first expand (caching rendered output and pausing hidden-tab polling).
 - Reduced continuous GPU/compositor repaints by replacing infinite dot-pulse and radar-cell drift CSS loops (`.dot.live`, `.pulse-dot`, `.tab-run-dot`, running tool/subagent marks, minimap live highlight, PR check dots/bars, and activity radar cells) with static status dots.
 

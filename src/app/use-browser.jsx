@@ -24,7 +24,7 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
   const [tabs, setTabs] = React.useState(_UB_NO_TABS);
   const [page, setPage] = React.useState(null); // { cssW, cssH } of the shown page
   const [annotate, setAnnotateState] = React.useState(false);
-  const [pendingAny, setPending] = React.useState(null); // { sid, pick, image }
+  const [pendingAny, setPending] = React.useState(null); // the open pick, see `onPick`: { sid, pick, capture, image }
   const [chips, setChips] = React.useState(_UB.EMPTY); // sid → chip[]
   const canvasRef = React.useRef(null);
   const viewRef = React.useRef(null);
@@ -37,12 +37,10 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
   // The active effect's open token; pending resizes stay local to that run.
   // A stale open completion must not release a newer run's queued work.
   const openInFlight = React.useRef(null);
-  // What the key handlers (bound once per open) must see current.
+  // What handlers that outlive a render must see current: the key handlers
+  // (bound once per open) and a save waiting for its capture.
   const latest = React.useRef({});
-  latest.current = { annotate, pending };
-  // Bumped whenever annotate is left, so a capture that settles after the
-  // pick has been dismissed (Esc / annotate off / restart) is dropped.
-  const pickGen = React.useRef(0);
+  latest.current = { annotate, pending, ids: sessionIds ?? [] };
 
   // A closed tab drops its chips and pick.
   const idsKey = (sessionIds ?? []).join("\0");
@@ -56,13 +54,9 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
 
   // Annotate mode as shown; Rust's `state.annotate` is the truth and
   // overrides it (it also turns off when the agent acts on the page).
-  // Leaving it ends the pick: its popover closes, and a pick made before
-  // must not land (`pickGen`).
+  // Leaving it ends the pick: its popover closes.
   const showAnnotate = React.useCallback((on) => {
-    if (!on) {
-      pickGen.current += 1;
-      setPending(null);
-    }
+    if (!on) setPending(null);
     setAnnotateState(on);
   }, []);
   // Turning annotate on hands the focus to the panel's input sink, so Esc
@@ -116,16 +110,17 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
       onEscape: (action) => (action === "cancelPick" ? setPending(null) : setAnnotate(false)),
     });
     screenRef.current = screen;
-    // A pick stands only if annotate was not left before its capture
-    // settled (`pickGen`). A failed capture still opens the popover:
-    // `image: null` keeps the text flowing, the popover notes the failure.
-    const onPick = async (pick) => {
-      const gen = pickGen.current;
-      const r = await bridge.browserCapture(sid, pick.docRect);
-      const shot = r.ok ? { type: "image", data: r.value.data, mimeType: r.value.mimeType } : null;
-      const image = shot && (await window.OMP_IMAGES.normalizeImage(shot).catch(() => null));
-      if (!live || gen !== pickGen.current) return;
-      setPending({ sid, pick, image });
+    // A pick opens its popover at once: nothing the user sees waits for the
+    // screenshot. `capture` resolves to the pick's image, or to null when
+    // the capture failed (the text still goes, the popover notes it).
+    // `image` mirrors it for the popover once it settled, unless the pick
+    // was left by then (Esc, annotate off, a restart, another pick).
+    const onPick = (pick) => {
+      const capture = bridge.browserCapture(sid, pick.docRect)
+        .then((r) => (r.ok ? window.OMP_IMAGES.normalizeImage({ type: "image", data: r.value.data, mimeType: r.value.mimeType }) : null))
+        .catch(() => null);
+      setPending({ sid, pick, capture });
+      return capture.then((image) => setPending((p) => (p && p.capture === capture ? { ...p, image } : p)));
     };
     const onState = (s) => {
       setState(s);
@@ -208,11 +203,21 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
     openLink.current(link.url, link.external);
   } : null), [localLinks]);
 
+  // The popover closes at once; the chip is added with its screenshot: now
+  // when the capture has settled, else when it does, so a chip never goes
+  // out ahead of its image. A tab closed meanwhile gets none: its chips
+  // were pruned already, and nothing would prune a later one.
   const savePending = React.useCallback((comment) => {
     const text = comment.trim();
     if (!pending || !text) return;
-    const chip = { id: `bc${++_ubChipSeq}`, pick: pending.pick, comment: text, image: pending.image };
-    setChips((s) => _UB.addChip(s, pending.sid, chip));
+    const { sid: tab, pick, capture, image } = pending;
+    const id = `bc${++_ubChipSeq}`;
+    const add = (shot) => {
+      if (!latest.current.ids.includes(tab)) return;
+      setChips((s) => _UB.addChip(s, tab, { id, pick, comment: text, image: shot }));
+    };
+    if (image === undefined) capture.then(add);
+    else add(image);
     setPending(null);
   }, [pending]);
   const cancelPending = React.useCallback(() => setPending(null), []);

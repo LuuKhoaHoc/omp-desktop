@@ -110,7 +110,7 @@ function BrowserPanel({ ui }) {
             </span>
           ))}
           {pending && page && (
-            <BrowserPopover key={pending.pick.rect.x + ":" + pending.pick.rect.y} pick={pending.pick} page={page} failed={pending.image == null} onSave={ui.savePending} onCancel={ui.cancelPending} />
+            <BrowserPopover key={pending.pick.rect.x + ":" + pending.pick.rect.y} pick={pending.pick} page={page} failed={pending.image === null} onSave={ui.savePending} onCancel={ui.cancelPending} />
           )}
           {message && (
             <div className={`browser-status ${state.status}${state.error ? " failed" : ""}${strip ? " strip" : ""}`}

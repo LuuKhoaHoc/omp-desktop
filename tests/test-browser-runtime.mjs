@@ -437,8 +437,8 @@ test("hook: a stale open completion cannot release the newer tab's queued resize
   };
   // app-live.jsx's per-tab side column, reduced to the browser's part.
   const openBy = {};
-  const show = (sid) => render(() => useBrowser({
-    bridge, activeSessionId: sid, sessionIds: ["old", "new"], tweaks: {},
+  const show = (sid, sessionIds = ["old", "new"]) => render(() => useBrowser({
+    bridge, activeSessionId: sid, sessionIds, tweaks: {},
     open: Boolean(openBy[sid]), setOpen: (on) => { openBy[sid] = on; },
   }));
 
@@ -520,6 +520,56 @@ test("hook: a stale open completion cannot release the newer tab's queued resize
   states.get("new")({ status: "running", annotate: false });
   ui = show("new");
   assert.equal(ui.pending, null, "annotate off by Rust closes the popover");
+
+  // A pick opens its popover at once; the screenshot is taken meanwhile. A
+  // comment saved before it is ready closes the popover, and its chip
+  // arrives with the screenshot.
+  const pick = { rect: { x: 0, y: 0, w: 10, h: 10 }, docRect: { x: 0, y: 0, w: 10, h: 10 } };
+  states.get("new")({ status: "running", annotate: true });
+  const early = picks.get("new")(pick);
+  ui = show("new");
+  assert.ok(ui.pending, "the popover does not wait for the capture");
+  assert.equal(ui.pending.image, undefined, "its screenshot is still being taken: no failure yet");
+  ui.savePending("saved early");
+  ui = show("new");
+  assert.equal(ui.pending, null);
+  assert.deepEqual(own(ui.chips), [], "no chip ahead of its screenshot");
+  capture({ ok: true, value: { data: "AA==", mimeType: "image/png" } });
+  await early;
+  await flush();
+  ui = show("new");
+  assert.deepEqual(own(ui.chips.map((c) => [c.comment, c.image.data])), [["saved early", "AA=="]]);
+  const late = picks.get("new")(pick);
+  capture({ ok: true, value: { data: "BB==", mimeType: "image/png" } });
+  await late;
+  ui = show("new");
+  assert.equal(ui.pending.image.data, "BB==");
+  ui.savePending("saved late");
+  ui = show("new");
+  assert.deepEqual(own(ui.chips.map((c) => [c.comment, c.image.data])), [["saved early", "AA=="], ["saved late", "BB=="]],
+    "a settled capture's chip is added in the same step");
+  // A capture that fails after the save: the chip still arrives, text only.
+  const failing = picks.get("new")(pick);
+  ui = show("new");
+  ui.savePending("no image");
+  capture({ ok: false, error: "page moved" });
+  await failing;
+  await flush();
+  ui = show("new");
+  assert.deepEqual(own(ui.chips.map((c) => [c.comment, c.image && c.image.data])), [["saved early", "AA=="], ["saved late", "BB=="], ["no image", null]]);
+  // A tab closed before its capture settled: the late chip has no tab to
+  // go to. (The closed tab is shown again only to look at its entry.)
+  const orphan = picks.get("new")(pick);
+  ui = show("new");
+  ui.savePending("tab closed");
+  openBy.old = false;
+  openBy.new = false;
+  ui = show("old", ["old"]);
+  capture({ ok: true, value: { data: "DD==", mimeType: "image/png" } });
+  await orphan;
+  await flush();
+  ui = show("new");
+  assert.deepEqual(own(ui.chips), [], "no chip is kept for a closed tab");
   unmount();
   assert.deepEqual(closed, ["old", "new"]);
 });
