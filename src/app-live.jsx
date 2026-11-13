@@ -1209,6 +1209,7 @@ function App() {
             onNewInProject={handleNewInProject}
             onReorder={handleReorder}
             settings={{ open: stab.open, active: stab.active, changed: settingsChanged }}
+            onSelectSettings={() => openSettings()}
             onCloseSettings={closeSettings}
             terminals={{ tabs: ttabs.tabs, active: ttabs.active, onSelect: selectTerminalTab, onClose: closeTerminalTab }}
             newTab={{

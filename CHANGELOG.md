@@ -55,6 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Settings tab: clicking it in the tab strip shows Settings again after a chat tab was picked. The click did nothing, so the only way back was the sidebar's Settings button or the shortcut.
 - Command bridge: opening from the header search button always resets to the commands view instead of reopening a stale models or login picker.
 - The header no longer shows a second new-tab (+) button while the tab strip, which has its own, is visible.
 - Tab titles: icon characters (private-use Nerd Font glyphs) and control characters in a generated session title are dropped, so a tab and the header no longer show a stray icon or an empty box before the title.
