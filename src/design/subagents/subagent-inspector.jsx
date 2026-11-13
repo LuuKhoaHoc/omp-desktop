@@ -1,5 +1,5 @@
 /* subagents/subagent-inspector.jsx — one agent, in depth. Rendered inside
-   SubagentPane's column. Three views:
+   SwarmPane's column. Three views:
      activity   — what it was asked, what it is doing now, metrics, tool timeline
      output     — progress.recentOutput plus the `subagent_event` stream
                   (populated only while the RPC subscription is "events")
@@ -145,7 +145,7 @@ const SaTranscript = React.memo(function SaTranscript({ transcript, onRefresh })
   );
 }, (prev, next) => prev.transcript === next.transcript);
 
-/** Keyed by agent id in SubagentPane, so tab/copied state start fresh per agent.
+/** Keyed by agent id in SwarmPane, so tab/copied state start fresh per agent.
  *  `callId` is the main-chat task call (the root agent's, for nested agents). */
 function SubagentInspector({ agent, callId, now, level, transcript, onBack, onLoadTranscript, onJumpToCall, onSteer, onStop, submitKey = "enter" }) {
   const [tab, setTab] = React.useState("activity");

@@ -285,4 +285,110 @@ check("fmtDuration tier boundaries", () => {
   assert.equal(S.fmtDuration(65_000), "1m 05s");
 });
 
+// ── Board: `irc_message` relay frames (shape captured from a live omp 18.20) ──
+const relay = (from, to, body, timestamp) => ({
+  type: "irc_message",
+  message: { role: "custom", customType: "irc:relay", content: `[IRC \`${from}\` → \`${to}\`]\n\n${body}`,
+    display: true, details: { from, to, body }, attribution: "agent", timestamp },
+});
+const incoming = {
+  type: "subagent_event",
+  payload: { id: "Beta", event: { type: "irc_message", message: { role: "custom", customType: "irc:incoming",
+    content: "<irc>…</irc>", details: { id: "x", from: "Alpha", message: "ping" }, timestamp: 1 } } },
+};
+
+check("a relayed IRC message becomes a board post", () => {
+  const s = S.applySubagentFrame(S.emptySubagents(), relay("Alpha", "Beta", "ping from Alpha", 100), 5);
+  assert.deepEqual(S.boardPosts(s).map(({ from, to, body, t }) => ({ from, to, body, t })),
+    [{ from: "Alpha", to: "Beta", body: "ping from Alpha", t: 100 }]);
+});
+
+check("the recipient's irc:incoming copy is not a second post", () => {
+  let s = S.applySubagentFrame(S.emptySubagents(), relay("Alpha", "Beta", "ping", 1), 5);
+  s = S.applySubagentFrame(s, incoming, 6);
+  assert.equal(S.boardPosts(s).length, 1);
+});
+
+check("a replayed relay frame is not added twice, a repeated text later is", () => {
+  let s = S.applySubagentFrame(S.emptySubagents(), relay("A", "B", "ok", 1), 5);
+  const again = S.applySubagentFrame(s, relay("A", "B", "ok", 1), 6);
+  assert.equal(again, s);
+  s = S.applySubagentFrame(s, relay("A", "B", "ok", 2), 7);
+  assert.equal(S.boardPosts(s).length, 2);
+});
+
+check("a malformed relay changes nothing", () => {
+  const s = S.emptySubagents();
+  assert.equal(S.applySubagentFrame(s, { type: "irc_message", message: { customType: "irc:relay", details: { from: "A" } } }, 1), s);
+});
+
+check("agent updates keep the board", () => {
+  let s = S.applySubagentFrame(S.emptySubagents(), relay("A", "B", "hi", 1), 5);
+  s = S.applySubagentFrame(s, { type: "subagent_lifecycle", payload: { id: "A", index: 0, agent: "task", status: "started" } }, 6);
+  assert.equal(S.boardPosts(s).length, 1);
+  assert.equal(S.mergeSnapshots(s, []).board.length, 1);
+});
+
+check("board members count both directions; filterBoard keeps a member's posts", () => {
+  let s = S.emptySubagents();
+  s = S.applySubagentFrame(s, relay("A", "B", "1", 1), 1);
+  s = S.applySubagentFrame(s, relay("B", "A", "2", 2), 2);
+  s = S.applySubagentFrame(s, relay("A", "C", "3", 3), 3);
+  assert.deepEqual(S.boardMembers(s), [
+    { name: "A", sent: 2, received: 1 }, { name: "B", sent: 1, received: 1 }, { name: "C", sent: 0, received: 1 },
+  ]);
+  assert.deepEqual(S.filterBoard(S.boardPosts(s), "C").map(p => p.body), ["3"]);
+  assert.equal(S.filterBoard(S.boardPosts(s), null).length, 3);
+});
+
+check("the board is capped at its newest 500 posts", () => {
+  let s = S.emptySubagents();
+  for (let i = 0; i < 510; i++) s = S.applySubagentFrame(s, relay("A", "B", `m${i}`, i), i);
+  const posts = S.boardPosts(s);
+  assert.equal(posts.length, 500);
+  assert.equal(posts[0].body, "m10");
+});
+
+check("searchBoard matches sender, recipient and text, case-insensitively", () => {
+  let s = S.emptySubagents();
+  s = S.applySubagentFrame(s, relay("Alpha", "Beta", "Run the tests", 1), 1);
+  s = S.applySubagentFrame(s, relay("Beta", "Verifier", "done", 2), 2);
+  const posts = S.boardPosts(s);
+  assert.equal(S.searchBoard(posts, "TESTS").length, 1);
+  assert.equal(S.searchBoard(posts, "verifier").length, 1);
+  assert.equal(S.searchBoard(posts, "  ").length, 2);
+  assert.equal(S.searchBoard(posts, "nothing").length, 0);
+});
+
+check("boardEdges counts each direction separately, busiest first, skipping self-posts", () => {
+  let s = S.emptySubagents();
+  for (const [f, t, n] of [["A", "B", 1], ["B", "A", 2], ["A", "B", 3], ["C", "C", 4]]) s = S.applySubagentFrame(s, relay(f, t, `m${n}`, n), n);
+  assert.deepEqual(S.boardEdges(S.boardPosts(s)), [{ from: "A", to: "B", count: 2 }, { from: "B", to: "A", count: 1 }]);
+  assert.deepEqual(S.boardEdges(S.boardPosts(s).slice(0, 1)), [{ from: "A", to: "B", count: 1 }]);
+});
+
+check("lastPostOf returns the newest post a member sent or received, with its number", () => {
+  let s = S.emptySubagents();
+  s = S.applySubagentFrame(s, relay("A", "B", "first", 1), 1);
+  s = S.applySubagentFrame(s, relay("C", "A", "second", 2), 2);
+  s = S.applySubagentFrame(s, relay("B", "C", "third", 3), 3);
+  const posts = S.boardPosts(s);
+  assert.equal(S.lastPostOf(posts, "A").body, "second");
+  assert.equal(S.lastPostOf(posts, "A").n, 2);
+  assert.equal(S.lastPostOf(posts, "Z"), null);
+});
+
+check("membersByGroup: running is active, completed finished, failed and aborted stopped", () => {
+  let s = S.emptySubagents();
+  const life = (id, status) => ({ type: "subagent_lifecycle", payload: { id, index: 0, agent: "task", status } });
+  for (const id of ["R", "D", "F", "K"]) s = S.applySubagentFrame(s, life(id, "started"), 1);
+  s = S.applySubagentFrame(s, life("D", "completed"), 2);
+  s = S.applySubagentFrame(s, life("F", "failed"), 2);
+  s = S.applySubagentFrame(s, life("K", "aborted"), 2);
+  const g = S.membersByGroup(s);
+  assert.deepEqual(g.active.map(a => a.id), ["R"]);
+  assert.deepEqual(g.finished.map(a => a.id), ["D"]);
+  assert.deepEqual(g.stopped.map(a => a.id), ["F", "K"]);
+});
+
 console.log(`subagents: ${passed} checks passed`);

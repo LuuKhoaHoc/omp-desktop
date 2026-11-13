@@ -2379,7 +2379,9 @@
     }
 
     // Subagent frames (only emitted once _initFetch subscribed this process).
-    if (type === "subagent_lifecycle" || type === "subagent_progress" || type === "subagent_event") {
+    // `irc_message`: agent-to-agent messages relayed to the main session; the
+    // reducer keeps them as the manager's board (app/subagents.js applyIrc).
+    if (type === "subagent_lifecycle" || type === "subagent_progress" || type === "subagent_event" || type === "irc_message") {
       // At "events" most frames are token deltas the manager ignores — only
       // re-render when the reducer actually produced new state.
       const next = SUB.applySubagentFrame(state.subagents, ev, now);

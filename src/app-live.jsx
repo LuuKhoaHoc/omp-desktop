@@ -18,7 +18,7 @@
    ═════════════════════════════════════════════════════════════════════ */
 
 const {
-  Icon, ChatView, Composer, CommandBridge, WindowChrome, HeaderStart, HeaderEnd, PanelRail, SidebarFooter, SessionPills, TabBar, SubagentPane, ProjectSidebar, EmptyWorkspace,
+  Icon, ChatView, Composer, CommandBridge, WindowChrome, HeaderStart, HeaderEnd, PanelRail, SidebarFooter, SessionPills, TabBar, SwarmPane, ProjectSidebar, EmptyWorkspace,
   StatusBar, AmbientRail, ConversationTree, WorkPanel, InsightsPanel, PlanKanban, HistoryModal, GitBrowser, FilePreview, ApprovalRulesPanel, UsageStatsPanel, PromptHistoryModal, UpdateModal, useTweaks,
   SettingsPage, ConfirmCloseDialog,
   useWidgets, WidgetCard, WidgetErrorCard, WidgetApprovalCard, WidgetBoundary,
@@ -1346,9 +1346,8 @@ function App() {
               {splitShown && <ResizeHandle className="at-split" {...panes.handle("split")} />}
               {sideRail && <ResizeHandle key={sideRail} className="at-side" {...panes.handle(sideRail)} />}
               {showSplit && (
-                <SubagentPane
+                <SwarmPane
                   state={subagents}
-                  filter={subagentUi.filter} onFilter={subagentUi.setFilter}
                   selected={subagentUi.selected} onSelect={subagentUi.select}
                   level={subagentUi.level}
                   transcript={subagentUi.selected ? subagentTranscripts[subagentUi.selected.id] : null}

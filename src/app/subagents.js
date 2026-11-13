@@ -18,12 +18,13 @@
 // (AgentProgress, SubagentLifecyclePayload, SubagentProgressPayload).
 (function () {
   const STREAM_CAP = 200;
+  const BOARD_CAP = 500;
   const TERMINAL = new Set(["completed", "failed", "aborted"]);
   const LIVE = new Set(["pending", "running"]);
   const HUES = ["var(--cyan)", "var(--lilac)", "var(--magenta)", "var(--amber)", "var(--lime)", "var(--accent)"];
 
   function emptySubagents() {
-    return { byId: {}, order: [] };
+    return { byId: {}, order: [], board: [] };
   }
 
   const isTerminal = status => TERMINAL.has(status);
@@ -57,6 +58,7 @@
   function put(state, agent) {
     const known = hasOwn.call(state.byId, agent.id);
     return {
+      ...state,
       byId: { ...state.byId, [agent.id]: agent },
       order: known ? state.order : [...state.order, agent.id],
     };
@@ -181,12 +183,32 @@
     return put(state, { ...existing, stream, lastUpdate: now });
   }
 
+  // The board: omp relays every agent-to-agent IRC message to the main
+  // session as a top-level `irc_message` frame (`customType: "irc:relay"`,
+  // `details: { from, to, body }`). The `irc:incoming` copy inside a
+  // `subagent_event` is the same message seen by its recipient: ignored.
+  // A journal replay resends frames, so a post already held (same stamp,
+  // sender, recipient and body) is not added twice.
+  function applyIrc(state, frame, now) {
+    const m = frame?.message;
+    const d = m?.details;
+    if (m?.customType !== "irc:relay") return state;
+    if (typeof d?.from !== "string" || typeof d?.to !== "string" || typeof d?.body !== "string") return state;
+    const t = typeof m.timestamp === "number" ? m.timestamp : now;
+    const key = `${t}|${d.from}|${d.to}|${d.body}`;
+    const board = state.board ?? [];
+    if (board.some(p => p.key === key)) return state;
+    const next = [...board, { key, t, from: d.from, to: d.to, body: d.body }];
+    return { ...state, board: next.length > BOARD_CAP ? next.slice(next.length - BOARD_CAP) : next };
+  }
+
   /** Fold one RPC frame into the state. Unknown frames return `state` as-is. */
   function applySubagentFrame(state, frame, now = Date.now()) {
     switch (frame?.type) {
       case "subagent_lifecycle": return applyLifecycle(state, frame.payload ?? {}, now);
       case "subagent_progress":  return applyProgress(state, frame.payload ?? {}, now);
       case "subagent_event":     return applyEvent(state, frame.payload ?? {}, now);
+      case "irc_message":        return applyIrc(state, frame, now);
       default:                   return state;
     }
   }
@@ -317,6 +339,64 @@
     return t;
   }
 
+  const boardPosts = state => state.board ?? [];
+
+  /** Everyone who sent or received a post, busiest first (ties by name). */
+  function boardMembers(state) {
+    const by = new Map();
+    const touch = (name, field) => {
+      const m = by.get(name) ?? { name, sent: 0, received: 0 };
+      m[field]++;
+      by.set(name, m);
+    };
+    for (const p of boardPosts(state)) { touch(p.from, "sent"); touch(p.to, "received"); }
+    return [...by.values()].sort((a, b) => b.sent + b.received - (a.sent + a.received) || a.name.localeCompare(b.name));
+  }
+
+  const filterBoard = (posts, name) => (name ? posts.filter(p => p.from === name || p.to === name) : posts);
+
+  /** Posts mentioning `query` (case-insensitive) in sender, recipient or text. */
+  function searchBoard(posts, query) {
+    const q = (query ?? "").trim().toLowerCase();
+    if (!q) return posts;
+    return posts.filter(p => p.from.toLowerCase().includes(q) || p.to.toLowerCase().includes(q) || p.body.toLowerCase().includes(q));
+  }
+
+  /** Who talked to whom: one directed edge per (from, to) pair with its post
+   *  count, busiest first. Posts to oneself add no edge. */
+  function boardEdges(posts) {
+    const by = new Map();
+    for (const p of posts) {
+      if (p.from === p.to) continue;
+      const key = `${p.from}\u0000${p.to}`;
+      const e = by.get(key) ?? { from: p.from, to: p.to, count: 0 };
+      e.count++;
+      by.set(key, e);
+    }
+    return [...by.values()].sort((a, b) => b.count - a.count || a.from.localeCompare(b.from) || a.to.localeCompare(b.to));
+  }
+
+  /** The newest post a member sent or received, with its 1-based number on
+   *  the board, or null. */
+  function lastPostOf(posts, name) {
+    for (let i = posts.length - 1; i >= 0; i--) {
+      if (posts[i].from === name || posts[i].to === name) return { ...posts[i], n: i + 1 };
+    }
+    return null;
+  }
+
+  // The swarm pane's three groups, from the statuses the RPC frames carry
+  // (pending, running, completed, failed, aborted). omp's own idle and parked
+  // states are not exposed over RPC, so there is no "standing by" group: a
+  // completed agent is only known to have finished.
+  const memberGroup = a => (isLive(a.status) ? "active" : a.status === "completed" ? "finished" : "stopped");
+
+  function membersByGroup(state) {
+    const out = { active: [], finished: [], stopped: [] };
+    for (const id of state.order) out[memberGroup(state.byId[id])].push(state.byId[id]);
+    return out;
+  }
+
   /** Stable identity colour per agent id (same agent, same hue everywhere). */
   function agentHue(id) {
     let h = 0;
@@ -359,7 +439,7 @@
   window.OMP_SUBAGENTS = {
     emptySubagents, applySubagentFrame, mergeSnapshots, mergeTranscript, summarizeEvent, blockText, formatArgs,
     listAgents, groupByCall, rootCallIdOf, totals, agentHue, elapsedMs, subscriptionLevelFor,
-    getAgent, parentIdOf, isLive, isTerminal,
+    getAgent, parentIdOf, isLive, isTerminal, boardPosts, boardMembers, filterBoard, searchBoard, boardEdges, lastPostOf, memberGroup, membersByGroup,
     fmtDuration, fmtCost, fmtAgo,
   };
 })();
