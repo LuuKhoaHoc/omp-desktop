@@ -44,5 +44,9 @@ desktop.ini
 # Agent-internal plans and superpowers docs (never commit)
 docs/superpowers/
 
+# Agent design scratch and audit notes (never commit)
+/.impeccable/
+/anti-slop/
+
 # ── Nucleus MCP index (local tool state) ─────────────────────────────────────
 .nucleus/
