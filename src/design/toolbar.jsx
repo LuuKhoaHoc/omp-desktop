@@ -91,7 +91,7 @@ function PanelRail({ rail, subagents, tree, browser, files, terminal, work, insi
           <ToolButton icon="refresh" size={14} title={OMP_TR("refresh conversation tree")} disabled={!tree.canRefresh} onClick={tree.onRefresh} />
         </span>
       )}
-      <ToolButton icon="agent" title={_tbTip("subagent manager", "desktop.subagents.toggle")} pressed={subagents.open} onClick={subagents.onToggle} />
+      <ToolButton icon="agent" title={_tbTip("swarm", "desktop.subagents.toggle")} pressed={subagents.open} onClick={subagents.onToggle} />
       <ToolButton icon="web" title={_tbTip("browser panel", "desktop.browser.toggle")} pressed={browser.open} onClick={browser.onToggle} />
       {browser.open && (
         <span className="tb-sub" role="group" aria-label={OMP_TR("browser panel")}>

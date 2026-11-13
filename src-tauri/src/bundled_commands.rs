@@ -1,30 +1,57 @@
 //! omp file commands that ship with the app. omp lists a `*.md` file in
 //! `<agent dir>/commands/` as a command, so the palette shows it and omp
-//! expands it; the app only has to put the file there. A file already in
-//! place is never touched, so a user who edited the command keeps their
-//! version. Nothing here deletes anything: a user who does not want
-//! `/swarm` removes the file, and the next start puts it back.
+//! expands it; the app only has to put the file there. A file that holds
+//! the text an earlier build installed is replaced with this build's; any
+//! other file already in place is never touched, so a user who edited the
+//! command keeps their version. Nothing here deletes anything: a user who
+//! does not want `/swarm` removes the file, and the next start puts it back.
 
 use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
 
-/// (file name, content), from `src-tauri/bundled/commands/`.
-const COMMANDS: [(&str, &str); 1] = [("swarm.md", include_str!("../bundled/commands/swarm.md"))];
+/// A command from `src-tauri/bundled/commands/`. `superseded` holds every
+/// text an earlier build installed under `name` (`superseded/<name>-<n>.md`):
+/// a change to `content` moves the old text there, or copies already
+/// installed keep it forever.
+struct Command {
+    name: &'static str,
+    content: &'static str,
+    superseded: &'static [&'static str],
+}
 
-/// Write each bundled command that is missing into `<agent dir>/commands/`.
+const COMMANDS: [Command; 1] = [Command {
+    name: "swarm.md",
+    content: include_str!("../bundled/commands/swarm.md"),
+    superseded: &[include_str!("../bundled/commands/superseded/swarm-1.md")],
+}];
+
+/// Whether `path` holds, byte for byte, a text an earlier build installed.
+/// An unreadable file counts as the user's.
+fn is_superseded(path: &Path, command: &Command) -> bool {
+    fs::read(path).is_ok_and(|installed| {
+        command
+            .superseded
+            .iter()
+            .any(|old| old.as_bytes() == installed)
+    })
+}
+
+/// Write each bundled command into `<agent dir>/commands/` where it is
+/// missing or still an earlier build's text.
 fn install(agent_dir: &Path) -> io::Result<()> {
     let dir = agent_dir.join("commands");
     fs::create_dir_all(&dir)?;
-    for (name, content) in COMMANDS {
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(dir.join(name))
-        {
-            Ok(mut file) => file.write_all(content.as_bytes())?,
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+    for command in &COMMANDS {
+        let path = dir.join(command.name);
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut file) => file.write_all(command.content.as_bytes())?,
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                if is_superseded(&path, command) {
+                    crate::json_store::write_atomic(&path, command.content.as_bytes())?;
+                }
+            }
             Err(e) => return Err(e),
         }
     }
@@ -68,6 +95,23 @@ mod tests {
         fs::write(&file, "my own swarm").unwrap();
         install(agent.path()).unwrap();
         assert_eq!(fs::read_to_string(&file).unwrap(), "my own swarm");
+    }
+
+    #[test]
+    fn replaces_a_copy_an_earlier_build_installed() {
+        let agent = TempDir::new("bundled-commands", "superseded");
+        let file = agent.path().join("commands/swarm.md");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let swarm = &COMMANDS[0];
+        for old in swarm.superseded {
+            assert_ne!(
+                *old, swarm.content,
+                "a superseded text is not the current one"
+            );
+            fs::write(&file, old).unwrap();
+            install(agent.path()).unwrap();
+            assert_eq!(fs::read_to_string(&file).unwrap(), swarm.content);
+        }
     }
 
     #[test]

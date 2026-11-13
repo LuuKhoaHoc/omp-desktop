@@ -2688,6 +2688,9 @@
           notify();
         }
       } else if (role === "custom") {
+        // An advisor card: the swarm pane's monitor row counts its notes.
+        const noted = SUB.applySubagentFrame(state.subagents, ev, now);
+        if (noted !== state.subagents) { state.subagents = noted; notify(); }
         // A background job's result (`async-result`) is what wakes the agent
         // after it yielded: name the job above the reply it triggers. omp's
         // hidden goal-continuation prompt likewise starts a turn nobody
@@ -2824,6 +2827,9 @@
 
     // ── Tool execution ────────────────────────────────────────────────────────
     if (type === "tool_execution_start") {
+      // A `write agent://<name>` is the main agent messaging a subagent: the
+      // reducer keeps its text until the end frame names the recipient.
+      state.subagents = SUB.applySubagentFrame(state.subagents, ev, now);
       const card = window.buildToolStartCard(ev, time);
       const idx  = state.messages.length;
       activeToolCards.set(ev.toolCallId, idx);
@@ -2857,6 +2863,9 @@
     }
 
     if (type === "tool_execution_end") {
+      const posted = SUB.applySubagentFrame(state.subagents, ev, now);
+      const sent = posted !== state.subagents;
+      state.subagents = posted;
       const idx = activeToolCards.get(ev.toolCallId);
       if (idx !== undefined) {
         const card = state.messages[idx];
@@ -2875,6 +2884,8 @@
             }
           }
         }
+        notify();
+      } else if (sent) {
         notify();
       }
       return;

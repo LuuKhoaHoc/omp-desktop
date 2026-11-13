@@ -64,7 +64,7 @@ function SubagentRailCard({ agents, paneOpen, onOpen, onTogglePane }) {
       )}
 
       <button className="btn ghost outlined sa-rail-open" onClick={onTogglePane}>
-        <_SAR_Icon name="split" size={11} /> {paneOpen ? OMP_TR("hide manager") : OMP_TR("open manager")}
+        <_SAR_Icon name="split" size={11} /> {paneOpen ? OMP_TR("hide swarm") : OMP_TR("open swarm")}
       </button>
     </div>
   );

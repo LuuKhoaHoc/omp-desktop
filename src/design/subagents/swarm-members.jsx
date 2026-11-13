@@ -1,8 +1,10 @@
-/* subagents/swarm-members.jsx — the swarm pane's Members tab: every agent
-   the manager holds, grouped Active / Finished / Stopped (OMP_SUBAGENTS
-   `membersByGroup`). A row is the member's tile, its name, what it is doing
-   or was asked, the newest post it sent or received, and its model. Search
-   narrows by name or task; a row opens the agent's inspector. */
+/* subagents/swarm-members.jsx — the swarm pane's Members tab: the main agent
+   as Coordinator (always, once there is a swarm) and its advisor as Monitor
+   (once it gave a note), then every agent the manager holds, grouped Active /
+   Finished / Stopped (OMP_SUBAGENTS `membersByGroup`). A row is the member's
+   tile, its name, what it is doing or was asked, the newest post it sent or
+   received, and its model. Search narrows by name or task; an agent's row
+   opens its inspector. */
 
 const { OMP_SUBAGENTS: _SAM, SaToolChip: _SAM_ToolChip, SaElapsed: _SAM_Elapsed,
   saLeafName: _SAM_leaf, saModelName: _SAM_model, SwarmAvatar: _SAM_Av, Icon: _SAM_Icon } = window;
@@ -68,10 +70,13 @@ function SwarmMembers({ state, now, onSelect }) {
   const groups = _SAM.membersByGroup(state);
   const posts = _SAM.boardPosts(state);
   const t = _SAM.totals(_SAM.listAgents(state));
-  // Names on the board that are not agents: the main agent that spawned the swarm.
-  const boardOnly = _SAM.boardMembers(state).filter(m => !_SAM.getAgent(state, m.name));
-  const coordinators = boardOnly.filter(m => m.name.toLowerCase().includes(q));
-  if (t.total === 0 && boardOnly.length === 0) {
+  // The main agent that runs the swarm, and its advisor once it has given a note.
+  const coord = _SAM.coordinatorOf(state);
+  const monitor = coord && _SAM.monitorOf(state);
+  const showCoord = coord && coord.name.toLowerCase().includes(q);
+  const showMonitor = monitor && monitor.name.toLowerCase().includes(q);
+  const coordLast = coord && _SAM.lastPostOf(posts, coord.name);
+  if (t.total === 0 && !coord) {
     return (
       <div className="sa-empty" style={{ padding: "24px 8px", textAlign: "center" }}>
         {OMP_TR("No subagents in this session yet.")}<br />{OMP_TR("They appear here the moment a")} <span className="mono">{OMP_TR("task")}</span> {OMP_TR("call spawns them.")}
@@ -88,29 +93,41 @@ function SwarmMembers({ state, now, onSelect }) {
       <div className="sw-sum">
         {window.formatTokens(t.tokens)} tok · {_SAM.fmtCost(t.cost)} · {t.tools} {OMP_TR("tools")} · {t.requests} {OMP_TR("requests")}
       </div>
-      {coordinators.length > 0 && (
+      {(showCoord || showMonitor) && (
         <section className="sw-group sw-coord">
-          {coordinators.map(m => {
-            const last = _SAM.lastPostOf(posts, m.name);
-            return (
-              <div key={m.name} className="sw-member static">
-                <_SAM_Av name={m.name} size={52} coord busy={groups.active.length > 0} />
-                <div className="sw-member-main">
-                  <div className="sw-member-top">
-                    <span className="sw-member-name">@{m.name}</span>
-                    <span className="sw-state">{OMP_TR("Coordinator")}</span>
-                  </div>
-                  {last && (
-                    <div className="sw-member-last sw-ellipsis" title={last.body}>
-                      <span className="sw-meta">#{last.n}</span> @{last.from}
-                      <span className="sw-arrow"><_SAM_Icon name="arrow" size={9} aria-hidden="true" /></span> @{last.to} {last.body}
-                    </div>
-                  )}
-                  <div className="sw-member-foot"><span>{OMP_TR("{sent} sent, {received} received", { sent: m.sent, received: m.received })}</span></div>
+          {showCoord && (
+            <div className="sw-member static">
+              <_SAM_Av name={coord.name} size={52} coord busy={groups.active.length > 0} />
+              <div className="sw-member-main">
+                <div className="sw-member-top">
+                  <span className="sw-member-name">@{coord.name}</span>
+                  <span className="sw-state">{OMP_TR("Coordinator")}</span>
                 </div>
+                {coordLast && (
+                  <div className="sw-member-last sw-ellipsis" title={coordLast.body}>
+                    <span className="sw-meta">#{coordLast.n}</span> @{coordLast.from}
+                    <span className="sw-arrow"><_SAM_Icon name="arrow" size={9} aria-hidden="true" /></span> @{coordLast.to} {coordLast.body}
+                  </div>
+                )}
+                <div className="sw-member-foot"><span>{OMP_TR("{sent} sent, {received} received", { sent: coord.sent, received: coord.received })}</span></div>
               </div>
-            );
-          })}
+            </div>
+          )}
+          {showMonitor && (
+            <div className="sw-member static">
+              <_SAM_Av name={monitor.name} size={52} />
+              <div className="sw-member-main">
+                <div className="sw-member-top">
+                  <span className="sw-member-name">@{monitor.name}</span>
+                  <span className="sw-state">{OMP_TR("Monitor")}</span>
+                </div>
+                <div className="sw-member-last sw-ellipsis" title={monitor.last.note}>
+                  {monitor.last.severity && <span className="sw-meta">{monitor.last.severity}</span>} {monitor.last.note}
+                </div>
+                <div className="sw-member-foot"><span>{window.OMP_I18N.plural(monitor.count, "{n} note", "{n} notes", { n: monitor.count })}</span></div>
+              </div>
+            </div>
+          )}
         </section>
       )}
       {SAM_GROUPS.map(([key, label]) => {

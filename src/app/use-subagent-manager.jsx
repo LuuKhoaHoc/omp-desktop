@@ -1,11 +1,13 @@
-/* app/use-subagent-manager.jsx — UI state for the subagent manager
-   (design/subagents/). The pane *is* the tweaks `layout: "split"` column,
-   so opening/closing it goes through setTweak and persists like any other
-   layout choice. Owns: which agent is inspected, the RPC
-   subscription level that follows inspection, and jump-to-task-call. */
+/* app/use-subagent-manager.jsx — UI state for the swarm pane
+   (design/subagents/). Whether the pane is open is the `swarmPane` tweak, so
+   it persists like any other layout choice and is independent of the rail
+   (`layout`). Owns: which agent is inspected, the RPC subscription level
+   that follows inspection, and jump-to-task-call. */
 
-function useSubagentManager({ bridge, layout, setTweak, activeSessionId, subagents, messages, setHoveredMsgIdx }) {
-  const paneOpen = layout === "split";
+function useSubagentManager({ bridge, paneOpen, layout, setTweak, activeSessionId, subagents, messages, setHoveredMsgIdx }) {
+  // The pane used to be `layout: "split"`, so hiding the rail closed it. A
+  // stored "split" becomes the rail layout with the pane open.
+  React.useEffect(() => { if (layout === "split") setTweak({ layout: "rail", swarmPane: true }); }, [layout, setTweak]);
   const [selectedId, setSelectedId] = React.useState(null);
 
   // The selection is only meaningful while the manager holds that agent: a
@@ -27,13 +29,12 @@ function useSubagentManager({ bridge, layout, setTweak, activeSessionId, subagen
   const subagentsRef = React.useRef(subagents);
   subagentsRef.current = subagents;
   const open = React.useCallback(id => {
-    setTweak("layout", "split");
+    setTweak("swarmPane", true);
     setSelectedId(id != null && window.OMP_SUBAGENTS.getAgent(subagentsRef.current, id) ? id : null);
   }, [setTweak]);
   const togglePane = () => {
-    if (!paneOpen) return setTweak("layout", "split");
-    setTweak("layout", "rail");
-    setSelectedId(null);
+    setTweak("swarmPane", !paneOpen);
+    if (paneOpen) setSelectedId(null);
   };
 
   // Scroll the chat to the task call that spawned an agent and flash it via

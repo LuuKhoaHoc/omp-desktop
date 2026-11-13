@@ -54,6 +54,9 @@ function SubagentBoard({ state, seen, onSelect }) {
     requestAnimationFrame(() => feedRef.current?.querySelector(`[data-n="${n}"]`)?.scrollIntoView({ block: "center" }));
   };
   const toggle = key => setOpen(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  // Filter shows and hides the member chips; hiding them also drops the
+  // picked member, so the button's state always says whether a filter is on.
+  const toggleFilters = () => { if (filtersOpen) setMember(null); setFiltersOpen(o => !o); };
 
   return (
     <div className="sw-board">
@@ -63,11 +66,11 @@ function SubagentBoard({ state, seen, onSelect }) {
           <input type="search" className="sw-search" value={query} placeholder={OMP_TR("Search")}
             aria-label={OMP_TR("Search messages")} onChange={e => setQuery(e.target.value)} />
         </label>
-        <button type="button" className="sw-toggle" aria-pressed={filtersOpen || member !== null} aria-expanded={filtersOpen}
-          onClick={() => setFiltersOpen(o => !o)}>{OMP_TR("Filter")}</button>
+        <button type="button" className="sw-toggle" aria-pressed={filtersOpen} aria-expanded={filtersOpen}
+          onClick={toggleFilters}>{OMP_TR("Filter")}</button>
         <button type="button" className="sw-toggle" aria-pressed={follow} onClick={() => setFollow(f => !f)}>{OMP_TR("Follow")}</button>
       </div>
-      {(filtersOpen || member !== null) && (
+      {filtersOpen && (
         <div className="sw-filters" role="group" aria-label={OMP_TR("Filter by member")}>
           <button type="button" className="sw-filter" aria-pressed={member === null} onClick={() => setMember(null)}>
             {OMP_TR("all")} <span className="sw-count">{posts.length}</span>

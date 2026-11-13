@@ -22,9 +22,14 @@
   const TERMINAL = new Set(["completed", "failed", "aborted"]);
   const LIVE = new Set(["pending", "running"]);
   const HUES = ["var(--cyan)", "var(--lilac)", "var(--magenta)", "var(--amber)", "var(--lime)", "var(--accent)"];
+  // omp's id for the main agent, the swarm's coordinator: what a worker's
+  // `write agent://Main` addresses and what the main agent's own sends carry
+  // as `from`. The advisor has no id on the wire; this is its display name.
+  const MAIN = "Main";
+  const ADVISOR = "Advisor";
 
   function emptySubagents() {
-    return { byId: {}, order: [], board: [] };
+    return { byId: {}, order: [], board: [], sends: {}, advisories: [] };
   }
 
   const isTerminal = status => TERMINAL.has(status);
@@ -183,23 +188,74 @@
     return put(state, { ...existing, stream, lastUpdate: now });
   }
 
-  // The board: omp relays every agent-to-agent IRC message to the main
-  // session as a top-level `irc_message` frame (`customType: "irc:relay"`,
-  // `details: { from, to, body }`). The `irc:incoming` copy inside a
-  // `subagent_event` is the same message seen by its recipient: ignored.
-  // A journal replay resends frames, so a post already held (same stamp,
-  // sender, recipient and body) is not added twice.
+  // The board. A journal replay resends frames, so a post already held (same
+  // key) is not added twice.
+  function addPost(state, post) {
+    const board = state.board ?? [];
+    if (board.some(p => p.key === post.key)) return state;
+    const next = [...board, post];
+    return { ...state, board: next.length > BOARD_CAP ? next.slice(next.length - BOARD_CAP) : next };
+  }
+
+  // omp relays every agent-to-agent IRC message to the main session as a
+  // top-level `irc_message` frame (`customType: "irc:relay"`, `details:
+  // { from, to, body }`). A message *to the main agent* arrives as the same
+  // frame with `customType: "irc:incoming"` and `details: { id, from,
+  // message }`, with no relay beside it. The `irc:incoming` copy inside a
+  // `subagent_event` is a relayed message seen by its recipient: that frame
+  // never reaches this function.
   function applyIrc(state, frame, now) {
     const m = frame?.message;
     const d = m?.details;
-    if (m?.customType !== "irc:relay") return state;
-    if (typeof d?.from !== "string" || typeof d?.to !== "string" || typeof d?.body !== "string") return state;
+    const incoming = m?.customType === "irc:incoming";
+    if (!incoming && m?.customType !== "irc:relay") return state;
+    const to = incoming ? MAIN : d?.to;
+    const body = incoming ? d?.message : d?.body;
+    if (typeof d?.from !== "string" || typeof to !== "string" || typeof body !== "string") return state;
     const t = typeof m.timestamp === "number" ? m.timestamp : now;
-    const key = `${t}|${d.from}|${d.to}|${d.body}`;
-    const board = state.board ?? [];
-    if (board.some(p => p.key === key)) return state;
-    const next = [...board, { key, t, from: d.from, to: d.to, body: d.body }];
-    return { ...state, board: next.length > BOARD_CAP ? next.slice(next.length - BOARD_CAP) : next };
+    return addPost(state, { key: `${t}|${d.from}|${to}|${body}`, t, from: d.from, to, body });
+  }
+
+  // A message the main agent sends (`write agent://<name>`) produces no
+  // `irc_message` frame at all, so its post is built from the tool call: the
+  // text is the start frame's `args.content`, kept in `state.sends` until
+  // the end frame says who received it (`result.details.message`:
+  // `{ op: "send", from, to, receipts: [{ to, outcome }] }`). A refused send
+  // (unknown agent) is an error result and posts nothing.
+  const AGENT_URL = "agent://";
+  function applySendStart(state, ev) {
+    const a = ev?.args;
+    if (ev?.toolName !== "write" || typeof ev.toolCallId !== "string") return state;
+    if (typeof a?.path !== "string" || !a.path.startsWith(AGENT_URL) || typeof a.content !== "string" || !a.content) return state;
+    return { ...state, sends: { ...state.sends, [ev.toolCallId]: a.content } };
+  }
+  function applySendEnd(state, ev, now) {
+    const sends = state.sends ?? {};
+    if (typeof ev?.toolCallId !== "string" || !hasOwn.call(sends, ev.toolCallId)) return state;
+    const { [ev.toolCallId]: body, ...rest } = sends;
+    const msg = ev.result?.details?.message;
+    let next = { ...state, sends: rest };
+    if (ev.isError || msg?.op !== "send" || typeof msg.from !== "string") return next;
+    const receipts = Array.isArray(msg.receipts) ? msg.receipts.map(r => r?.to).filter(to => typeof to === "string") : [];
+    const recipients = receipts.length > 0 ? receipts : typeof msg.to === "string" ? [msg.to] : [];
+    for (const to of recipients) next = addPost(next, { key: `${ev.toolCallId}|${to}`, t: now, from: msg.from, to, body });
+    return next;
+  }
+
+  // omp's advisor (the session's reviewer, WATCHDOG.yml) reaches the main
+  // session as a `message_start` whose message is `{ role: "custom",
+  // customType: "advisor", details: { notes: [{ note, severity }] } }`. One
+  // message may carry several notes; a replayed one is not counted twice.
+  function applyAdvisor(state, message, now) {
+    if (message?.role !== "custom" || message.customType !== "advisor") return state;
+    const t = typeof message.timestamp === "number" ? message.timestamp : now;
+    const held = state.advisories ?? [];
+    const fresh = (Array.isArray(message.details?.notes) ? message.details.notes : [])
+      .map((n, i) => ({ key: `${t}|${i}`, t, severity: typeof n?.severity === "string" ? n.severity : "", note: n?.note }))
+      .filter(n => typeof n.note === "string" && !held.some(h => h.key === n.key));
+    if (fresh.length === 0) return state;
+    const next = [...held, ...fresh];
+    return { ...state, advisories: next.length > BOARD_CAP ? next.slice(next.length - BOARD_CAP) : next };
   }
 
   /** Fold one RPC frame into the state. Unknown frames return `state` as-is. */
@@ -209,6 +265,9 @@
       case "subagent_progress":  return applyProgress(state, frame.payload ?? {}, now);
       case "subagent_event":     return applyEvent(state, frame.payload ?? {}, now);
       case "irc_message":        return applyIrc(state, frame, now);
+      case "tool_execution_start": return applySendStart(state, frame);
+      case "tool_execution_end":   return applySendEnd(state, frame, now);
+      case "message_start":        return applyAdvisor(state, frame.message, now);
       default:                   return state;
     }
   }
@@ -353,6 +412,21 @@
     return [...by.values()].sort((a, b) => b.sent + b.received - (a.sent + a.received) || a.name.localeCompare(b.name));
   }
 
+  /** The swarm's coordinator: the main agent with its post counts, or null
+   *  while there is no swarm (no agent yet and no post that names it). */
+  function coordinatorOf(state) {
+    const onBoard = boardMembers(state).find(m => m.name === MAIN);
+    if (onBoard) return onBoard;
+    return state.order.length > 0 ? { name: MAIN, sent: 0, received: 0 } : null;
+  }
+
+  /** The session's advisor as the swarm's monitor: how many notes it has
+   *  given and the newest one, or null before its first note. */
+  function monitorOf(state) {
+    const notes = state.advisories ?? [];
+    return notes.length > 0 ? { name: ADVISOR, count: notes.length, last: notes[notes.length - 1] } : null;
+  }
+
   const filterBoard = (posts, name) => (name ? posts.filter(p => p.from === name || p.to === name) : posts);
 
   /** Posts mentioning `query` (case-insensitive) in sender, recipient or text. */
@@ -440,6 +514,7 @@
     emptySubagents, applySubagentFrame, mergeSnapshots, mergeTranscript, summarizeEvent, blockText, formatArgs,
     listAgents, groupByCall, rootCallIdOf, totals, agentHue, elapsedMs, subscriptionLevelFor,
     getAgent, parentIdOf, isLive, isTerminal, boardPosts, boardMembers, filterBoard, searchBoard, boardEdges, lastPostOf, memberGroup, membersByGroup,
+    coordinatorOf, monitorOf,
     fmtDuration, fmtCost, fmtAgo,
   };
 })();

@@ -168,7 +168,7 @@ function TaskAgentRow({ sa, onInspect }) {
           {hasBody && <_TC_Icon name={isOpen ? "chev" : "chevR"} size={10} color="var(--fg-4)" />}
         </button>
         {onInspect && sa.id && (
-          <button className="btn icon ghost ta-inspect" title={OMP_TR("inspect in subagent manager")} onClick={() => onInspect(sa.id)}>
+          <button className="btn icon ghost ta-inspect" title={OMP_TR("inspect in swarm")} onClick={() => onInspect(sa.id)}>
             <_TC_Icon name="focus" size={11} />
           </button>
         )}

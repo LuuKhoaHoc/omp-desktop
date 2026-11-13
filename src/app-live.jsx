@@ -508,7 +508,7 @@ function App() {
   };
 
   const subagentUi = useSubagentManager({
-    bridge, layout: t.layout, setTweak, activeSessionId, subagents, messages, setHoveredMsgIdx,
+    bridge, paneOpen: t.swarmPane === true, layout: t.layout, setTweak, activeSessionId, subagents, messages, setHoveredMsgIdx,
   });
   const subagentList = React.useMemo(() => window.OMP_SUBAGENTS.listAgents(subagents), [subagents]);
 
@@ -587,9 +587,9 @@ function App() {
   // card only reads with Auto-fix off, while the rail is on screen — not in
   // focus layout, not under the tree or browser.
   const railVisible = t.layout !== "focus" && side === "rail";
-  // The toolbar's rail button: hiding is the focus layout (which also
-  // closes a subagent split, as the layout is one setting); showing leaves
-  // focus layout and brings the rail back in place of the tree or browser.
+  // The toolbar's rail button: hiding is the focus layout (the swarm pane
+  // has its own switch and stays); showing leaves focus layout and brings
+  // the rail back in place of the tree or browser.
   const toggleRail = () => {
     if (railVisible) return setTweak("layout", "focus");
     if (t.layout === "focus") setTweak("layout", "rail");

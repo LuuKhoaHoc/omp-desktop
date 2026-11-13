@@ -69,7 +69,7 @@
     { id: "desktop.composer.focus",  label: "Focus message box", group: "Session", scope: "global", defaultKeys: ["ctrl+l", "super+l"] },
     { id: "desktop.rail.toggle",     label: "Toggle rail", group: "Panels", scope: "global", defaultKeys: ["ctrl+alt+b"] },
     { id: "desktop.tree.toggle",     label: "Toggle conversation tree", group: "Panels", scope: "global", defaultKeys: [] },
-    { id: "desktop.subagents.toggle", label: "Toggle subagent manager", group: "Panels", scope: "global", defaultKeys: [] },
+    { id: "desktop.subagents.toggle", label: "Toggle swarm pane", group: "Panels", scope: "global", defaultKeys: [] },
     { id: "desktop.browser.annotate", label: "Annotate browser page", group: "Panels", scope: "global", defaultKeys: [] },
     { id: "desktop.browser.fullView", label: "Browser full view", group: "Panels", scope: "global", defaultKeys: [] },
     { id: "desktop.tab.goto1", label: "Go to tab 1", group: "Tabs", scope: "global", defaultKeys: ["ctrl+1", "super+1"] },

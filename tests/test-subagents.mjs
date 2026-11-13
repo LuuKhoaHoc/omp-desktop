@@ -391,4 +391,95 @@ check("membersByGroup: running is active, completed finished, failed and aborted
   assert.deepEqual(g.stopped.map(a => a.id), ["F", "K"]);
 });
 
+// ── The main agent on the board (shapes captured from a live omp 18.20) ──────
+const toMain = (from, message, timestamp) => ({
+  type: "irc_message",
+  message: { role: "custom", customType: "irc:incoming", content: "<irc>…</irc>", display: true,
+    details: { id: "15cc", from, message }, attribution: "agent", timestamp },
+});
+const sendStart = (toolCallId, path, content) => ({ type: "tool_execution_start", toolCallId, toolName: "write", args: { path, content } });
+const sendEnd = (toolCallId, to, extra = {}) => ({
+  type: "tool_execution_end", toolCallId, toolName: "write", isError: false,
+  result: { content: [{ type: "text", text: `Delivered to ${to}.` }],
+    details: { message: { op: "send", from: "Main", to, receipts: [{ to, outcome: "woken" }] }, touchesNoFiles: true } },
+  ...extra,
+});
+const flat = s => S.boardPosts(s).map(({ from, to, body, t }) => ({ from, to, body, t }));
+
+check("a message to the main agent is a post addressed to Main", () => {
+  const s = S.applySubagentFrame(S.emptySubagents(), toMain("Alpha", "PING", 100), 5);
+  assert.deepEqual(flat(s), [{ from: "Alpha", to: "Main", body: "PING", t: 100 }]);
+  assert.equal(S.applySubagentFrame(s, toMain("Alpha", "PING", 100), 6), s);
+});
+
+check("the main agent's write agent://<name> is a post once the end frame names the recipient", () => {
+  let s = S.applySubagentFrame(S.emptySubagents(), sendStart("call_1", "agent://Alpha", "PONG"), 5);
+  assert.equal(S.boardPosts(s).length, 0);
+  s = S.applySubagentFrame(s, sendEnd("call_1", "Alpha"), 9);
+  assert.deepEqual(flat(s), [{ from: "Main", to: "Alpha", body: "PONG", t: 9 }]);
+  assert.deepEqual(s.sends, {});
+});
+
+check("a replayed send is one post; a refused send and a file write are none", () => {
+  let s = S.emptySubagents();
+  for (const now of [5, 50]) {
+    s = S.applySubagentFrame(s, sendStart("call_1", "agent://Alpha", "PONG"), now);
+    s = S.applySubagentFrame(s, sendEnd("call_1", "Alpha"), now + 1);
+  }
+  assert.deepEqual(flat(s), [{ from: "Main", to: "Alpha", body: "PONG", t: 6 }]);
+  s = S.applySubagentFrame(s, sendStart("call_2", "agent://Ghost", "hi"), 60);
+  s = S.applySubagentFrame(s, { type: "tool_execution_end", toolCallId: "call_2", toolName: "write", isError: true,
+    result: { content: [{ type: "text", text: "Unknown agent" }] } }, 61);
+  const before = s;
+  s = S.applySubagentFrame(s, sendStart("call_3", "notes.md", "text"), 70);
+  s = S.applySubagentFrame(s, { type: "tool_execution_end", toolCallId: "call_3", toolName: "write", isError: false, result: {} }, 71);
+  assert.equal(s, before);
+  assert.equal(S.boardPosts(s).length, 1);
+  assert.deepEqual(s.sends, {});
+});
+
+check("a send with several receipts is one post per recipient", () => {
+  let s = S.applySubagentFrame(S.emptySubagents(), sendStart("call_1", "agent://all", "stop"), 5);
+  s = S.applySubagentFrame(s, sendEnd("call_1", "all", { result: { details: { message: { op: "send", from: "Main", to: "all",
+    receipts: [{ to: "Alpha", outcome: "woken" }, { to: "Beta", outcome: "delivered" }] } } } }), 6);
+  assert.deepEqual(flat(s).map(p => p.to), ["Alpha", "Beta"]);
+});
+
+check("coordinatorOf: Main once there is an agent, with its post counts", () => {
+  let s = S.emptySubagents();
+  assert.equal(S.coordinatorOf(s), null);
+  s = S.applySubagentFrame(s, { type: "subagent_lifecycle", payload: { id: "Alpha", index: 0, agent: "task", status: "started" } }, 1);
+  assert.deepEqual(S.coordinatorOf(s), { name: "Main", sent: 0, received: 0 });
+  s = S.applySubagentFrame(s, toMain("Alpha", "PING", 2), 2);
+  s = S.applySubagentFrame(s, sendStart("call_1", "agent://Alpha", "PONG"), 3);
+  s = S.applySubagentFrame(s, sendEnd("call_1", "Alpha"), 4);
+  s = S.applySubagentFrame(s, relay("Alpha", "Beta", "aside", 5), 5);
+  assert.deepEqual(S.coordinatorOf(s), { name: "Main", sent: 1, received: 1 });
+});
+
+const advisor = (notes, timestamp) => ({
+  type: "message_start", messageId: "msg-15",
+  message: { role: "custom", customType: "advisor", content: "<advisory>…</advisory>", display: true, details: { notes }, timestamp },
+});
+
+check("monitorOf counts the advisor's notes and keeps the newest", () => {
+  let s = S.emptySubagents();
+  assert.equal(S.monitorOf(s), null);
+  s = S.applySubagentFrame(s, advisor([{ note: "first", severity: "nit" }, { note: "second", severity: "concern" }], 10), 11);
+  assert.equal(S.applySubagentFrame(s, advisor([{ note: "first", severity: "nit" }, { note: "second", severity: "concern" }], 10), 12), s);
+  s = S.applySubagentFrame(s, advisor([{ note: "third", severity: "blocker" }], 20), 21);
+  const m = S.monitorOf(s);
+  assert.equal(m.name, "Advisor");
+  assert.equal(m.count, 3);
+  assert.deepEqual({ note: m.last.note, severity: m.last.severity }, { note: "third", severity: "blocker" });
+});
+
+check("other message_start frames and malformed advisor cards change nothing", () => {
+  const s = S.emptySubagents();
+  assert.equal(S.applySubagentFrame(s, { type: "message_start", message: { role: "assistant", content: [] } }, 1), s);
+  assert.equal(S.applySubagentFrame(s, { type: "message_start", message: { role: "custom", customType: "async-result", details: { jobs: [] } } }, 1), s);
+  assert.equal(S.applySubagentFrame(s, advisor([{ severity: "nit" }], 1), 1), s);
+  assert.equal(S.applySubagentFrame(s, { type: "message_start", message: { role: "custom", customType: "advisor" } }, 1), s);
+});
+
 console.log(`subagents: ${passed} checks passed`);

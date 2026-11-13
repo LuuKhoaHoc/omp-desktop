@@ -35,6 +35,9 @@
     "startScreen": "latent",
     "density": "cozy",
     "layout": "rail",
+    // The swarm pane beside the chat. Its own switch: `layout` is only
+    // whether the widget rail shows ("rail" | "focus").
+    "swarmPane": false,
     "accent": "#DA7C47",
     "monoChat": false,
     "fontUi": "",
