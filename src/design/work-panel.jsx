@@ -441,7 +441,7 @@ function WorkPanel({ onAddToChat } = {}) {
     && (kind !== "issues" || layout === "board" || showClosed || t.state === "open"));
   const boardCols = target.platform === "linear" ? columns : columns.filter(c => showClosed || c !== W.CLOSED);
   const filteredOut = items.length > 0 && shown.length === 0 && (needle || whoFilter || labelFilter);
-  const onlyClosedHidden = kind === "issues" && layout === "list" && !showClosed && items.length > 0 && shown.length === 0 && !filteredOut;
+  const onlyClosedHidden = kind === "issues" && (layout === "list" || layout === "gantt") && !showClosed && items.length > 0 && shown.length === 0 && !filteredOut;
   return (
     <div className={`wp-panel${open ? " has-drawer" : ""}`}>
       <div className="wp-head">
@@ -456,6 +456,9 @@ function WorkPanel({ onAddToChat } = {}) {
             </button>
             <button role="radio" aria-checked={layout === "list"} className={layout === "list" ? "on" : ""} title={OMP_TR("List view")} aria-label={OMP_TR("list")} onClick={() => setLayout("list")}>
               <_WP_Icon name="layers" size={12} /><span className="wp-seg-lbl">{OMP_TR("List")}</span>
+            </button>
+            <button role="radio" aria-checked={layout === "gantt"} className={layout === "gantt" ? "on" : ""} title={OMP_TR("Gantt view")} aria-label={OMP_TR("gantt")} onClick={() => setLayout("gantt")}>
+              <_WP_Icon name="clock" size={12} /><span className="wp-seg-lbl">{OMP_TR("Gantt")}</span>
             </button>
           </div>
         )}
@@ -492,9 +495,11 @@ function WorkPanel({ onAddToChat } = {}) {
       <div className="wp-scroll">
         {kind === "mrs" ? <MrList items={shown} activeId={open?.id} onOpen={setOpen} />
           : kind === "pipelines" ? <PipeList items={shown} activeId={open?.id} onOpen={setOpen} />
+          : layout === "gantt" ? <_WP_Gantt tickets={shown} columns={boardCols} activeId={open?.id} onOpen={setOpen} showClosed={showClosed} />
           : layout === "board" ? <_WP_Board tickets={shown} columns={boardCols} activeId={open?.id} onOpen={setOpen} onMove={move}
             onReorder={target.platform !== "linear" && !state.loading ? reorderColumns : null} />
-          : <_WP_List tickets={shown} activeId={open?.id} onOpen={setOpen} />}
+          : <_WP_List tickets={shown} activeId={open?.id} onOpen={setOpen} />
+        }
         {!state.loading && !state.error && items.length === 0 && (
           <div className="wp-empty-line pad">
             {kind === "mrs" ? OMP_TR("No merge requests in this view yet.") : kind === "pipelines" ? OMP_TR("No pipelines in this view yet.") : OMP_TR("No tickets in this view yet.")}

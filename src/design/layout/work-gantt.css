@@ -1,0 +1,132 @@
+/* Board-ordered ticket lanes with a fixed label rail and a scrollable date scale. */
+.wp-gantt {
+  display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column;
+  color: var(--fg); background: var(--bg-surface);
+  --wp-gantt-row: 32px;
+  --wp-gantt-header: 48px;
+  --wp-gantt-sidebar: 250px;
+}
+.wp-gantt-head {
+  display: flex; flex: none; align-items: center; gap: 12px;
+  min-height: 42px; padding: 5px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.wp-gantt-zoom { display: flex; align-items: center; flex: none; }
+.wp-gantt-range {
+  min-width: 0; color: var(--fg-3); font-size: var(--d-text-xs);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.wp-gantt-today-btn { margin-left: auto; flex: none; }
+.wp-gantt button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wp-gantt-body { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+.wp-gantt-sidebar {
+  flex: 0 0 var(--wp-gantt-sidebar); min-width: 0; overflow: auto hidden;
+  scrollbar-width: none; border-right: 1px solid var(--line-soft);
+}
+.wp-gantt-sidebar::-webkit-scrollbar { display: none; }
+.wp-gantt-side-head, .wp-gantt-tick-head {
+  position: sticky; top: 0; z-index: 4; height: var(--wp-gantt-header);
+  box-sizing: border-box; background: var(--bg-surface); border-bottom: 1px solid var(--line-soft);
+}
+.wp-gantt-side-head {
+  display: flex; align-items: center; padding: 0 10px;
+  color: var(--fg-3); font-size: var(--d-text-xs); font-weight: 600;
+}
+.wp-gantt-group, .wp-gantt-grid-group {
+  height: var(--wp-gantt-row); box-sizing: border-box;
+  border-bottom: 1px solid var(--line-soft);
+}
+.wp-gantt-group {
+  display: flex; align-items: center; gap: 7px; overflow: hidden; padding: 0 10px;
+  color: var(--fg-2); background: color-mix(in oklab, var(--bg-window) 72%, var(--bg-surface));
+  font-size: var(--d-text-xs); font-weight: 600; white-space: nowrap;
+}
+.wp-gantt-group .wp-col-dot { width: 7px; height: 7px; }
+.wp-gantt-group-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wp-gantt-group-count {
+  margin-left: auto; flex: none; padding: 1px 5px; border: 1px solid var(--line-soft);
+  border-radius: 4px; color: var(--fg-3); font: 10px/1.4 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.wp-gantt-side-row {
+  appearance: none; box-sizing: border-box; display: flex; align-items: center; gap: 6px;
+  width: 100%; height: var(--wp-gantt-row); padding: 0 8px;
+  border: 0; border-bottom: 1px solid var(--line-soft); color: var(--fg-2);
+  background: transparent; text-align: left; font: inherit; cursor: pointer;
+}
+.wp-gantt-side-row:hover { background: var(--bg-hover); color: var(--fg); }
+.wp-gantt-side-row.on { background: color-mix(in oklab, var(--accent) 7%, var(--bg-surface)); color: var(--fg); }
+.wp-gantt-status { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.wp-gantt-status.closed { background: var(--lime); }
+.wp-gantt-key {
+  flex: none; max-width: 62px; overflow: hidden; color: var(--fg-3);
+  font-family: var(--font-mono); font-size: var(--d-text-xs); font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.wp-gantt-side-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--d-text-xs); }
+.wp-gantt-assignee {
+  flex: none; max-width: 56px; overflow: hidden; padding: 2px 5px; border-radius: 4px;
+  color: var(--fg-3); background: color-mix(in oklab, var(--fg-3) 8%, var(--bg-surface));
+  font-size: 10px; text-overflow: ellipsis; white-space: nowrap;
+}
+.wp-gantt-timeline { flex: 1; min-width: 0; overflow: auto; overscroll-behavior: contain; }
+.wp-gantt-track { position: relative; min-height: 100%; }
+.wp-gantt-tick-head { position: sticky; overflow: hidden; }
+.wp-gantt-month-row, .wp-gantt-secondary-row { position: relative; box-sizing: border-box; white-space: nowrap; }
+.wp-gantt-month-row { height: 24px; border-bottom: 1px solid var(--line-soft); }
+.wp-gantt-secondary-row { height: 23px; }
+.wp-gantt-month-tick {
+  position: absolute; top: 0; height: 100%; overflow: hidden; padding: 0 6px;
+  border-right: 1px solid var(--line-soft); color: var(--fg-2);
+  font-size: var(--d-text-xs); font-weight: 600; line-height: 24px; text-overflow: ellipsis;
+}
+.wp-gantt-tick {
+  position: absolute; top: 0; height: 100%; overflow: hidden; box-sizing: border-box;
+  padding: 0 5px; border-right: 1px solid color-mix(in oklab, var(--line-soft) 70%, transparent);
+  color: var(--fg-3); font-size: 10px; white-space: nowrap;
+}
+.wp-gantt-tick.major { color: var(--fg-2); font-weight: 600; }
+.wp-gantt-tick span { display: flex; align-items: center; height: 100%; }
+.wp-gantt-lane, .wp-gantt-grid-group { position: relative; height: var(--wp-gantt-row); }
+.wp-gantt-lane { border-bottom: 1px solid var(--line-soft); }
+.wp-gantt-grid-group { background: color-mix(in oklab, var(--bg-window) 72%, var(--bg-surface)); }
+.wp-gantt-grid { position: absolute; inset: 0; pointer-events: none; }
+.wp-gantt-grid i {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: var(--line-soft); opacity: .65;
+}
+.wp-gantt-grid i.major { background: var(--line); opacity: .9; }
+.wp-gantt-today {
+  position: absolute; top: 0; bottom: 0; z-index: 5; width: 2px;
+  background: var(--accent); pointer-events: none;
+}
+.wp-gantt-today-badge {
+  position: sticky; top: 0; display: block; width: max-content; margin-left: 1px;
+  transform: translateX(-50%); padding: 2px 6px; border-radius: 0 0 4px 4px;
+  color: var(--bg-surface); background: var(--accent); font-size: 10px;
+  font-weight: 650; line-height: 15px; white-space: nowrap;
+}
+.wp-gantt-bar {
+  appearance: none; position: absolute; z-index: 1; top: 5px; height: 22px; min-width: 18px;
+  box-sizing: border-box; overflow: hidden; display: flex; align-items: center; gap: 4px; padding: 0 6px;
+  border: 1px solid color-mix(in oklab, var(--wp-gantt-tone, var(--accent)) 65%, var(--line));
+  border-radius: 4px; color: var(--fg); background: color-mix(in oklab, var(--wp-gantt-tone, var(--accent)) 16%, var(--bg-surface));
+  text-align: left; font: inherit; font-size: var(--d-text-xs); line-height: 20px; white-space: nowrap; cursor: pointer;
+}
+.wp-gantt-bar:hover { z-index: 3; border-color: var(--wp-gantt-tone, var(--accent)); background: color-mix(in oklab, var(--wp-gantt-tone, var(--accent)) 25%, var(--bg-surface)); }
+.wp-gantt-bar.on { border-color: var(--wp-gantt-tone, var(--accent)); box-shadow: 0 0 0 1px var(--wp-gantt-tone, var(--accent)); }
+.wp-gantt-bar.closed { background: color-mix(in oklab, var(--fg-3) 12%, var(--bg-surface)); border-color: color-mix(in oklab, var(--fg-3) 44%, var(--line)); color: var(--fg-2); }
+.wp-gantt-bar-check { flex: none; color: var(--lime); font-size: 11px; font-weight: 700; }
+.wp-gantt-bar > span:last-child { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wp-gantt-bar b { font-family: var(--font-mono); font-size: 10px; font-weight: 600; }
+.wp-gantt-bar.tone-active { --wp-gantt-tone: var(--accent); }
+.wp-gantt-bar.tone-done { --wp-gantt-tone: var(--lime); }
+.wp-gantt-bar.tone-neutral, .wp-gantt-bar.tone-idle { --wp-gantt-tone: var(--fg-3); }
+.wp-gantt-bar.tone-blocked { --wp-gantt-tone: var(--rose); }
+.wp-gantt-empty { display: grid; flex: 1; min-height: 120px; place-items: center; color: var(--fg-3); font-size: var(--d-text-sm); }
+@media (max-width: 700px) {
+  .wp-gantt { --wp-gantt-sidebar: 190px; }
+  .wp-gantt-head { gap: 7px; }
+  .wp-gantt-assignee { display: none; }
+  .wp-gantt-range { overflow: hidden; text-overflow: ellipsis; }
+}

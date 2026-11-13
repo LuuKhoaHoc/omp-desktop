@@ -175,7 +175,7 @@
 
   // ── Linear (GraphQL, token only) ────────────────────────────────────────
   const LINEAR_URL = "https://api.linear.app/graphql";
-  const LINEAR_FIELDS = "id identifier title description url updatedAt state { id name type } labels { nodes { name } } assignee { name }";
+  const LINEAR_FIELDS = "id identifier title description url createdAt updatedAt dueDate completedAt state { id name type } labels { nodes { name } } assignee { name }";
   const linear = {
     label: "Linear",
     hint: "Personal API key (Settings → Security & access → API). Team: its key, e.g. ENG.",

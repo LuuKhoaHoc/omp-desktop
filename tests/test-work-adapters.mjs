@@ -95,7 +95,7 @@ await check("linear: GraphQL list fills workflow-state columns in order; move us
   const c = W.client(ln, async req => {
     calls.push(req);
     return JSON.stringify({ data: {
-      issues: { nodes: [{ id: "u1", identifier: "ENG-1", title: "t", description: "d", url: "x", updatedAt: "t", state: { id: "s1", name: "Todo", type: "unstarted" }, labels: { nodes: [] }, assignee: null }] },
+      issues: { nodes: [{ id: "u1", identifier: "ENG-1", title: "t", description: "d", url: "x", createdAt: "2026-06-01T00:00:00Z", updatedAt: "2026-06-02T00:00:00Z", dueDate: "2026-06-10T00:00:00Z", completedAt: "2026-06-09T00:00:00Z", state: { id: "s1", name: "Todo", type: "unstarted" }, labels: { nodes: [] }, assignee: null }] },
       workflowStates: { nodes: [{ id: "s2", name: "Done", type: "completed", position: 3 }, { id: "s1", name: "Todo", type: "unstarted", position: 1 }] },
     } });
   });
@@ -103,6 +103,11 @@ await check("linear: GraphQL list fills workflow-state columns in order; move us
   assert.equal(list[0].key, "ENG-1");
   assert.equal(list[0].column, "Todo");
   assert.deepEqual(c.columns(), ["Todo", "Done"]);
+  assert.deepEqual({ createdAt: list[0].raw.createdAt, dueDate: list[0].raw.dueDate, completedAt: list[0].raw.completedAt }, {
+    createdAt: "2026-06-01T00:00:00Z", dueDate: "2026-06-10T00:00:00Z", completedAt: "2026-06-09T00:00:00Z",
+  });
+  const query = JSON.parse(calls[0].body).query;
+  for (const field of ["createdAt", "dueDate", "completedAt"]) assert.match(query, new RegExp(`\\b${field}\\b`));
   assert.equal(calls[0].url, "https://api.linear.app/graphql");
   const req = W.PLATFORMS.linear.move(ln, list[0], "Done", c.ctx);
   assert.equal(JSON.parse(req.body).variables.input.stateId, "s2");

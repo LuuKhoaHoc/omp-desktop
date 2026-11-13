@@ -68,6 +68,13 @@ cancelling stays in the browser.
   and Closed keep the ends): the view saves the new order and the tickets
   already loaded take their seats again, without a refetch. A ticket that
   carries several column labels sits in the first of them.
+  Board, list and Gantt switch the issue layout. Gantt places tickets on a
+  date timeline, with rows grouped by board column; use its day, week or month
+  zoom and jump back to today. A ticket's due date anchors it when present;
+  otherwise its span runs from creation to closure or last update, with at
+  least three days shown. Clicking a ticket opens the same drawer as the board
+  and list.
+
 - **Quick filters**: search text plus **Assignee** / **Author**, **Label**,
   and **Closed** toggles narrow the active view without altering its saved query.
 - **Drawer**: click a ticket. Edit title, labels and the markdown body
