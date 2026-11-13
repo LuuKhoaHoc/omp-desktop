@@ -90,7 +90,10 @@
    dragged one and the slot's neighbour. The slot is an accent edge on the
    side the item will land, drawn above the item's children (an inset
    shadow would sit under a sidebar row's own background). */
-body.reordering, body.reordering * { cursor: grabbing !important; user-select: none; }
+/* WebKitGTK (the Linux webview) knows only the prefixed property: without
+   it a drag selects text, the selection becomes a native text drag, and
+   the pointer is cancelled before the drop. */
+body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-select: none; user-select: none; }
 /* The children, not the item: opacity on a chip would make it a stacking
    context and paint its open dropdown under the stage while it is dragged. */
 .reorder-src > :not(.tab-group-pop) { opacity: 0.5; }
