@@ -1,83 +1,82 @@
-/* diagram.css — the schematic look of Mermaid diagrams (Insights cards and
-   ```mermaid blocks in chat; app/mermaid-schematic.js). A drafting sheet:
-   dot grid, corner ticks, hairline unfilled nodes, grey wiring, accent only
-   on arrowheads and the graph's entry/exit nodes. Every colour is a theme
-   token, so a theme switch restyles a drawn diagram. Mermaid scopes its own
-   rules under `#<svg id>`, hence `!important` on what this file replaces. */
+/* diagram.css — the colored block look of Mermaid diagrams (Insights cards
+   and ```mermaid blocks in chat; app/mermaid-blocks.js). Rounded tinted
+   blocks, one theme color per node kind, an icon beside the label, thin grey
+   wiring. Per-kind colors and icons come from OMP_MERMAID_BLOCKS.styleSheet(),
+   which sets `--k` on a node. Every color is a theme token, so a theme switch
+   restyles a drawn diagram. Mermaid scopes its own rules under `#<svg id>`,
+   hence `!important` on what this file replaces. Rules that change a label's
+   size match `svg[id^="ip-mmd-"]`, which is also the svg Mermaid measures
+   in, so the layout includes the icon. */
 
 /* ── The sheet ─────────────────────────────────────────────────────────── */
 .ip-view.ip-sheet {
   --ip-paper: var(--bg-window);
-  --ip-ink: var(--fg-3);
-  --ip-wire: color-mix(in oklab, var(--fg-4) 80%, var(--bg-window));
-  --ip-dot: color-mix(in oklab, var(--fg-4) 38%, transparent);
-  --ip-tick: color-mix(in oklab, var(--fg-3) 70%, transparent);
-  position: relative; padding: 22px 18px; border-radius: 8px;
+  --ip-wire: color-mix(in oklab, var(--fg-4) 85%, var(--bg-window));
+  position: relative; padding: 24px 20px; border-radius: 10px;
   border: 1px solid var(--line-soft);
   background-color: var(--ip-paper);
-  /* Ticks stay at the sheet's corners (scroll); the grid pans with the drawing (local). */
-  background-image:
-    linear-gradient(var(--ip-tick), var(--ip-tick)), linear-gradient(var(--ip-tick), var(--ip-tick)),
-    linear-gradient(var(--ip-tick), var(--ip-tick)), linear-gradient(var(--ip-tick), var(--ip-tick)),
-    linear-gradient(var(--ip-tick), var(--ip-tick)), linear-gradient(var(--ip-tick), var(--ip-tick)),
-    linear-gradient(var(--ip-tick), var(--ip-tick)), linear-gradient(var(--ip-tick), var(--ip-tick)),
-    radial-gradient(circle at 1px 1px, var(--ip-dot) 1px, transparent 1.25px);
-  background-size: 12px 1px, 1px 12px, 12px 1px, 1px 12px, 12px 1px, 1px 12px, 12px 1px, 1px 12px, 16px 16px;
-  background-position:
-    6px 6px, 6px 6px, calc(100% - 6px) 6px, calc(100% - 6px) 6px,
-    6px calc(100% - 6px), 6px calc(100% - 6px), calc(100% - 6px) calc(100% - 6px), calc(100% - 6px) calc(100% - 6px),
-    0 0;
-  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat;
-  background-attachment: scroll, scroll, scroll, scroll, scroll, scroll, scroll, scroll, local;
 }
 .ip-diagram.max .ip-view.ip-sheet { padding: 32px; }
 
-/* ── Ink: text, nodes, clusters ────────────────────────────────────────── */
+/* ── Blocks ────────────────────────────────────────────────────────────── */
 .ip-mmd svg { overflow: visible; }
-.ip-mmd svg text, .ip-mmd svg tspan { fill: var(--fg-2) !important; font-family: var(--font-mono) !important; }
-.ip-mmd svg :is(.nodeLabel, .edgeLabel, .label, span, p) { color: var(--fg-2) !important; font-family: var(--font-mono) !important; }
-/* :where keeps this rule's weight low, so the terminal and focus rules below win. */
+svg[id^="ip-mmd-"] { --k: var(--cyan); }
+svg[id^="ip-mmd-"] .node .nodeLabel {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-weight: 600; color: var(--fg);
+}
+svg[id^="ip-mmd-"] .node .nodeLabel::before {
+  flex: none; width: 18px; height: 18px; background: var(--k);
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+.ip-mmd svg text, .ip-mmd svg tspan { fill: var(--fg-2) !important; font-family: var(--font-sans) !important; }
+.ip-mmd svg :is(.edgeLabel, .label, span, p) { color: var(--fg-2) !important; font-family: var(--font-sans) !important; }
+.ip-mmd svg .node :is(.nodeLabel, .nodeLabel p) { color: var(--fg) !important; }
+/* :where keeps this rule's weight low, so the focus rules below win. */
 .ip-mmd svg .node :is(rect, polygon, circle, ellipse, path):where(:not(.state-start, .state-end)),
 .ip-mmd svg :is(.actor, rect.actor, .classGroup rect, .er.entityBox) {
-  fill: var(--ip-paper) !important; stroke: var(--ip-ink) !important; stroke-width: 1px !important;
-  filter: none !important;
+  fill: color-mix(in oklab, var(--k) 24%, var(--ip-paper)) !important;
+  stroke: color-mix(in oklab, var(--k) 80%, var(--ip-paper)) !important;
+  stroke-width: 1.25px !important; filter: none !important;
 }
+.ip-mmd svg .node rect.basic { rx: 10px; ry: 10px; }
 .ip-mmd svg .node .divider, .ip-mmd svg .node .divider path { stroke: var(--line-bright) !important; }
 .ip-mmd svg .cluster rect {
-  fill: transparent !important; stroke: var(--line-bright) !important; stroke-width: 1px !important;
-  stroke-dasharray: 3 3 !important; rx: 2px;
+  fill: color-mix(in oklab, var(--fg) 3%, transparent) !important;
+  stroke: var(--line-bright) !important; stroke-width: 1px !important; rx: 12px; ry: 12px;
 }
-.ip-mmd svg .cluster :is(.nodeLabel, span, p, text) { color: var(--fg-4) !important; fill: var(--fg-4) !important; }
-
-/* Entry and exit of the graph (no incoming / no outgoing edge). */
-.ip-mmd svg .node.ip-terminal :is(rect, polygon, circle, ellipse, path) { stroke: var(--accent) !important; }
-.ip-mmd svg .node.ip-terminal :is(.nodeLabel, span, p, text) { color: var(--fg) !important; fill: var(--fg) !important; }
-.ip-mmd svg :is(.state-start, .state-end, circle.state-start) { fill: var(--accent) !important; stroke: var(--accent) !important; }
+.ip-mmd svg .cluster :is(.nodeLabel, span, p, text) { color: var(--fg-3) !important; fill: var(--fg-3) !important; }
+.ip-mmd svg :is(.state-start, .state-end, circle.state-start) { fill: var(--fg-3) !important; stroke: var(--fg-3) !important; }
 /* State diagram end: Mermaid draws the bullseye as .outer-path (ring) holding a g (dot). */
-.ip-mmd svg .node:has(> .outer-path) path { stroke: var(--accent) !important; }
-.ip-mmd svg .node .outer-path > g path { fill: var(--accent) !important; }
+.ip-mmd svg .node:has(> .outer-path) path { stroke: var(--fg-3) !important; }
+.ip-mmd svg .node .outer-path > g path { fill: var(--fg-3) !important; }
 
 /* ── Wiring: edges, arrowheads, labels ─────────────────────────────────── */
 .ip-mmd svg :is(path[data-edge], .flowchart-link, .transition, .relation, .relationshipLine, .messageLine0, .messageLine1, .loopLine) {
-  stroke: var(--ip-wire) !important; stroke-width: 1px !important;
+  stroke: var(--ip-wire) !important; stroke-width: 1.4px !important;
   transition: stroke 160ms var(--ease-out), opacity 160ms var(--ease-out);
 }
 .ip-mmd svg :is(.actor-line, line.actor-line) { stroke: var(--line-bright) !important; stroke-dasharray: 2 4 !important; }
-.ip-mmd svg :is(marker path, marker circle, .arrowheadPath, #arrowhead path) { fill: var(--accent) !important; stroke: var(--accent) !important; }
-.ip-mmd svg .marker.er path, .ip-mmd svg marker.er path { fill: none !important; }
+.ip-mmd svg :is(marker path, marker circle, .arrowheadPath) { fill: var(--fg-3) !important; stroke: var(--fg-3) !important; }
+.ip-mmd svg marker.er path { fill: none !important; }
+.ip-mmd svg marker.er circle { fill: var(--ip-paper) !important; }
 .ip-mmd svg .labelBkg, .ip-mmd svg .edgeLabel :is(rect, p, span) { background-color: var(--ip-paper) !important; }
 .ip-mmd svg .edgeLabel rect { fill: var(--ip-paper) !important; opacity: 1 !important; }
-.ip-mmd svg .edgeLabel :is(span, p) { color: var(--fg-3) !important; }
-.ip-mmd svg :is(.note, rect.note) { fill: transparent !important; stroke: var(--line-bright) !important; stroke-dasharray: 3 3 !important; }
+.ip-mmd svg .edgeLabel :is(span, p) { color: var(--fg-3) !important; font-size: 12px; }
+.ip-mmd svg :is(.note, rect.note) {
+  fill: color-mix(in oklab, var(--amber) 14%, var(--ip-paper)) !important;
+  stroke: color-mix(in oklab, var(--amber) 55%, var(--ip-paper)) !important;
+}
 
 /* ── Focus: hovering a node lights its edges and neighbours ────────────── */
 .ip-mmd svg g.node { transition: opacity 160ms var(--ease-out); }
 .ip-mmd svg.ip-focusing g.node:not(.ip-near) { opacity: 0.35; }
 .ip-mmd svg.ip-focusing path[data-edge]:not(.ip-lit) { opacity: 0.25; }
 .ip-mmd svg.ip-focusing .edgeLabel { opacity: 0.4; }
-.ip-mmd svg path[data-edge].ip-lit { stroke: var(--accent) !important; stroke-width: 1.5px !important; }
-.ip-mmd svg.ip-focusing g.node.ip-near :is(rect, polygon, circle, ellipse, path) { stroke: var(--fg-2) !important; }
-.ip-mmd svg.ip-focusing g.node.ip-near.ip-terminal :is(rect, polygon, circle, ellipse, path) { stroke: var(--accent) !important; }
+.ip-mmd svg path[data-edge].ip-lit { stroke: var(--accent) !important; stroke-width: 2px !important; }
+.ip-mmd svg.ip-focusing g.node.ip-near :is(rect, polygon, circle, ellipse, path) { stroke: var(--k) !important; }
 
 /* ── Draw-in: wiring traces itself once, then labels and arrowheads land ─ */
 @keyframes ip-draw {

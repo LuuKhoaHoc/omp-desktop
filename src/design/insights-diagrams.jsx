@@ -1,6 +1,6 @@
 /* ═════════════════════════════════════════════════════════════════════
    design/insights-diagrams.jsx — Insights diagram cards (fork): Mermaid
-   schematic, SVG, PNG, Excalidraw and sandboxed HTML diagrams with
+   blocks, SVG, PNG, Excalidraw and sandboxed HTML diagrams with
    per-card collapse, collapse/expand all, floating zoom and copy.
    ═════════════════════════════════════════════════════════════════════ */
 
@@ -19,7 +19,10 @@ function _ipLoadMermaid() {
       document.head.appendChild(s);
     }).then(m => {
       const css = getComputedStyle(document.documentElement);
-      m.initialize(window.OMP_MERMAID_SCHEMATIC.config(name => css.getPropertyValue(name).trim()));
+      m.initialize(window.OMP_MERMAID_BLOCKS.config(name => css.getPropertyValue(name).trim()));
+      const kinds = document.createElement("style");
+      kinds.textContent = window.OMP_MERMAID_BLOCKS.styleSheet();
+      document.head.appendChild(kinds);
       return m;
     });
   }
@@ -30,7 +33,10 @@ let _ipQueue = Promise.resolve();
 let _ipSeq = 0;
 function _ipRender(source) {
   const id = `ip-mmd-${++_ipSeq}`;
-  const run = _ipQueue.then(async () => (await _ipLoadMermaid()).render(id, source))
+  const run = _ipQueue.then(async () => {
+    const m = await _ipLoadMermaid();
+    return m.render(id, await window.OMP_MERMAID_BLOCKS.prepare(m, source));
+  })
     .catch(e => { document.getElementById(`d${id}`)?.remove(); throw e; });
   _ipQueue = run.catch(() => {});
   return run;
@@ -131,14 +137,14 @@ const _IP_Diagram = React.memo(function _IP_Diagram({ file, kind = "mermaid", so
   React.useLayoutEffect(() => {
     if (!open || showSrc) { graph.current = null; return; }
     const svg = out?.mermaid && view.current?.querySelector(".ip-mmd svg");
-    graph.current = svg ? { svg, ...window.OMP_MERMAID_SCHEMATIC.decorate(svg) } : null;
+    graph.current = svg ? { svg, ...window.OMP_MERMAID_BLOCKS.decorate(svg) } : null;
   }, [open, out?.mermaid, showSrc]);
 
   const onOver = e => {
     const g = graph.current;
     if (!g || drag.current) return;
     const node = e.target.closest?.("g.node");
-    window.OMP_MERMAID_SCHEMATIC.focus(g.svg, g, node?.dataset.node ?? null);
+    window.OMP_MERMAID_BLOCKS.focus(g.svg, g, node?.dataset.node ?? null);
   };
 
   React.useLayoutEffect(() => {
@@ -169,7 +175,7 @@ const _IP_Diagram = React.memo(function _IP_Diagram({ file, kind = "mermaid", so
   };
 
   const title = React.useMemo(() => _ipDiagramTitle(source, file), [source, file]);
-  const kindLabel = React.useMemo(() => (kind === "mermaid" ? window.OMP_MERMAID_SCHEMATIC.diagramType(source) : kind), [kind, source]);
+  const kindLabel = React.useMemo(() => (kind === "mermaid" ? window.OMP_MERMAID_BLOCKS.diagramType(source) : kind), [kind, source]);
   const text = kind !== "png" && source != null;
   const zoomable = out && (out.mermaid || out.img);
 

@@ -28,7 +28,7 @@ One diagram per file; the extension says how it is drawn:
 
 | File | Written by (skill) | Shown as |
 |---|---|---|
-| `.mmd`, `.mermaid` | `mermaidjs-v11` | rendered by the vendored Mermaid, themed to the app |
+| `.mmd`, `.mermaid` | `mermaidjs-v11` | rendered by the vendored Mermaid as colored blocks with a kind icon per node, themed to the app (`app/mermaid-blocks.js`, `layout/diagram.css`) |
 | `.svg` | `diagram-design`, `tech-graph` | `<img>` (data URL): scripts and links inside never run |
 | `.png` | `tech-graph`, any export | `<img>` |
 | `.html` | `architecture-diagram`, `preview` | `<iframe sandbox="">` (no scripts, no forms, own origin), white page |
