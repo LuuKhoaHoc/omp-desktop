@@ -265,6 +265,8 @@
         profile: t.profile ?? null,
         sessionFile: t.sessionFile || null,
         name: t.name || null,
+        sourceRepo: t.sourceRepo || null,
+        worktreeBranch: t.worktreeBranch || null,
         busy: interruptedByQuit(t),
       })),
       active: active < 0 ? null : active,
@@ -287,6 +289,8 @@
       profile: tab.profile || DEFAULT_PROFILE_ID,
       // Only a conversation that is still on disk can be picked up again.
       resumeTurn: !!(resume && tab.busy),
+      sourceRepo: tab.sourceRepo || null,
+      worktreeBranch: tab.worktreeBranch || null,
     };
   }
 

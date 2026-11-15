@@ -922,6 +922,17 @@ function App() {
     }
   };
 
+  const handleNewWorktree = async () => {
+    if (!bridge) return;
+    const sourcePath = await bridge.pickFolder();
+    if (!sourcePath) return;
+    try {
+      await bridge.openSessionInWorktree(sourcePath);
+    } catch (err) {
+      console.error("[app] failed to open isolated worktree:", err);
+    }
+  };
+
   // Close tab → kills that session's omp process; bridge updates tab list.
   // Guarded: with `confirmBusyClose` a working tab asks first (live.js).
   const handleCloseTab = id => { bridge?.closeSessionGuarded(id); };
@@ -1236,6 +1247,7 @@ function App() {
                 onOpenRecent={handleOpenRecent}
                 onForgetRecent={handleForgetRecent}
                 onOpenFolder={handleNewProject}
+                onOpenWorktree={handleNewWorktree}
                 onReorder={handleReorder}
                 footer={<SidebarFooter settings={{ active: stab.active, onOpen: () => openSettings() }}
                   onHistory={() => setHistoryOpen(true)} onStats={() => { setAccountsOpen(false); setStatsOpen(true); }} onAccounts={() => { setStatsOpen(false); setAccountsOpen(true); }} />}

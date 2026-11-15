@@ -50,8 +50,12 @@ pub struct OpenTab {
     /// Tab label at save time, shown until omp reports the session's title.
     #[serde(default)]
     pub name: Option<String>,
-    /// The tab was mid-turn when this layout was written; a restore asks
-    /// omp to continue it.
+    /// Original repository path and isolated branch, absent for ordinary tabs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_repo: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree_branch: Option<String>,
+    /// The tab was mid-turn when the layout was saved.
     #[serde(default)]
     pub busy: bool,
 }
@@ -113,7 +117,13 @@ impl OpenTabsStore {
 fn sanitize(mut layout: Layout) -> Layout {
     layout.tabs.truncate(MAX_TABS);
     for tab in &mut layout.tabs {
-        for field in [&mut tab.profile, &mut tab.session_file, &mut tab.name] {
+        for field in [
+            &mut tab.profile,
+            &mut tab.session_file,
+            &mut tab.name,
+            &mut tab.source_repo,
+            &mut tab.worktree_branch,
+        ] {
             if field.as_deref().is_some_and(str::is_empty) {
                 *field = None;
             }
@@ -144,6 +154,17 @@ fn restorable(layout: Layout) -> Restore {
             .is_some_and(|f| !Path::new(f).is_file())
         {
             tab.session_file = None;
+        }
+        if let (Some(source_repo), Some(branch)) =
+            (tab.source_repo.as_deref(), tab.worktree_branch.as_deref())
+        {
+            if crate::worktree::validate_created(&tab.path, source_repo, branch).is_err() {
+                skipped.push(tab.path);
+                continue;
+            }
+        } else if tab.source_repo.is_some() || tab.worktree_branch.is_some() {
+            skipped.push(tab.path);
+            continue;
         }
         if !tab.path.is_empty() && !Path::new(&tab.path).is_dir() {
             skipped.push(tab.path);
@@ -230,6 +251,8 @@ mod tests {
             profile: Some("work".to_owned()),
             session_file: session_file.map(str::to_owned),
             name: Some("label".to_owned()),
+            source_repo: None,
+            worktree_branch: None,
             busy: false,
         }
     }
@@ -367,6 +390,8 @@ mod tests {
                 profile: Some(String::new()),
                 session_file: Some(String::new()),
                 name: Some(String::new()),
+                source_repo: None,
+                worktree_branch: None,
                 busy: false,
             }],
             active: Some(0),

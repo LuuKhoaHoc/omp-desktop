@@ -46,11 +46,13 @@ function TabRunDot({ state }) {
  *  tab bar and the project sidebar; `className` is the caller's name class. */
 function TabLabel({ tab, className, title }) {
   const { prefix, title: name } = tabLabel(tab);
-  if (!prefix) return <span className={className} title={title}>{name}</span>;
+  const indicator = tab.worktreeBranch ? <span className="tab-worktree" title={`${OMP_TR("isolated worktree")} · ${tab.worktreeBranch}`}>⑂</span> : null;
+  if (!prefix) return <span className={className} title={title}>{indicator}{name}</span>;
   return (
     <span className={`${className} tab-label`} title={title}>
       {/* A few letters of the folder stay visible however long the title;
           a shorter folder keeps its own width, not a padded 4ch box. */}
+      {indicator}
       <span className="tab-prefix" style={{ minWidth: `${Math.min(4, prefix.length)}ch` }}>{prefix}</span>
       <span className="tab-sep">·</span>
       <span className="tab-title">{name}</span>

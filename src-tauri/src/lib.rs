@@ -58,6 +58,7 @@ mod voice_spectrum;
 mod widgets;
 mod work;
 mod workspace;
+mod worktree;
 
 use agent::AgentBridge;
 use approval::RuleBook;
@@ -1662,6 +1663,20 @@ async fn recent_projects_remove(
     with_blocking(&recents, move |s| s.remove(&key, &path)).await
 }
 
+/// Create a new app-managed linked worktree and branch from the source repo's current HEAD.
+#[tauri::command]
+async fn create_session_worktree(
+    source_path: String,
+    label: String,
+    app: AppHandle,
+) -> Result<worktree::CreatedWorktree, String> {
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?;
+    off_ipc(move || worktree::create(&app_data, Path::new(&source_path), &label)).await?
+}
+
 /// The open-tab layout saved by the previous run (issue #17), minus tabs
 /// whose folder is gone — see `open_tabs::restorable`.
 #[tauri::command]
@@ -2057,6 +2072,7 @@ pub fn run() {
             streaming_message,
             open_project,
             pick_attachments,
+            create_session_worktree,
             take_pending_open_projects,
             start_git_watch,
             stop_git_watch,

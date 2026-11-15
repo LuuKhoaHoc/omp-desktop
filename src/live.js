@@ -1846,6 +1846,7 @@
    *  derivation) now lives in, and is proven by, `_tabNameFor`. */
   async function _startProjectSession(cwd, {
     resume = null, name = null, profile, activate = true, remember = true,
+    sourceRepo = null, worktreeBranch = null,
   }) {
     _lastSessionMs = Math.max(Date.now(), _lastSessionMs + 1);
     const id = `session-${_lastSessionMs}`;
@@ -1856,6 +1857,7 @@
     // the repository's work tree, shared by every tab on a folder of it.
     sessionRegistry.set(id, {
       id, name: tabName, path: cwd ?? "", color, branch: null, repoRoot: null, profile,
+      sourceRepo: sourceRepo || null, worktreeBranch: worktreeBranch || null,
       // The approval mode `start_session` spawned this tab's current omp
       // with (set by `_spawnSession`); null while no process runs it.
       approvalMode: null,
@@ -5089,6 +5091,21 @@
      *  active tab's. Always spawns: `+`/`Ctrl+T` mean a *new* tab. */
     async openSession(cwd, profile = _activeProfileId()) {
       return _openReported(cwd, { profile });
+    },
+
+    /** Create a new, isolated Git worktree and open a session in it. */
+    async openSessionInWorktree(sourcePath, profile = _activeProfileId()) {
+      const result = await _invokeResult("create_session_worktree", {
+        sourcePath, label: window.OMP_PROJECT_NAV.basename(sourcePath),
+      });
+      if (!result.ok) {
+        _reportOpenFailure(result.error);
+        throw new Error(result.error);
+      }
+      const worktree = result.value;
+      return _openReported(worktree.path, {
+        profile, sourceRepo: worktree.sourceRepo, worktreeBranch: worktree.branch,
+      });
     },
 
     /** Open project folder `path` (a recent-projects row) under the active

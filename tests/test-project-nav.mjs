@@ -313,8 +313,8 @@ check("tabLayout keeps tab order and points at the active tab", () => {
   ];
   assert.deepEqual(N.tabLayout(tabs, "b"), {
     tabs: [
-      { path: "/a", profile: "default", sessionFile: "/s/a.jsonl", name: "Fix login", busy: false },
-      { path: "", profile: "work", sessionFile: null, name: "b", busy: false },
+      { path: "/a", profile: "default", sessionFile: "/s/a.jsonl", name: "Fix login", sourceRepo: null, worktreeBranch: null, busy: false },
+      { path: "", profile: "work", sessionFile: null, name: "b", sourceRepo: null, worktreeBranch: null, busy: false },
     ],
     active: 1,
   });
@@ -348,7 +348,24 @@ check("tabLayout marks a conversation cut off mid-turn, and restoreSpec asks to 
 
 check("restoreSpec resumes a conversation under its saved label", () => {
   const spec = N.restoreSpec({ path: "/a", profile: "work", sessionFile: "/s/a.jsonl", name: "Fix login" });
-  assert.deepEqual(spec, { cwd: "/a", resume: "/s/a.jsonl", name: "Fix login", profile: "work", resumeTurn: false });
+  assert.deepEqual(spec, {
+    cwd: "/a", resume: "/s/a.jsonl", name: "Fix login", profile: "work", resumeTurn: false,
+    sourceRepo: null, worktreeBranch: null,
+  });
+});
+
+check("worktree metadata survives layout save and restore without changing project path", () => {
+  const original = tab("w", "/app/worktrees/repo/issue-1", {
+    sourceRepo: "/projects/app", worktreeBranch: "omp/app-issue-1",
+  });
+  const [saved] = N.tabLayout([original], "w").tabs;
+  assert.equal(saved.path, "/app/worktrees/repo/issue-1");
+  assert.equal(saved.sourceRepo, "/projects/app");
+  assert.equal(saved.worktreeBranch, "omp/app-issue-1");
+  assert.deepEqual(N.restoreSpec(saved), {
+    cwd: saved.path, resume: null, name: null, profile: "default", resumeTurn: false,
+    sourceRepo: "/projects/app", worktreeBranch: "omp/app-issue-1",
+  });
 });
 
 check("restoreSpec leaves an unlabeled conversation's name to the spawn's fallback", () => {
@@ -357,7 +374,10 @@ check("restoreSpec leaves an unlabeled conversation's name to the spawn's fallba
 
 check("restoreSpec opens a fresh, unnamed tab on the folder when there is no conversation", () => {
   const spec = N.restoreSpec({ path: "/a", profile: null, sessionFile: null, name: "Old title" });
-  assert.deepEqual(spec, { cwd: "/a", resume: null, name: null, profile: "default", resumeTurn: false });
+  assert.deepEqual(spec, {
+    cwd: "/a", resume: null, name: null, profile: "default", resumeTurn: false,
+    sourceRepo: null, worktreeBranch: null,
+  });
 });
 
 // ── Listed order and "go to tab N" digits ─────────────────────────────────

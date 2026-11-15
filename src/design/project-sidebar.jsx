@@ -14,8 +14,8 @@ const { groupTabs, groupRunState, groupDigits, tabDigits, membersNewestFirst, ba
 
 function ProjectSidebar({
   tabs, activeId, recents, profileLabel,
-  onSelectTab, onCloseTab, onRenameTab, onNewInProject, onOpenRecent, onForgetRecent, onOpenFolder, onReorder,
-  footer = null, style,
+  onSelectTab, onCloseTab, onRenameTab, onNewInProject, onOpenRecent, onForgetRecent,
+  onOpenFolder, onOpenWorktree, onReorder, footer = null, style,
 }) {
   // Group keys the user folded. Not persisted: tab ids (and so pathless
   // groups' keys) don't survive a restart anyway.
@@ -52,6 +52,9 @@ function ProjectSidebar({
         <span>{OMP_TR("projects")}</span>
         <button className="psb-act psb-head-act" title={OMP_TR("open folder…")} aria-label={OMP_TR("open folder…")} onClick={onOpenFolder}>
           <Icon name="plus" size={11} />
+        </button>
+        <button className="psb-act psb-head-act" title={OMP_TR("open isolated worktree…")} aria-label={OMP_TR("open isolated worktree…")} onClick={onOpenWorktree}>
+          <Icon name="branch" size={11} />
         </button>
       </div>
 

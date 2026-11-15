@@ -294,6 +294,7 @@
 .tab-prefix { flex: 0 100000 auto; color: var(--fg-4); }
 .tab-sep { flex: none; margin: 0 5px; color: var(--fg-5); }
 .tab-title { flex: 0 1 auto; min-width: 0; }
+.tab-worktree { flex: none; margin-right: 4px; color: var(--accent); font-family: var(--font-mono); }
 /* Inline conversation-name editor (#32): tab bar, group popover, sidebar. */
 .rename-field { height: 20px; padding: 0 5px; border-color: var(--accent); }
 /* In the tab bar: same footprint as the .tab-name it replaces. */

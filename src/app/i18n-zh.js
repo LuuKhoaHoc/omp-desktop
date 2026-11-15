@@ -1077,6 +1077,8 @@ window.OMP_I18N.add("zh", {
   "this tab has no project folder": "此标签页没有项目文件夹",
   "branches (no switching while the agent works)": "分支（智能体工作时无法切换）",
   "project sidebar": "项目侧边栏",
+  "open isolated worktree…": "在独立工作树中打开…",
+  "isolated worktree": "独立工作树",
   "open project": "打开项目",
   "conversation history": "会话历史",
   "terminal": "终端",
