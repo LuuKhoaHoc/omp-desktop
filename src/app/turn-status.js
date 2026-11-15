@@ -14,11 +14,11 @@
    *    `isStreaming` is still true, so this must outrank `running`.
    *  - `retrying`: omp is retrying a failed request (a live retry row); it
    *    covers the wait between attempts, when no turn streams.
-   *  - `running`: a turn is streaming.
+   *  - `running`: the agent run has not yielded.
    *  - `background`: the agent yielded, but omp reports background work (an
    *    async bash, task or eval job) whose result will wake it again.
    *  - `idle`. */
-  function runStateOf({ isStreaming, exitReason, messages, asyncPending }) {
+  function runStateOf({ agentRunning, isStreaming, exitReason, messages, asyncPending }) {
     if (exitReason) return "failed";
     // One pass: this runs on every streaming delta of the active tab.
     let retrying = false;
@@ -27,7 +27,7 @@
       if (m.kind === "retry" && !m.ended) retrying = true;
     }
     if (retrying) return "retrying";
-    if (isStreaming) return "running";
+    if (agentRunning || isStreaming) return "running";
     if (asyncPending) return "background";
     return "idle";
   }

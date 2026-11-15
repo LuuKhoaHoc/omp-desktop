@@ -545,6 +545,9 @@
        destructures window.ApprovalModeSection at top level. -->
   <script type="text/babel" src="design/approval-mode-section.jsx"></script>
   <script type="text/babel" src="design/approval-rules-panel.jsx"></script>
+  <script type="text/babel" src="design/task-usage-section.jsx"></script>
+  <script type="text/babel" src="design/account-quota-section.jsx"></script>
+  <script type="text/babel" src="design/account-quota-panel.jsx"></script>
   <script type="text/babel" src="design/usage-stats-panel.jsx"></script>
   <script type="text/babel" src="design/history-modal.jsx"></script>
   <script type="text/babel" src="design/prompt-history-modal.jsx"></script>
@@ -564,6 +567,7 @@
   <script src="app/work-views.js"></script>
   <script src="app/work-gantt.js"></script>
   <script src="app/work-review.js"></script>
+  <script src="app/insights-filter.js"></script>
   <script type="text/babel" src="design/work-pickers.jsx"></script>
   <script type="text/babel" src="design/work-forms.jsx"></script>
   <script type="text/babel" src="design/work-view-menu.jsx"></script>
@@ -628,11 +632,16 @@
        Dependency-free IIFE; live.js reads window.OMP_STREAM_DELTA at its
        top-level init, so it must load before live.js. -->
   <script src="app/stream-delta.js"></script>
+  <script src="app/account-quota.js"></script>
+  <script src="app/task-usage.js"></script>
+  <script src="app/quota-rpc.js"></script>
+  <script src="app/quota-service.js"></script>
   <script src="live.js"></script>
 
   <!-- App root — wired to OMP_BRIDGE, no demo effects -->
   <!-- Cross-cutting hooks (must load before app-live.jsx) -->
   <script type="text/babel" src="app/use-bridge-snapshot.jsx"></script>
+  <script type="text/babel" src="app/use-account-quota.jsx"></script>
   <script type="text/babel" src="app/use-keymap.jsx"></script>
   <script type="text/babel" src="app/use-subagent-manager.jsx"></script>
   <script type="text/babel" src="app/use-updater.jsx"></script>

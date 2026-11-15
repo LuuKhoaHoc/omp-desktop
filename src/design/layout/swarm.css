@@ -165,7 +165,8 @@
 .sw-sel select { appearance: none; border: 0; background: none; padding: 4px 20px 4px 0; font: inherit; color: inherit; cursor: pointer; }
 .sw-sel select option { background: var(--bg-elevated); color: var(--fg); }
 .sw-sel svg { position: absolute; right: 0; pointer-events: none; }
-.sw-graph-svg { width: 100%; height: auto; max-height: 420px; }
+.sw-graph-viewport { overflow: auto; max-height: min(62vh, 640px); border: 1px solid var(--line); border-radius: 12px; background: var(--bg-window); }
+.sw-graph-svg { display: block; max-width: none; margin-inline: auto; flex: none; }
 .sw-graph-edge path { fill: none; stroke: var(--fg-3); opacity: 0.8; }
 .sw-pulse { fill: var(--fg); }
 .sw-pulse-ring { fill: none; stroke: var(--fg-2); stroke-width: 1.5; }
@@ -184,7 +185,7 @@
 /* Full view: the pane fills the stage over the chat (the stage is `position: relative`). */
 .split.sa-full { position: absolute; inset: 0; z-index: 5; width: auto; background: var(--bg-window); }
 .sa-full .sw-tabs, .sa-full .sw-panel { width: min(100%, 880px); margin-inline: auto; box-sizing: border-box; }
-.sa-full .sw-graph-svg { max-height: min(68vh, 640px); }
+.sa-full .sw-graph-viewport { max-height: min(68vh, 720px); }
 
 /* Pointer answers: buttons press in, a member row's tile steps up on hover. */
 .sw-toggle, .sw-icon, .sw-livebtn, .sw-filter { transition: transform 120ms var(--ease-out), color 150ms var(--ease-out), background 150ms var(--ease-out); }

@@ -56,15 +56,25 @@ check("pill width grows with the name", () => {
   assert.ok(V.pillWidth("verifier") > V.pillWidth("ab"));
 });
 
-check("layout puts the first name at 12 o'clock and every pill inside the box", () => {
-  const pos = V.layout(["a", "b", "c", "d"]);
-  assert.ok(Math.abs(pos.a.x - V.W / 2) < 1e-9 && pos.a.y < V.H / 2);
-  for (const p of Object.values(pos)) assert.ok(p.x > 0 && p.x < V.W && p.y > 0 && p.y < V.H);
+check("many long names never overlap or escape the expandable canvas", () => {
+  for (const width of [280, 420, 880]) {
+    const names = Array.from({ length: 24 }, (_, i) => `CrmLongReadinessWorker${i}`);
+    const pos = V.layout(names, width);
+    const bounds = V.bounds(pos);
+    const nodes = Object.values(pos);
+    for (const [i, a] of nodes.entries()) {
+      assert.ok(a.x - a.hw >= 0 && a.x + a.hw <= bounds.width);
+      assert.ok(a.y - a.hh >= 0 && a.y + a.hh <= bounds.height);
+      for (const b of nodes.slice(i + 1)) {
+        assert.ok(Math.abs(a.x - b.x) >= a.hw + b.hw + 47 || Math.abs(a.y - b.y) >= a.hh + b.hh + 39);
+      }
+    }
+  }
 });
 
-check("layout keeps the whole pill of a long name inside the box", () => {
-  const pos = V.layout(["coordinator", "verifier", "dedupe-packages", "stats"]);
-  for (const [n, p] of Object.entries(pos)) assert.ok(p.x - V.pillWidth(n) / 2 >= 0 && p.x + V.pillWidth(n) / 2 <= V.W, n);
+check("layout adapts to the available pane width", () => {
+  const names = ["Main", "Crm58CksReadiness", "Crm59Dk011Pdf", "Crm60DossierFlow", "Dl49PhoneError", "Dl50AssignProduct"];
+  assert.ok(V.bounds(V.layout(names, 880)).width > V.bounds(V.layout(names, 360)).width);
 });
 
 check("an arrow leaves the pill's border toward the target", () => {

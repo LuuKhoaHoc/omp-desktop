@@ -25,8 +25,7 @@ function _SKE_labelFor(id) {
  *  of its effective chords as shown. */
 function _SKE_matches(action, lq) {
   if (!lq) return true;
-  if (action.label.toLowerCase().includes(lq)) return true;
-  if (OMP_TR(action.label).toLowerCase().includes(lq)) return true;
+  if (action.label.toLowerCase().includes(lq) || OMP_TR(action.label).toLowerCase().includes(lq)) return true;
   if (action.id.toLowerCase().includes(lq)) return true;
   return window.OMP_KEYMAP.keysFor(action.id).some(c => _SKE_fmt(c).toLowerCase().includes(lq));
 }
@@ -79,21 +78,22 @@ function ShortcutsEditor({ ctx, query }) {
   // edited by hand meanwhile.
   React.useEffect(() => { keymap.reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Groups in registry order; both the page search and the local filter
-  // must match. A page search that names no action (it found the section
-  // by its own keywords, e.g. "hotkeys") does not narrow the list.
+  // Group actions by declared category while preserving each category's
+  // first-seen order. Categories recur in the action registry.
+  // The page search narrows only when it names an action; otherwise it merely
+  // found this section by a section keyword (e.g. "hotkeys").
   const grouped = React.useMemo(() => {
     let page = (query ?? "").trim().toLowerCase();
     if (page && !_SKE_ACTIONS.some(a => _SKE_matches(a, page))) page = "";
     const own = filter.trim().toLowerCase();
-    const groups = [];
+    const groups = new Map();
     for (const action of _SKE_ACTIONS) {
       if (!_SKE_matches(action, page) || !_SKE_matches(action, own)) continue;
-      const last = groups[groups.length - 1];
-      if (last?.name === action.group) last.actions.push(action);
-      else groups.push({ name: action.group, actions: [action] });
+      let group = groups.get(action.group);
+      if (!group) groups.set(action.group, group = { name: action.group, actions: [] });
+      group.actions.push(action);
     }
-    return groups;
+    return [...groups.values()];
   }, [query, filter, keymap.payload, keymap.error]);
 
   const sourceFor = id => {

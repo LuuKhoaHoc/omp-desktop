@@ -34,14 +34,38 @@ function _IP_Delete({ label, onDelete }) {
 // The source picker above Test cases and Document: one chip per file, a
 // delete button for the selected one, "Add document" at the end.
 function _IP_Sources({ items, sel, onSel, all, labelOf, onDelete, onAdd }) {
+  const [q, setQ] = React.useState("");
   const cur = items.find(it => it.file === sel);
+  const { visible, needle, showSearch } = window.OMP_INSIGHTS_FILTER.filterSources(items, labelOf, q);
+
   return (
     <div className="ip-filter ip-sources">
+      {(showSearch || q) && (
+        <div className="ip-source-search-wrap">
+          <input
+            type="search"
+            className="ip-source-search"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder={OMP_TR("Filter files…")}
+            aria-label={OMP_TR("filter files")}
+          />
+          {q && (
+            <button type="button" className="btn ghost icon small" onClick={() => setQ("")} title={OMP_TR("Clear filter")}>
+              <_IP_Icon name="close" size={10} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="wp-seg small ip-source-seg">
-        {all && <button type="button" className={sel === null ? "on" : ""} onClick={() => onSel(null)}>{OMP_TR("All")}</button>}
-        {items.map(it => (
+        {all && (
+          <button type="button" className={sel === null ? "on" : ""} onClick={() => onSel(null)}>{OMP_TR("All")}</button>
+        )}
+        {cur && !visible.includes(cur) && <button type="button" className="on" title={cur.file} onClick={() => onSel(cur.file)}>{labelOf(cur)}</button>}
+        {visible.map(it => (
           <button type="button" key={it.file} className={sel === it.file ? "on" : ""} title={it.file} onClick={() => onSel(it.file)}>{labelOf(it)}</button>
         ))}
+        {needle && !visible.length && <span className="ip-source-empty">{OMP_TR("No match")}</span>}
       </div>
       {cur && onDelete && <_IP_Delete label={cur.file} onDelete={() => onDelete(cur.file)} />}
       <span style={{ flex: 1 }} />
@@ -152,37 +176,65 @@ function _IP_Cases({ sets, onDelete, onAdd }) {
 
 function _IP_Docs({ docs, onDelete, onAdd }) {
   const [sel, setSel] = React.useState(null);
+  const [q, setQ] = React.useState("");
   const cur = docs.find(d => d.file === sel) ?? docs[docs.length - 1];
   return (
     <div className="ip-docs">
       <_IP_Sources items={docs} sel={cur?.file} onSel={setSel} labelOf={d => d.data?.title || _ipSlug(d.file)}
         onDelete={f => { onDelete(f); setSel(null); }} onAdd={onAdd} />
-      {cur ? <_IP_Doc doc={cur.data} /> : <div className="wp-empty-line pad">{OMP_TR("No document analysis yet.")}</div>}
+      {cur ? <_IP_Doc doc={cur.data} q={q} onSearch={setQ} /> : <div className="wp-empty-line pad">{OMP_TR("No document analysis yet.")}</div>}
     </div>
   );
 }
-function _IP_Doc({ doc }) {
+function _IP_Doc({ doc, q = "", onSearch }) {
   if (doc.error) return <div className="wp-note err">{doc.error}</div>;
+  const { sections, requirements, noMatch } = window.OMP_INSIGHTS_FILTER.filterDocContent(doc, q);
+
   return (
     <div className="ip-doc">
-      <div className="ip-doc-title">{doc.title}</div>
+      <div className="ip-doc-head-row">
+        <div className="ip-doc-title">{doc.title}</div>
+        {onSearch && (
+          <div className="ip-filter ip-doc-search-wrap">
+            <input
+              type="search"
+              className="ip-doc-search"
+              value={q}
+              onChange={e => onSearch(e.target.value)}
+              placeholder={OMP_TR("Filter sections or requirements…")}
+              aria-label={OMP_TR("filter document content")}
+            />
+            {q && (
+              <button type="button" className="btn ghost icon small" onClick={() => onSearch("")} title={OMP_TR("Clear filter")}>
+                <_IP_Icon name="close" size={10} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {doc.source && <div className="ip-doc-src mono">{doc.source}</div>}
       {doc.summary && <p className="ip-doc-summary">{doc.summary}</p>}
-      {(doc.sections ?? []).map((s, i) => (
+      {sections.map((s, i) => (
         <section key={i} className="ip-doc-sec">
           <h4>{s.heading}</h4>
           <ul>{(s.points ?? []).map((p, j) => <li key={j}>{p}</li>)}</ul>
         </section>
       ))}
-      {(doc.requirements ?? []).length > 0 && (
+      {requirements.length > 0 && (
         <section className="ip-doc-sec">
           <h4>{OMP_TR("Requirements")}</h4>
           <table className="ip-req">
-            <tbody>{doc.requirements.map(r => (
+            <tbody>{requirements.map(r => (
               <tr key={r.id}><td className="mono">{r.id}</td><td>{r.text}</td><td>{r.priority && <span className={`ip-pri p-${String(r.priority).toLowerCase()}`}>{r.priority}</span>}</td></tr>
             ))}</tbody>
           </table>
         </section>
+      )}
+      {noMatch && (
+        <div className="wp-empty-line pad">
+          {OMP_TR("No content matches \"{q}\".", { q })}{" "}
+          <button type="button" className="btn ghost small" onClick={() => onSearch("")}>{OMP_TR("Clear filter")}</button>
+        </div>
       )}
     </div>
   );

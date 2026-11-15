@@ -53,6 +53,7 @@ function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const data          = window.OMP_DATA;
   const bridge        = window.OMP_BRIDGE;
+  window.useAccountQuotaService();
 
   // Settings → Language drives the window language. App subscribes to the
   // locale, so a change (this tweak, or the OS language under "auto")
@@ -76,6 +77,7 @@ function App() {
   const [preview,     setPreview]     = React.useState(null);
   const [rulesOpen,   setRulesOpen]   = React.useState(false);
   const [statsOpen,   setStatsOpen]   = React.useState(false);
+  const [accountsOpen, setAccountsOpen] = React.useState(false);
   const [promptHistoryOpen, setPromptHistoryOpen] = React.useState(false);
   // The Settings app tab (#37; app/settings-tab.js): `{open, active,
   // section}`. Not an omp tab: the active omp tab stays `activeSessionId`
@@ -508,7 +510,7 @@ function App() {
   };
 
   const subagentUi = useSubagentManager({
-    bridge, paneOpen: t.swarmPane === true, layout: t.layout, setTweak, activeSessionId, subagents, messages, setHoveredMsgIdx,
+    bridge, defaultOpen: t.swarmPane === true, layout: t.layout, setTweak, activeSessionId: activeProject.id, sessionIds, subagents, messages, setHoveredMsgIdx,
   });
   const subagentList = React.useMemo(() => window.OMP_SUBAGENTS.listAgents(subagents), [subagents]);
 
@@ -1015,7 +1017,7 @@ function App() {
     "app.interrupt":           () => {
       // Only abort when no overlay is open (overlays handle Escape themselves),
       // and never from the Settings page, which covers the chat.
-      if (stab.active || bridgeOpen || historyOpen || gitOpen || rulesOpen || statsOpen || promptHistoryOpen || planOpen || updater.open) return;
+      if (stab.active || bridgeOpen || historyOpen || gitOpen || rulesOpen || statsOpen || accountsOpen || promptHistoryOpen || planOpen || updater.open) return;
       if (streaming) handleAbort();
     },
     "app.thinking.cycle":      cycleThinking,
@@ -1052,7 +1054,7 @@ function App() {
     "desktop.panel.todo":      () => setPlanOpen(v => !v),
     "desktop.panel.changes":   () => setGitOpen(v => (v ? null : { path: null })),
     "desktop.panel.rules":     () => setRulesOpen(v => !v),
-    "desktop.panel.stats":     () => setStatsOpen(v => !v),
+    "desktop.panel.stats":     () => { setAccountsOpen(false); setStatsOpen(v => !v); },
     "desktop.composer.promptHistory": () => setPromptHistoryOpen(v => !v),
     "desktop.session.compact": () => bridge?.compact(),
     "desktop.session.export":  () => bridge?.exportHtml(),
@@ -1236,7 +1238,7 @@ function App() {
                 onOpenFolder={handleNewProject}
                 onReorder={handleReorder}
                 footer={<SidebarFooter settings={{ active: stab.active, onOpen: () => openSettings() }}
-                  onHistory={() => setHistoryOpen(true)} onStats={() => setStatsOpen(true)} />}
+                  onHistory={() => setHistoryOpen(true)} onStats={() => { setAccountsOpen(false); setStatsOpen(true); }} onAccounts={() => { setStatsOpen(false); setAccountsOpen(true); }} />}
               />
             )}
             {showSidebar && <ResizeHandle className="at-sidebar" {...panes.handle("sidebar")} />}
@@ -1347,7 +1349,7 @@ function App() {
               {splitShown && <ResizeHandle className="at-split" {...panes.handle("split")} />}
               {sideRail && <ResizeHandle key={sideRail} className="at-side" {...panes.handle(sideRail)} />}
               {showSplit && (
-                <SwarmPane
+                <SwarmPane key={planKey}
                   state={subagents}
                   selected={subagentUi.selected} onSelect={subagentUi.select}
                   level={subagentUi.level}
@@ -1516,6 +1518,8 @@ function App() {
         // profile's numbers showing underneath it.
         <UsageStatsPanel key={activeProfileId} onClose={() => setStatsOpen(false)} profileLabel={activeProfileLabel} />
       )}
+
+      {accountsOpen && <window.AccountQuotaPanel onClose={() => setAccountsOpen(false)} />}
 
       {promptHistoryOpen && (
         <PromptHistoryModal

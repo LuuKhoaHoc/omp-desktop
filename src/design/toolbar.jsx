@@ -132,8 +132,8 @@ function PanelRail({ rail, subagents, tree, browser, files, terminal, work, insi
 }
 
 // ── Sidebar footer ────────────────────────────────────────────────────
-/** settings: { active, onOpen }; onHistory, onStats */
-function SidebarFooter({ settings, onHistory, onStats }) {
+/** settings: { active, onOpen }; onHistory, onStats, onAccounts */
+function SidebarFooter({ settings, onHistory, onStats, onAccounts }) {
   return (
     <div className="psb-foot" role="group" aria-label={OMP_TR("app")}>
       <ToolButton icon="cog" size={15} title={_tbTip("settings", "desktop.settings.open")}
@@ -143,6 +143,7 @@ function SidebarFooter({ settings, onHistory, onStats }) {
       <span className="pr-fill" />
       <ToolButton icon="clock" size={15} title={_tbTip("conversation history", "desktop.history.open")} onClick={onHistory} />
       <ToolButton icon="cost" size={15} title={_tbTip("usage statistics", "desktop.panel.stats")} onClick={onStats} />
+      <ToolButton icon="layers" size={15} title={OMP_TR("Accounts & quota")} onClick={onAccounts} />
     </div>
   );
 }

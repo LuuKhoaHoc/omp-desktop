@@ -165,8 +165,45 @@
     const rest = values.filter(v => low(v) === want && !chosen.includes(v));
     return rest.length ? { scope: labelScope(rest[0]), labels: rest } : null;
   }
+  // ── Filter & Search helpers ──────────────────────────────────────────────
+  function filterPeople(items, kind, query) {
+    const counts = new Map();
+    let unassigned = 0;
+    for (const it of items ?? []) {
+      const people = kind === "mrs" ? (it.author ? [it.author] : []) : (it.assignees ?? []);
+      if (!people.length) unassigned++;
+      for (const p of people) counts.set(p, (counts.get(p) ?? 0) + 1);
+    }
+    const people = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const needle = (query || "").trim().toLowerCase();
+    const filteredPeople = needle ? people.filter(([name]) => name.toLowerCase().includes(needle)) : people;
+    return { people, filteredPeople, unassigned, needle };
+  }
 
-  const api = { KINDS, kinds, whoOptions, migrate, resolve, validateView, choiceRequests, parseChoices, loadChoices, columnMeta, columnSuggestion };
+  function filterLabels(items, columns, query) {
+    const colSet = new Set(columns ?? []);
+    const counts = new Map();
+    for (const it of items ?? []) {
+      for (const l of it.labels ?? []) {
+        if (!colSet.has(l)) counts.set(l, (counts.get(l) ?? 0) + 1);
+      }
+    }
+    const labels = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const needle = (query || "").trim().toLowerCase();
+    const filteredLabels = needle ? labels.filter(([name]) => name.toLowerCase().includes(needle)) : labels;
+    return { labels, filteredLabels, needle };
+  }
+
+  function filterViews(views, query) {
+    const list = views ?? [];
+    const needle = (query || "").trim().toLowerCase();
+    const filteredViews = needle
+      ? list.filter(v => `${v.name} ${v.kind}`.toLowerCase().includes(needle))
+      : list;
+    return { filteredViews, needle, showSearch: list.length > 5 };
+  }
+
+  const api = { KINDS, kinds, whoOptions, migrate, resolve, validateView, choiceRequests, parseChoices, loadChoices, columnMeta, columnSuggestion, filterPeople, filterLabels, filterViews };
   if (typeof window !== "undefined") window.OMP_WORK_VIEWS = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

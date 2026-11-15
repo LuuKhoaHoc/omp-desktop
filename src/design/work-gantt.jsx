@@ -2,7 +2,7 @@ function _WP_Gantt({ tickets = [], columns = [], activeId, onOpen, showClosed })
   const G = window.OMP_WORK_GANTT, V = window.OMP_WORK_VIEWS;
   const zoomAnchorRef = React.useRef(null);
   const [zoom, setZoom] = React.useState("week");
-  const sidebarRef = React.useRef(null), timelineRef = React.useRef(null);
+  const bodyRef = React.useRef(null);
   const groups = React.useMemo(() => G.groupBy(tickets, "column", columns), [tickets, columns]);
   const dated = React.useMemo(() => tickets.map(ticket => ({ ticket, dates: G.parseDates(ticket) })), [tickets]);
   const bounds = React.useMemo(() => G.timeBounds(tickets), [tickets]);
@@ -14,32 +14,36 @@ function _WP_Gantt({ tickets = [], columns = [], activeId, onOpen, showClosed })
   const dateById = React.useMemo(() => new Map(dated.map(item => [item.ticket.id, item.dates])), [dated]);
   const dateRange = `${bounds.minDate.toLocaleDateString(undefined, { month: "short", year: "numeric" })} – ${bounds.maxDate.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
 
-  const syncScroll = source => {
-    const from = source === "sidebar" ? sidebarRef.current : timelineRef.current;
-    const to = source === "sidebar" ? timelineRef.current : sidebarRef.current;
-    if (from && to && to.scrollTop !== from.scrollTop) to.scrollTop = from.scrollTop;
-  };
+
   React.useLayoutEffect(() => {
     const anchor = zoomAnchorRef.current;
-    const el = timelineRef.current;
+    const el = bodyRef.current;
     if (!anchor || !el) return;
     zoomAnchorRef.current = null;
     const offset = position(anchor);
-    el.scrollLeft = Math.max(0, offset - el.clientWidth / 2);
+    const sideWidth = el.querySelector(".wp-gantt-sidebar")?.offsetWidth || 0;
+    const visibleTimelineWidth = Math.max(1, el.clientWidth - sideWidth);
+    el.scrollLeft = Math.max(0, offset - visibleTimelineWidth / 2);
   }, [zoom]);
 
   const changeZoom = value => {
     if (value === zoom) return;
-    const el = timelineRef.current;
+    const el = bodyRef.current;
     if (el) {
-      const center = el.scrollLeft + el.clientWidth / 2;
+      const sideWidth = el.querySelector(".wp-gantt-sidebar")?.offsetWidth || 0;
+      const visibleTimelineWidth = Math.max(1, el.clientWidth - sideWidth);
+      const center = el.scrollLeft + visibleTimelineWidth / 2;
       zoomAnchorRef.current = new Date(bounds.minDate.getTime() + center / totalWidth * (bounds.maxDate - bounds.minDate));
     }
     setZoom(value);
   };
   const goToday = () => {
-    const el = timelineRef.current;
-    if (el) el.scrollTo({ left: Math.max(0, todayOffset - el.clientWidth / 2), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    const el = bodyRef.current;
+    if (el) {
+      const sideWidth = el.querySelector(".wp-gantt-sidebar")?.offsetWidth || 0;
+      const visibleTimelineWidth = Math.max(1, el.clientWidth - sideWidth);
+      el.scrollTo({ left: Math.max(0, todayOffset - visibleTimelineWidth / 2), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    }
   };
   const position = date => G.ticketPosition({ start: date, end: date }, bounds.minDate, bounds.maxDate, totalWidth).left;
   const formatDate = date => date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -65,8 +69,8 @@ function _WP_Gantt({ tickets = [], columns = [], activeId, onOpen, showClosed })
         <span className="wp-gantt-range" aria-live="polite">{dateRange}</span>
         <button type="button" className="btn ghost small wp-gantt-today-btn" onClick={goToday}>{OMP_TR("Today")}</button>
       </div>
-      <div className="wp-gantt-body">
-        <div className="wp-gantt-sidebar" ref={sidebarRef} onScroll={() => syncScroll("sidebar")}>
+      <div className="wp-gantt-body" ref={bodyRef}>
+        <div className="wp-gantt-sidebar">
           <div className="wp-gantt-side-head">{OMP_TR("Ticket")}</div>
           {groups.map(group => {
             const meta = V.columnMeta(group.key);
@@ -89,7 +93,7 @@ function _WP_Gantt({ tickets = [], columns = [], activeId, onOpen, showClosed })
             </React.Fragment>;
           })}
         </div>
-        <div className="wp-gantt-timeline" ref={timelineRef} onScroll={() => syncScroll("timeline")}>
+        <div className="wp-gantt-timeline">
           <div className="wp-gantt-track" style={{ width: totalWidth }}>
             <div className="wp-gantt-tick-head">
               <div className="wp-gantt-month-row" aria-hidden="true">

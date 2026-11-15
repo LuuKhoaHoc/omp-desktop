@@ -251,10 +251,14 @@ label of the option the user picked. A click on [data-omp-send=\"text\"] or omp.
 script also answers (json arrives as a json block) once the user confirms it. After sending a page, \
 end your turn and wait. Never ask for secrets in a page. A ```mermaid block draws as a diagram, \
 so prefer it for workflows, sequences and state machines. Details: the omp-desktop-chat-pages skill. \
-The `browser` of your eval tool drives the browser panel the user watches live in this app (it opens \
-when you use it, and keeps the user's logins). For UI checks, smoke tests or showing how a feature \
-behaves, use it, not Playwright, Puppeteer scripts, a headless browser or another browser CLI, and \
-say what you open, click and check at each step so the user can follow the flow."
+The built-in `browser` in your eval tool is the default for all browser automation, navigation, \
+interaction and visual verification. Call browser.open without an app override so it uses this \
+chat session's managed browser and the panel the user watches live (it opens when you use it, \
+and keeps the user's logins). Do not select relay, own, chromium, webkit, an external CDP endpoint \
+or another browser unless the user explicitly requests it. Do not substitute Playwright, Puppeteer \
+scripts, a headless browser or another browser CLI. If the built-in browser fails, report the \
+failure instead of silently switching browsers. For UI checks, smoke tests or showing how a feature \
+behaves, say what you open, click and check at each step so the user can follow the flow."
     };
 }
 const DESKTOP_PROMPT_ARG: &str = concat!("--append-system-prompt=", desktop_prompt!());

@@ -8,15 +8,13 @@
      classFor(label)        the `ipk-*` class a node gets (kind, else a color)
      annotate(src, nodes)   src plus `class` lines that tag every node
      prepare(mermaid, src)  annotate() for flowcharts, src as is otherwise
-     styleSheet()           CSS text: one color and one icon per kind
+     styleSheet()           CSS text: one theme color per kind
      graph(nodeIds, edgeIds) edges per node, pure
      decorate(svg)          sets each edge's length for the draw-in, returns
                             the graph for focus()
      focus(svg, g, id)      lights one node's edges (null clears)
-   Shared look lives in layout/diagram.css; the per-kind rules come from
-   styleSheet() because the icons are data: URLs, which the frontend build
-   refuses in CSS files. Colors are var(--…) tokens, so a theme switch
-   restyles a drawn diagram without re-rendering it.
+   Shared look lives in layout/diagram.css. Colors are var(--…) tokens,
+   so a theme switch restyles a drawn diagram without re-rendering it.
    ═════════════════════════════════════════════════════════════════════ */
 (function () {
   /** `#rrggbb` (or `#rgb`) as [r, g, b], null for anything else. */
@@ -94,29 +92,6 @@
   }
 
   /* ── Node kinds ─────────────────────────────────────────────────────── */
-  // 24×24 stroke icons (the inside of an <svg>), drawn in the mask color.
-  const ICONS = {
-    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
-    web: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
-    mobile: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
-    gateway: '<rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M6 16v-3h12v3M12 8v5"/>',
-    server: '<rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01"/>',
-    logic: '<path d="M8 4C6 4 5 5 5 7v2c0 1-1 3-2 3 1 0 2 2 2 3v2c0 2 1 3 3 3M16 4c2 0 3 1 3 3v2c0 1 1 3 2 3-1 0-2 2-2 3v2c0 2-1 3-3 3"/>',
-    auth: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-    db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
-    cache: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
-    queue: '<path d="M3 6h18M3 12h18M3 18h12"/>',
-    external: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
-    payment: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/>',
-    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
-    cloud: '<path d="M7 18a4 4 0 0 1-.5-7.97A6 6 0 0 1 18 9.5 4.5 4.5 0 0 1 17.5 18z"/>',
-    monitor: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
-    ai: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16v4M17 18h4"/>',
-    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
-    job: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
-  };
-
   // Hue = the theme token that colors the block. Order matters: the first
   // pattern that matches wins, so "Redis Cache" is cache and "Auth Service"
   // is auth before "service" would make them servers. Patterns run on the
@@ -192,15 +167,10 @@
     }
   }
 
-  /** CSS for the per-kind color and icon, and the colors of unknown kinds. */
+  /** CSS for the per-kind color and the colors of unknown kinds. */
   function styleSheet() {
     const node = cls => `svg[id^="ip-mmd-"] .node.${cls}`;
-    const kinds = KINDS.map(([kind, hue]) => {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[kind]}</svg>`;
-      const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-      return `${node(`ipk-${kind}`)} { --k: var(--${hue}); }\n`
-        + `${node(`ipk-${kind}`)} .nodeLabel::before { content: ""; -webkit-mask-image: ${url}; mask-image: ${url}; }`;
-    });
+    const kinds = KINDS.map(([kind, hue]) => `${node(`ipk-${kind}`)} { --k: var(--${hue}); }`);
     const colors = PALETTE.map((hue, i) => `${node(`ipk-c${i}`)} { --k: var(--${hue}); }`);
     return [...kinds, ...colors].join("\n");
   }

@@ -58,6 +58,16 @@ function SwarmGraph({ state }) {
   const [pacing, setPacing] = React.useState("even");
   const [speed, setSpeed] = React.useState(1);
   const total = posts.length;
+  const viewport = React.useRef(null);
+  const [paneWidth, setPaneWidth] = React.useState(_SAG_View.W);
+  const markerId = React.useId().replace(/:/g, "");
+  React.useEffect(() => {
+    const el = viewport.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setPaneWidth(entry.contentRect.width));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [total === 0]);
   const at = step === null ? total : Math.min(step, total);
 
   React.useEffect(() => {
@@ -86,7 +96,8 @@ function SwarmGraph({ state }) {
   const talked = new Set(upTo.flatMap(p => [p.from, p.to]));
   const everyone = [...new Set([..._SAG.listAgents(state).map(a => a.id), ...posts.flatMap(p => [p.from, p.to])])].sort();
   const names = hideInactive ? everyone.filter(n => talked.has(n)) : everyone;
-  const pos = _SAG_View.layout(names);
+  const pos = _SAG_View.layout(names, paneWidth);
+  const size = _SAG_View.bounds(pos);
   const edges = _SAG.boardEdges(upTo);
   const max = Math.max(1, ...edges.map(e => e.count));
   const seek = n => { setPlaying(false); setStep(n >= total ? null : Math.max(0, n)); };
@@ -129,9 +140,10 @@ function SwarmGraph({ state }) {
           <_SAG_Icon name="chev" size={12} aria-hidden="true" />
         </span>
       </div>
-      <svg viewBox={`0 0 ${_SAG_View.W} ${_SAG_View.H}`} className="sw-graph-svg" role="img" aria-label={OMP_TR("Graph")}>
+      <div className="sw-graph-viewport" ref={viewport}>
+      <svg viewBox={`0 0 ${size.width} ${size.height}`} width={size.width} height={size.height} className="sw-graph-svg" role="img" aria-label={OMP_TR("Graph")}>
         <defs>
-          <marker id="sw-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto">
+          <marker id={markerId} viewBox="0 0 8 8" refX="7" refY="4" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto">
             <path d="M0,0 L8,4 L0,8 z" className="sw-graph-arrow" />
           </marker>
         </defs>
@@ -139,7 +151,7 @@ function SwarmGraph({ state }) {
           const { d, lx, ly } = _SAG_View.curve(pos[e.from], pos[e.to]);
           return (
             <g key={`${e.from}>${e.to}`} className="sw-graph-edge">
-              <path d={d} strokeWidth={1 + (2.5 * e.count) / max} markerEnd="url(#sw-arrow)" />
+              <path d={d} strokeWidth={1 + (2.5 * e.count) / max} markerEnd={`url(#${markerId})`} />
               {e.count > 1 && <text x={lx} y={ly} className="sw-graph-count" textAnchor="middle" dominantBaseline="central">{e.count}</text>}
             </g>
           );
@@ -156,13 +168,14 @@ function SwarmGraph({ state }) {
           return (
             <g key={n} className={`sw-graph-node${talked.has(n) ? " talked" : ""}${live ? " live" : ""}${a ? ` ${a.status}` : ""}`}
               transform={`translate(${pos[n].x - w / 2},${pos[n].y - _SAG_View.PILL_H / 2})`}>
-              <rect width={w} height={_SAG_View.PILL_H} rx={_SAG_View.PILL_H / 2} />
+              <rect width={w} height={_SAG_View.PILL_H} rx="8" />
               <circle cx="17" cy={_SAG_View.PILL_H / 2} r="4.5" />
               <text x="30" y={_SAG_View.PILL_H / 2} dominantBaseline="central">{n}</text>
             </g>
           );
         })}
       </svg>
+      </div>
       <div className="sw-legend">
         <svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true"><path d="M0,4 H15" className="sw-legend-line" /><path d="M14,0.5 L21,4 L14,7.5 z" className="sw-graph-arrow" /></svg>
         <span>{OMP_TR("@mention, width = count")}</span>

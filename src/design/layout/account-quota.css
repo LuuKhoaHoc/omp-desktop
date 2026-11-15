@@ -1,0 +1,31 @@
+.account-quota-scrim { padding-top: 6vh; }
+.account-quota-close { margin-left: auto; }
+.quota-section { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.quota-section h3 { margin: 0 0 10px; font-size: 14px; color: var(--fg); }
+.quota-section h4 { margin: 20px 0 8px; font-size: 12px; color: var(--fg); }
+.quota-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.quota-note { color: var(--fg-2); font-size: 11px; line-height: 1.6; }
+.quota-profile { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+.quota-profile select { min-height: 32px; max-width: 75%; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
+.quota-account { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; font-size: 12px; }
+.quota-identity { color: var(--fg-2); }
+.quota-window { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 16px; }
+.quota-window > .quota-note { grid-column: 1 / -1; }
+.quota-toggle { display: flex; gap: 8px; align-items: center; font-size: 12px; cursor: pointer; }
+.quota-toggle input { accent-color: var(--accent); }
+.quota-pin { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 12px; }
+.quota-pin > span { min-width: 0; overflow-wrap: anywhere; }
+.quota-pin small { display: block; color: var(--fg-2); padding-top: 4px; }
+.quota-pin button { flex-shrink: 0; }
+.quota-error { color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--line); padding: 8px; }
+.quota-metrics { display: grid; gap: 8px; font-size: 12px; }
+.quota-metrics > div { display: flex; justify-content: space-between; gap: 12px; }
+.quota-metrics dt { color: var(--fg-2); }
+.quota-metrics dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+.quota-section :is(button, select, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.quota-section button { cursor: pointer; }
+.quota-section button:disabled { cursor: default; opacity: .55; }
+@media (max-width: 520px) {
+  .quota-pin { align-items: flex-start; flex-direction: column; }
+  .quota-metrics > div { flex-wrap: wrap; }
+}

@@ -112,6 +112,7 @@ const ALLOWED_COMMAND_TYPES: &[&str] = &[
     "new_session",
     "export_html",
     "get_login_providers",
+    "get_logout_accounts",
     "login",
     // omp's ask dialog: every question of one ask tool call in a single
     // `extension_ui_request` (method "ask"), answered with `answers[]`.

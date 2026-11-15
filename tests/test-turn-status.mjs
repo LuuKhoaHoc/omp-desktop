@@ -53,17 +53,17 @@ const ask = (extra = {}) => ({ kind: "ask", answered: false, cancelled: false, .
 
 check("run state priority is failed > waiting-user > retrying > running > background > idle", () => {
   const retry = { kind: "retry", ended: null };
-  const all = { exitReason: "omp exited", messages: [ask(), retry], isStreaming: true, asyncPending: true };
+  const all = { exitReason: "omp exited", messages: [ask(), retry], agentRunning: true, asyncPending: true };
   assert.equal(T.runStateOf(all), "failed");
   assert.equal(T.runStateOf({ ...all, exitReason: null }), "waiting-user");
   assert.equal(T.runStateOf({ ...all, exitReason: null, messages: [retry] }), "retrying");
   assert.equal(T.runStateOf({ ...all, exitReason: null, messages: [] }), "running");
-  assert.equal(T.runStateOf({ ...all, exitReason: null, messages: [], isStreaming: false }), "background");
-  assert.equal(T.runStateOf({ exitReason: null, messages: [], isStreaming: false, asyncPending: false }), "idle");
+  assert.equal(T.runStateOf({ ...all, exitReason: null, messages: [], agentRunning: false }), "background");
+  assert.equal(T.runStateOf({ exitReason: null, messages: [], agentRunning: false, asyncPending: false }), "idle");
 });
 
 check("a retry row counts until omp reports how the retries ended", () => {
-  const base = { exitReason: null, isStreaming: false, asyncPending: false };
+  const base = { exitReason: null, agentRunning: false, asyncPending: false };
   assert.equal(T.runStateOf({ ...base, messages: [{ kind: "retry", ended: null }] }), "retrying");
   assert.equal(T.runStateOf({ ...base, messages: [{ kind: "retry", ended: { cancelled: true } }] }), "idle");
   // An open ask outranks a retry row wherever it sits.
@@ -72,7 +72,7 @@ check("a retry row counts until omp reports how the retries ended", () => {
 });
 
 check("only an open ask waits on the user", () => {
-  const base = { exitReason: null, isStreaming: false, asyncPending: true };
+  const base = { exitReason: null, agentRunning: false, asyncPending: true };
   assert.equal(T.runStateOf({ ...base, messages: [ask({ answered: true })] }), "background");
   assert.equal(T.runStateOf({ ...base, messages: [ask({ cancelled: true })] }), "background");
   assert.equal(T.runStateOf({ ...base, messages: [ask(), ask({ answered: true })] }), "waiting-user");
@@ -344,7 +344,7 @@ check("the attempt that answers ends the retries, even with more turns to come i
   assert.equal(T.retryIndex(msgs), -1);
   assert.equal(msgs[1].superseded, true);
   assert.deepEqual(msgs[2].retries, { failed: 1, outcome: "recovered" });
-  assert.equal(T.runStateOf({ exitReason: null, isStreaming: true, asyncPending: false, messages: msgs }), "running");
+  assert.equal(T.runStateOf({ exitReason: null, agentRunning: true, asyncPending: false, messages: msgs }), "running");
   // Later turns, the run's yield and the late success auto_retry_end find no row.
   msgs = [...msgs, { kind: "tool", tool: "edit" }, okRow];
   assert.equal(T.retryFinished(msgs, OK_REPLY, OK_REPLY.timestamp), msgs);

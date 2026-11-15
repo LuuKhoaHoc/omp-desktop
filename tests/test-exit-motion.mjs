@@ -127,6 +127,16 @@ check("quietSwitch: a second switch before the first ended keeps it quiet for it
   assert.equal(M.switching(doc), false);
 });
 
+check("tab switching suppresses chrome color and marker transitions", () => {
+  const rule = /\.tab-switching\s+:is\(([^)]*)\)\s*\{([^}]*)\}/.exec(motionCss);
+  assert.ok(rule, "tab-switching rule exists");
+  for (const selector of [".tab", ".tab-cluster", ".tab-cluster-head", ".tab-bar-mark"]) {
+    assert.ok(rule[1].includes(selector), `${selector} is covered`);
+  }
+  assert.match(rule[2], /animation-duration:\s*0s/);
+  assert.match(rule[2], /transition-duration:\s*0s/);
+});
+
 check("skipFoldedRemoval skips .tab ghosts only when removed from a folded cluster", () => {
   assert.equal(M.skipFoldedRemoval(el("tab-cluster is-folded"), el("tab")), true);
   assert.equal(M.skipFoldedRemoval(el("tab-cluster"), el("tab")), false);

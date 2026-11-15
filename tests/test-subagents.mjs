@@ -482,4 +482,56 @@ check("other message_start frames and malformed advisor cards change nothing", (
   assert.equal(S.applySubagentFrame(s, { type: "message_start", message: { role: "custom", customType: "advisor" } }, 1), s);
 });
 
+check("Swarm open and close follow the chat tab and closed tabs forget their state", () => {
+  new Function("window", readFileSync(join(root, "src/app/session-ui.js"), "utf8"))(win);
+  const slots = [], pending = [];
+  let cursor = 0;
+  const React = {
+    useState(initial) {
+      const i = cursor++;
+      if (!(i in slots)) slots[i] = typeof initial === "function" ? initial() : initial;
+      return [slots[i], value => { slots[i] = typeof value === "function" ? value(slots[i]) : value; }];
+    },
+    useRef(value) { const i = cursor++; return slots[i] ??= { current: value }; },
+    useCallback(fn) { return fn; },
+    useEffect(fn, deps) {
+      const i = cursor++;
+      if (!slots[i] || deps.some((v, j) => v !== slots[i][j])) { slots[i] = deps; pending.push(fn); }
+    },
+  };
+  new Function("window", "React", readFileSync(join(root, "src/app/use-subagent-manager.jsx"), "utf8"))(win, React);
+  const props = { defaultOpen: false, layout: "rail", sessionIds: ["A", "B"], subagents: S.emptySubagents(), messages: [], setTweak: () => { throw new Error("must not write global visibility"); } };
+  const render = id => {
+    cursor = 0;
+    const out = win.useSubagentManager({ ...props, activeSessionId: id });
+    pending.splice(0).forEach(fn => fn());
+    return out;
+  };
+  assert.equal(render("A").paneOpen, false);
+  props.defaultOpen = true;
+  assert.equal(render("A").paneOpen, false);
+  assert.equal(render("B").paneOpen, false);
+  props.sessionIds = ["A", "B", "C"];
+  render("C");
+  assert.equal(render("C").paneOpen, true);
+  props.defaultOpen = false;
+  assert.equal(render("C").paneOpen, true);
+  render("A").togglePane();
+  assert.equal(render("A").paneOpen, true);
+  assert.equal(render("B").paneOpen, false);
+  render("B").open();
+  render("A").togglePane();
+  assert.equal(render("A").paneOpen, false);
+  assert.equal(render("B").paneOpen, true);
+  props.defaultOpen = true;
+  assert.equal(render("A").paneOpen, false);
+  props.sessionIds = ["A"];
+  render("A");
+  props.defaultOpen = false;
+  props.sessionIds = ["A", "B"];
+  render("B");
+  assert.equal(render("B").paneOpen, false);
+  assert.equal(render("").paneOpen, false);
+});
+
 console.log(`subagents: ${passed} checks passed`);

@@ -64,6 +64,7 @@
   const state = {
     messages:       [],
     isStreaming:    false,
+    agentRunning:   false,
     model:          null,
     thinkingLevel:  null,
     // omp's `auto` selector is on: `thinkingLevel` is what it resolved to.
@@ -443,9 +444,8 @@
   // precisely because no code path mutates state.messages in place: every
   // writer replaces the array (see _pushAssistantNote), so a stale entry is
   // unreachable (proven with an eval-kernel cell: 21/21 cases, including
-  // the same array replayed under changing isStreaming/exitReason, which a
-  // naive key-on-array-only memo gets wrong — `asyncPending` is part of
-  // the key for the same reason).
+  // the same array replayed under changing agentRunning/exitReason; both
+  // `agentRunning` and `asyncPending` are part of the key.
   // A backgrounded tab's array is frozen for as long as it
   // stays backgrounded, so those tabs become a map lookup; only the active
   // tab, whose array is replaced as it streams, still scans — and that scan
@@ -455,16 +455,16 @@
   // Shared so a never-activated tab keys the memo stably instead of
   // allocating a fresh (always-missing) array on every notify.
   const _EMPTY_SESSION_FIELDS = Object.freeze({
-    isStreaming: false, exitReason: null, asyncPending: false, messages: Object.freeze([]),
+    agentRunning: false, exitReason: null, asyncPending: false, messages: Object.freeze([]),
   });
   function runStateCached(fields) {
-    const { messages, isStreaming, exitReason, asyncPending } = fields;
+    const { messages, agentRunning, isStreaming, exitReason, asyncPending } = fields;
     const hit = _runStateMemo.get(messages);
-    if (hit && hit.isStreaming === isStreaming && hit.exitReason === exitReason && hit.asyncPending === asyncPending) {
+    if (hit && hit.agentRunning === agentRunning && hit.isStreaming === isStreaming && hit.exitReason === exitReason && hit.asyncPending === asyncPending) {
       return hit.value;
     }
     const value = TURN.runStateOf(fields);
-    _runStateMemo.set(messages, { isStreaming, exitReason, asyncPending, value });
+    _runStateMemo.set(messages, { agentRunning, isStreaming, exitReason, asyncPending, value });
     return value;
   }
 
@@ -897,6 +897,7 @@
     Object.assign(state, {
       messages:      [],
       isStreaming:   false,
+      agentRunning:  false,
       model:         null,
       thinkingLevel: null,
       thinkingAuto:  false,
@@ -952,6 +953,7 @@
       // state fields
       messages:      state.messages,
       isStreaming:   state.isStreaming,
+      agentRunning:  state.agentRunning,
       model:         state.model,
       thinkingLevel: state.thinkingLevel,
       thinkingAuto:  state.thinkingAuto,
@@ -1002,6 +1004,7 @@
     Object.assign(state, {
       messages:      snap.messages,
       isStreaming:   snap.isStreaming,
+      agentRunning:  snap.agentRunning,
       model:         snap.model,
       thinkingLevel: snap.thinkingLevel,
       thinkingAuto:  snap.thinkingAuto ?? false,
@@ -1149,6 +1152,7 @@
       const reason = (ev?.payload && String(ev.payload).trim()) || "";
       console.warn(`[live] session '${id}' omp process exited${reason ? ": " + reason : ""}`);
       state.isStreaming = false;
+      state.agentRunning = false;
       state.exitReason = reason || null;
       if (reason) {
         _pushAssistantNote(_exitNote(reason, sessionRegistry.get(id)?.profile));
@@ -2623,6 +2627,7 @@
     if (type === "turn_start") {
       turnStartTime = now;
       state.isStreaming = true;
+      state.agentRunning = true;
       // A turn while omp waited to retry: the next attempt is in flight.
       state.messages = TURN.retryAttempting(state.messages, now);
       notify();
@@ -2941,6 +2946,12 @@
     }
 
     if (type === "agent_start" || type === "agent_end") {
+      if (type === "agent_start") state.agentRunning = true;
+      else if (TURN.isYield(ev)) {
+        state.agentRunning = false;
+        if (ev.awaitingAsyncWork === true) state.asyncPending = true;
+      }
+      notify();
       // Refinement counter: terminal agent turns since the last title
       // write. Non-terminal ends are scheduling pauses, not new material
       // (`countsAsRefineTurn`). A bare `/rename` is consumed as a builtin
@@ -3010,6 +3021,8 @@
     if (!rpcState) return;
     state.rpcState      = rpcState;
     state.isStreaming   = rpcState.isStreaming ?? false;
+    if (rpcState.isStreaming) state.agentRunning = true;
+    else if (rpcState.isSettled === true) state.agentRunning = false;
     // Background work that will wake the agent (see `state.asyncPending`);
     // this is also how a tab activated mid-wait learns about it.
     state.asyncPending  = rpcState.hasPendingAsyncWork === true;

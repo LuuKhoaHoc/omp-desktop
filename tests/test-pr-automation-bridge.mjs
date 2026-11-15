@@ -195,6 +195,43 @@ async function check(label, fn) {
   passed++;
 }
 
+await check("the run indicator stays on between turns and across tab switches", async () => {
+  const h = harness();
+  const a = await h.bridge.openSession("/project");
+  await flush();
+  const status = () => h.snapshot().sessions.find(s => s.id === a).runState;
+  h.emit(a, { type: "agent_start" });
+  h.emit(a, { type: "turn_start" });
+  assert.equal(status(), "running");
+  h.emit(a, { type: "turn_end" });
+  assert.equal(status(), "running");
+  const b = await h.bridge.openSession("/other");
+  await flush();
+  assert.equal(status(), "running");
+  h.emit(a, { type: "turn_start" });
+  h.emit(a, { type: "agent_end", yielded: false });
+  await h.bridge.activateSession(a);
+  await flush();
+  assert.equal(status(), "running");
+  h.emit(a, { type: "turn_end" });
+  h.emit(a, { type: "agent_end", yielded: true });
+  assert.equal(status(), "idle");
+});
+
+await check("yielding to async work never publishes an idle indicator", async () => {
+  const h = harness();
+  const id = await h.bridge.openSession("/project");
+  await flush();
+  const status = () => h.snapshot().sessions.find(s => s.id === id).runState;
+  h.emit(id, { type: "agent_start" });
+  h.emit(id, { type: "turn_start" });
+  h.emit(id, { type: "turn_end" });
+  h.emit(id, { type: "agent_end", yielded: true, awaitingAsyncWork: true });
+  assert.equal(status(), "background");
+  h.emit(id, { type: "response", command: "get_state", success: true, data: { isStreaming: false, isSettled: false, hasPendingAsyncWork: true } });
+  assert.equal(status(), "background");
+});
+
 await check(
   "fresh and resumed conversations discover the current branch PR without creation history",
   async () => {

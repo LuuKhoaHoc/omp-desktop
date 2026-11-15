@@ -92,14 +92,13 @@ await check("prepare: only flowcharts are annotated; a parse failure leaves the 
   assert.equal(await M.prepare(bad, "flowchart TD\n A["), "flowchart TD\n A[");
 });
 
-await check("styleSheet: every kind gets a color and an icon mask", () => {
+await check("styleSheet: every kind gets its theme color without generated label content", () => {
   const css = M.styleSheet();
   for (const kind of ["user", "web", "gateway", "server", "logic", "auth", "db", "cache", "external"]) {
     assert.ok(css.includes(`.node.ipk-${kind} { --k:`), kind);
-    assert.ok(css.includes(`.node.ipk-${kind} .nodeLabel::before`), kind);
   }
   assert.ok(css.includes(".node.ipk-c5 { --k:"));
-  assert.ok(css.includes("data:image/svg+xml,%3Csvg"));
+  assert.ok(!css.includes("::before"));
 });
 
 await check("graph: underscores in ids, edges per node", () => {

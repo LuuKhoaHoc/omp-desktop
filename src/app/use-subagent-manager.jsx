@@ -1,13 +1,22 @@
-/* app/use-subagent-manager.jsx — UI state for the swarm pane
-   (design/subagents/). Whether the pane is open is the `swarmPane` tweak, so
-   it persists like any other layout choice and is independent of the rail
-   (`layout`). Owns: which agent is inspected, the RPC subscription level
-   that follows inspection, and jump-to-task-call. */
+/* Swarm visibility belongs to each chat tab. The stored tweak is only the
+   initial preference; toolbar and inspect actions never change other tabs. */
 
-function useSubagentManager({ bridge, paneOpen, layout, setTweak, activeSessionId, subagents, messages, setHoveredMsgIdx }) {
-  // The pane used to be `layout: "split"`, so hiding the rail closed it. A
-  // stored "split" becomes the rail layout with the pane open.
-  React.useEffect(() => { if (layout === "split") setTweak({ layout: "rail", swarmPane: true }); }, [layout, setTweak]);
+function useSubagentManager({ bridge, defaultOpen, layout, setTweak, activeSessionId, sessionIds, subagents, messages, setHoveredMsgIdx }) {
+  const [panes, setPanes] = React.useState({});
+  const seenIds = React.useRef(new Set());
+  const { entryOf, updateEntry, pruneEntries, seedEntries } = window.OMP_SESSION_UI;
+  const paneOpen = Boolean(activeSessionId && entryOf(panes, activeSessionId, defaultOpen));
+  React.useEffect(() => {
+    const fresh = sessionIds.filter(id => !seenIds.current.has(id));
+    seenIds.current = new Set(sessionIds);
+    setPanes(m => seedEntries(pruneEntries(m, sessionIds), fresh, undefined, defaultOpen));
+  }, [sessionIds, defaultOpen]);
+  const setPaneOpen = React.useCallback(on => {
+    setPanes(m => updateEntry(m, activeSessionId, undefined, () => on));
+  }, [activeSessionId]);
+  React.useEffect(() => {
+    if (layout === "split") { setTweak("layout", "rail"); setPaneOpen(true); }
+  }, [layout, setTweak, setPaneOpen]);
   const [selectedId, setSelectedId] = React.useState(null);
 
   // The selection is only meaningful while the manager holds that agent: a
@@ -29,11 +38,11 @@ function useSubagentManager({ bridge, paneOpen, layout, setTweak, activeSessionI
   const subagentsRef = React.useRef(subagents);
   subagentsRef.current = subagents;
   const open = React.useCallback(id => {
-    setTweak("swarmPane", true);
+    setPaneOpen(true);
     setSelectedId(id != null && window.OMP_SUBAGENTS.getAgent(subagentsRef.current, id) ? id : null);
-  }, [setTweak]);
+  }, [setPaneOpen]);
   const togglePane = () => {
-    setTweak("swarmPane", !paneOpen);
+    setPaneOpen(!paneOpen);
     if (paneOpen) setSelectedId(null);
   };
 

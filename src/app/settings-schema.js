@@ -74,7 +74,7 @@
       { name: "Columns", rows: [
         tweak("layout", "seg", "Side column", "`rail` shows the widget rail, `focus` hides it.", "layout rail focus",
           { options: opts(["rail", "focus"]) }),
-        tweak("swarmPane", "toggle", "Swarm pane", "The swarm's Board, Members and Graph in a column beside the chat. The toolbar's swarm button toggles it too.", "swarm subagents agents board members graph split"),
+        tweak("swarmPane", "toggle", "Open Swarm in new chats", "Show Board, Members and Graph when a chat tab opens. Existing chats keep their state. The toolbar's swarm button and agent inspection affect only the current chat.", "swarm subagents agents board members graph split default new tabs"),
         tweak("defaultSide", "seg", "New tabs show", "What the side column of a newly opened tab starts with. The toolbar still switches it per tab.", "conversation tree default browser",
           { options: opts(["rail", "tree", "browser"]) }),
         tweak("sidebar", "toggle", "Project sidebar", "The list of projects and their tabs on the left. `Ctrl+B` toggles it.", "projects"),

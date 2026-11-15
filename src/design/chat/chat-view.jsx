@@ -130,6 +130,7 @@ function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, 
   const prevTopRef  = React.useRef(0);
   const lastIdRef   = React.useRef(null);
   const renderedRef = React.useRef(false); // first transcript effect done
+  const repinnedRef = React.useRef(null);
   const followRef   = React.useRef(followOutput);
   followRef.current = followOutput;
   // Mirrors pinnedRef into render so the "Jump to latest" button can show —
@@ -181,13 +182,23 @@ function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, 
   // unpinned state would otherwise strand the button over an empty chat.
   // The first render (that remount) also opens on the latest line. With
   // `followOutput` off nothing else scrolls (app/scroll-pin.js afterOutput).
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const repin = !renderedRef.current || _CV_shouldRepin(lastIdRef.current, messages);
     renderedRef.current = true;
     lastIdRef.current = messages[messages.length - 1]?._id ?? null;
-    const next = _CV_afterOutput({ pinned: pinnedRef.current, follow: followRef.current, repin }, el);
+    repinnedRef.current = repin ? messages : null;
+    if (repin) {
+      if (!pinnedRef.current) setPinned(true);
+      stickToBottom(el);
+    }
+  }, [messages]);
+
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || repinnedRef.current === messages) return;
+    const next = _CV_afterOutput({ pinned: pinnedRef.current, follow: followRef.current, repin: false }, el);
     if (next.pinned !== pinnedRef.current) setPinned(next.pinned);
     if (next.stick) stickToBottom(el);
   }, [messages]);

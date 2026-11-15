@@ -7,6 +7,7 @@
 // their helper processes (`git`, `sh`, stand-in browsers) directly.
 #![cfg_attr(test, allow(clippy::disallowed_methods))]
 
+mod account_quota;
 mod agent;
 mod approval;
 mod approval_mode;
@@ -1273,6 +1274,44 @@ async fn usage_stats(
     off_ipc(move || stats::fetch(profile.as_deref())).await?
 }
 
+#[tauri::command]
+async fn account_quota(
+    profile: Option<String>,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+) -> Result<account_quota::QuotaSnapshot, String> {
+    let profile = store.resolve_owned(profile)?;
+    off_ipc(move || account_quota::fetch(profile.as_deref())).await?
+}
+
+#[tauri::command]
+async fn account_quota_policy(
+    profile: Option<String>,
+    session_id: String,
+    terminals: State<'_, Arc<terminal::TerminalManager>>,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+) -> Result<account_quota::RetryUsagePolicy, String> {
+    let profile = store.resolve_owned(profile)?;
+    let folder = terminals
+        .folder(&session_id)
+        .ok_or("Open a project chat to configure quota routing")?;
+    off_ipc(move || account_quota::read_policy(profile.as_deref(), &folder)).await?
+}
+
+#[tauri::command]
+async fn account_quota_policy_set(
+    profile: Option<String>,
+    enabled: bool,
+    session_id: String,
+    terminals: State<'_, Arc<terminal::TerminalManager>>,
+    store: State<'_, Arc<profiles::ProfileStore>>,
+) -> Result<account_quota::RetryUsagePolicy, String> {
+    let profile = store.resolve_owned(profile)?;
+    let folder = terminals
+        .folder(&session_id)
+        .ok_or("Open a project chat to configure quota routing")?;
+    off_ipc(move || account_quota::apply_policy(profile.as_deref(), &folder, enabled)).await?
+}
+
 /// Whether omp's goal mode auto-continues over RPC for `profile` — see
 /// `goal_config::get`. `profile` is the tab's profile, resolved like
 /// `usage_stats`'s (an unlisted id is refused rather than letting omp
@@ -2057,6 +2096,9 @@ pub fn run() {
             local_stt_start,
             local_stt_stop,
             usage_stats,
+            account_quota,
+            account_quota_policy,
+            account_quota_policy_set,
             goal_continuation_get,
             goal_continuation_set,
             model_config_get,

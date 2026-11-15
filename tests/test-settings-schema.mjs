@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
+import { runInNewContext } from "node:vm";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const win = {};
@@ -194,6 +196,61 @@ check("the key bindings row is found by any shortcut action's name or id", () =>
   for (const q of [sidebar.label, sidebar.id]) {
     assert.ok(S.search(q, vals()).groups.some(g => g.rows.some(r => r.id === "custom:shortcuts")), q);
   }
+});
+
+check("shortcuts editor filters actions and renders each category once", () => {
+  const require = createRequire(import.meta.url);
+  const Babel = require(join(root, "src/babel.min.js"));
+  const { code } = Babel.transform(readFileSync(join(root, "src/design/settings/shortcuts-editor.jsx"), "utf8"), { presets: ["react"] });
+  let hookIndex = 0;
+  const state = [];
+  const React = {
+    Fragment: "fragment",
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
+    useState: initial => {
+      const index = hookIndex++;
+      if (!(index in state)) state[index] = initial;
+      return [state[index], value => { state[index] = typeof value === "function" ? value(state[index]) : value; }];
+    },
+    useEffect: () => {},
+    useMemo: fn => fn(),
+  };
+  const window = {
+    OMP_KEYMAP: {
+      KEYMAP_ACTIONS: win.OMP_KEYMAP.KEYMAP_ACTIONS,
+      formatChord: win.OMP_KEYMAP.formatChord,
+      keysFor: win.OMP_KEYMAP.keysFor,
+    },
+    SettingsRow: props => React.createElement("setting-row", props),
+    OMP_SETTINGS_ROWS: {},
+  };
+  const ShortcutsEditor = runInNewContext(`${code}\nShortcutsEditor`, { window, React, OMP_TR: text => text });
+  const render = () => { hookIndex = 0; return ShortcutsEditor({ ctx: { keymap: { reload() {}, payload: null, error: null, conflicts: [], setBinding() {} } }, query: "" }); };
+  const collect = (node, pred, found = []) => {
+    if (Array.isArray(node)) { for (const child of node) collect(child, pred, found); return found; }
+    if (!node || typeof node !== "object") return found;
+    if (typeof node.type === "function") return collect(node.type(node.props), pred, found);
+    if (pred(node)) found.push(node);
+    for (const child of node.children ?? []) collect(child, pred, found);
+    return found;
+  };
+  let tree = render();
+  const input = collect(tree, node => node.type === "input")[0];
+  input.props.onChange({ target: { value: "model" } });
+  tree = render();
+  const rows = collect(tree, node => node.type === "setting-row");
+  assert.ok(rows.length > 0);
+  assert.ok(rows.every(node => /model/i.test(`${node.props.label} ${node.props.desc}`)));
+  assert.ok(!rows.some(node => node.props.desc.includes("app.interrupt")));
+  state[0] = "";
+  tree = render();
+  const groups = collect(tree, node => node.props?.className === "st-kb-group-name");
+  const names = groups.map(node => node.children[0]);
+  assert.equal(names.length, new Set(names).size, "category headings must not repeat");
+  const matchesZh = runInNewContext(`${code}\n_SKE_matches`, { window, React, OMP_TR: text => text === "Cycle model forward" ? "切换模型" : text });
+  const action = window.OMP_KEYMAP.KEYMAP_ACTIONS.find(a => a.label === "Cycle model forward");
+  assert.equal(matchesZh(action, "cycle model"), true);
+  assert.equal(matchesZh(action, "切换模型"), true);
 });
 
 console.log(`test-settings-schema: ${passed} checks passed`);

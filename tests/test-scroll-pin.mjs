@@ -8,6 +8,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
+import { runInNewContext } from "node:vm";
 
 const root  = join(dirname(fileURLToPath(import.meta.url)), "..");
 const src   = readFileSync(join(root, "src/app/scroll-pin.js"), "utf8");
@@ -26,6 +28,42 @@ function check(label, fn) {
   }
   passed++;
 }
+
+check("sending repins before paint while streamed output follows passively", () => {
+  const Babel = createRequire(import.meta.url)(join(root, "src/babel.min.js"));
+  const code = Babel.transform(readFileSync(join(root, "src/design/chat/chat-view.jsx"), "utf8"), { presets: ["react"] }).code;
+  const refs = [], layouts = [], effects = [];
+  let index = 0, writes = 0, top = 0;
+  const el = { scrollHeight: 1000, clientHeight: 400, get scrollTop() { return top; }, set scrollTop(v) { top = v; writes++; } };
+  const React = {
+    memo: f => f,
+    useRef: value => refs[index++] ?? (refs[index - 1] = { current: value }),
+    useState: value => [value, () => {}],
+    useMemo: fn => fn(),
+    useLayoutEffect: fn => layouts.push(fn),
+    useEffect: fn => effects.push(fn),
+    createElement: (type, props, ...children) => {
+      if (props?.className?.startsWith("chat-scroll")) props.ref.current = el;
+      return { type, props, children };
+    },
+  };
+  const window = { OMP_SCROLL_PIN: P, OMP_COLLAPSE: { collapseStates: () => ({}), PREVIEW_LINES: 3 }, OMP_TURN_STATUS: { isHidden: () => false } };
+  const ChatView = runInNewContext(`${code}\nChatView`, { window, React, OMP_TR: x => x });
+  const render = messages => { index = 0; layouts.length = 0; effects.length = 0; ChatView({ messages, foldModes: {} }); };
+  render([]); layouts[0](); effects[0]();
+  writes = 0;
+  render([{ kind: "user", _id: 1 }]);
+  layouts[0]();
+  assert.equal(writes, 1, "own prompt scrolls before paint");
+  effects[0]();
+  assert.equal(writes, 1, "repin is not repeated after paint");
+  writes = 0;
+  render([{ kind: "user", _id: 1 }, { kind: "assistant", _id: 2 }]);
+  layouts[0]();
+  assert.equal(writes, 0, "streaming does not force layout in the layout effect");
+  effects[0]();
+  assert.equal(writes, 1, "pinned streaming follows in the passive effect");
+});
 
 // ── nextPinned ───────────────────────────────────────────────────────────
 

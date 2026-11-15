@@ -18,16 +18,21 @@
 }
 .wp-gantt-today-btn { margin-left: auto; flex: none; }
 .wp-gantt button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.wp-gantt-body { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
-.wp-gantt-sidebar {
-  flex: 0 0 var(--wp-gantt-sidebar); min-width: 0; overflow: auto hidden;
-  scrollbar-width: none; border-right: 1px solid var(--line-soft);
+.wp-gantt-body {
+  display: flex; flex: 1; min-height: 0; min-width: 0;
+  overflow: auto; overscroll-behavior: contain; position: relative;
 }
-.wp-gantt-sidebar::-webkit-scrollbar { display: none; }
+.wp-gantt-sidebar {
+  flex: 0 0 var(--wp-gantt-sidebar); min-width: 0;
+  position: sticky; left: 0; z-index: 5;
+  background: var(--bg-surface); border-right: 1px solid var(--line-soft);
+}
 .wp-gantt-side-head, .wp-gantt-tick-head {
-  position: sticky; top: 0; z-index: 4; height: var(--wp-gantt-header);
+  position: sticky; top: 0; height: var(--wp-gantt-header);
   box-sizing: border-box; background: var(--bg-surface); border-bottom: 1px solid var(--line-soft);
 }
+.wp-gantt-side-head { z-index: 7; }
+.wp-gantt-tick-head { z-index: 4; }
 .wp-gantt-side-head {
   display: flex; align-items: center; padding: 0 10px;
   color: var(--fg-3); font-size: var(--d-text-xs); font-weight: 600;
@@ -52,7 +57,7 @@
   appearance: none; box-sizing: border-box; display: flex; align-items: center; gap: 6px;
   width: 100%; height: var(--wp-gantt-row); padding: 0 8px;
   border: 0; border-bottom: 1px solid var(--line-soft); color: var(--fg-2);
-  background: transparent; text-align: left; font: inherit; cursor: pointer;
+  background: var(--bg-surface); text-align: left; font: inherit; cursor: pointer;
 }
 .wp-gantt-side-row:hover { background: var(--bg-hover); color: var(--fg); }
 .wp-gantt-side-row.on { background: color-mix(in oklab, var(--accent) 7%, var(--bg-surface)); color: var(--fg); }
@@ -69,9 +74,9 @@
   color: var(--fg-3); background: color-mix(in oklab, var(--fg-3) 8%, var(--bg-surface));
   font-size: 10px; text-overflow: ellipsis; white-space: nowrap;
 }
-.wp-gantt-timeline { flex: 1; min-width: 0; overflow: auto; overscroll-behavior: contain; }
+.wp-gantt-timeline { flex: none; min-width: 0; position: relative; }
 .wp-gantt-track { position: relative; min-height: 100%; }
-.wp-gantt-tick-head { position: sticky; overflow: hidden; }
+.wp-gantt-tick-head { position: sticky; top: 0; overflow: hidden; }
 .wp-gantt-month-row, .wp-gantt-secondary-row { position: relative; box-sizing: border-box; white-space: nowrap; }
 .wp-gantt-month-row { height: 24px; border-bottom: 1px solid var(--line-soft); }
 .wp-gantt-secondary-row { height: 23px; }

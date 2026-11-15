@@ -1,12 +1,5 @@
-/* diagram.css — the colored block look of Mermaid diagrams (Insights cards
-   and ```mermaid blocks in chat; app/mermaid-blocks.js). Rounded tinted
-   blocks, one theme color per node kind, an icon beside the label, thin grey
-   wiring. Per-kind colors and icons come from OMP_MERMAID_BLOCKS.styleSheet(),
-   which sets `--k` on a node. Every color is a theme token, so a theme switch
-   restyles a drawn diagram. Mermaid scopes its own rules under `#<svg id>`,
-   hence `!important` on what this file replaces. Rules that change a label's
-   size match `svg[id^="ip-mmd-"]`, which is also the svg Mermaid measures
-   in, so the layout includes the icon. */
+/* Theme-aware Mermaid blocks shared by Insights and chat. Node kind controls
+   tint only; labels remain Mermaid's native measured content. */
 
 /* ── The sheet ─────────────────────────────────────────────────────────── */
 .ip-view.ip-sheet {
@@ -24,12 +17,6 @@ svg[id^="ip-mmd-"] { --k: var(--cyan); }
 svg[id^="ip-mmd-"] .node .nodeLabel {
   display: inline-flex; align-items: center; gap: 8px;
   font-weight: 600; color: var(--fg);
-}
-svg[id^="ip-mmd-"] .node .nodeLabel::before {
-  flex: none; width: 18px; height: 18px; background: var(--k);
-  -webkit-mask-size: contain; mask-size: contain;
-  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-  -webkit-mask-position: center; mask-position: center;
 }
 .ip-mmd svg text, .ip-mmd svg tspan { fill: var(--fg-2) !important; font-family: var(--font-sans) !important; }
 .ip-mmd svg :is(.edgeLabel, .label, span, p) { color: var(--fg-2) !important; font-family: var(--font-sans) !important; }

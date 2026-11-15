@@ -32,18 +32,35 @@
 
   const pillWidth = name => Math.round(name.length * CHAR_W + 46);
 
-  /** Names around an ellipse, the first at 12 o'clock; `hw`/`hh` are the
-   *  half sizes (padded) the arrows stop short of. The horizontal radius
-   *  shrinks so the widest pill stays inside the canvas. */
-  function layout(names) {
+  /** Expand the ellipse until padded node bounds no longer intersect.
+   *  Keep natural text size; the viewport scrolls rather than shrinking names. */
+  function layout(names, width = W) {
     const pos = {};
     const widest = Math.max(0, ...names.map(pillWidth));
-    const rx = Math.max(0, Math.min(RX, W / 2 - widest / 2 - 6));
-    names.forEach((n, i) => {
-      const a = (2 * Math.PI * i) / names.length - Math.PI / 2;
-      pos[n] = { x: W / 2 + rx * Math.cos(a), y: H / 2 + RY * Math.sin(a), hw: pillWidth(n) / 2 + 3, hh: PILL_H / 2 + 3 };
-    });
+    let rx = Math.max(RX, (width - widest) / 2 - 24);
+    let ry = Math.max(RY, names.length * 12);
+    for (let pass = 0; pass < 100; pass++) {
+      names.forEach((n, i) => {
+        const a = (2 * Math.PI * i) / names.length - Math.PI / 2;
+        pos[n] = { x: rx * Math.cos(a), y: ry * Math.sin(a), hw: pillWidth(n) / 2 + 3, hh: PILL_H / 2 + 3 };
+      });
+      const nodes = Object.values(pos);
+      const overlap = nodes.some((a, i) => nodes.slice(i + 1).some(b =>
+        Math.abs(a.x - b.x) < a.hw + b.hw + 48 && Math.abs(a.y - b.y) < a.hh + b.hh + 40));
+      if (!overlap) break;
+      rx *= 1.12;
+      ry *= 1.12;
+    }
+    const nodes = Object.values(pos);
+    const left = Math.min(0, ...nodes.map(n => n.x - n.hw)) - 32;
+    const top = Math.min(0, ...nodes.map(n => n.y - n.hh)) - 32;
+    nodes.forEach(n => { n.x -= left; n.y -= top; });
     return pos;
+  }
+
+  function bounds(pos) {
+    const nodes = Object.values(pos);
+    return { width: Math.max(W, ...nodes.map(n => n.x + n.hw + 32)), height: Math.max(H, ...nodes.map(n => n.y + n.hh + 32)) };
   }
 
   /** Where the straight line from `a` toward `b` leaves a's pill. */
@@ -91,5 +108,5 @@
     return Math.min(2500, Math.max(250, gap)) / s;
   }
 
-  window.OMP_SWARM_VIEW = { W, H, PILL_H, bodyTokens, pillWidth, layout, edgePoint, curve, span, playDelay };
+  window.OMP_SWARM_VIEW = { W, H, PILL_H, bodyTokens, pillWidth, layout, bounds, edgePoint, curve, span, playDelay };
 })();

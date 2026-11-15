@@ -65,7 +65,7 @@ function _wpUsePopover(width) {
     if (!open) return;
     const onResize = () => setPlace(null);
     window.addEventListener("resize", onResize);
-    const raf = requestAnimationFrame(() => popRef.current?.querySelector('.wp-pop-item.on, .wp-pop-item')?.focus());
+    const raf = requestAnimationFrame(() => popRef.current?.querySelector('input, .wp-pop-item.on, .wp-pop-item')?.focus());
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
   }, [open]);
   const toggle = () => (open ? close(false) : triggerRef.current && setPlace(_wpvPlace(triggerRef.current, width)));
@@ -120,7 +120,9 @@ function _wpUseDialog(panelRef, open, onClose, { inertRoot = false } = {}) {
 function _WP_ViewMenu({ view, views, conns, onSelect, onEditView, onNewView, onAddConn }) {
   const V = window.OMP_WORK_VIEWS, W = window.OMP_WORK;
   const { place, open, triggerRef, popRef, close, toggle } = _wpUsePopover(290);
-
+  const [q, setQ] = React.useState("");
+  React.useEffect(() => { if (!open) setQ(""); }, [open]);
+  const { filteredViews, needle, showSearch } = V.filterViews(views, q);
   return (
     <>
       <button ref={triggerRef} type="button" className="wp-view-trigger" aria-haspopup="menu"
@@ -133,38 +135,56 @@ function _WP_ViewMenu({ view, views, conns, onSelect, onEditView, onNewView, onA
       {open && (
         <div ref={popRef} className="wp-view-pop" role="menu" aria-label={OMP_TR("Saved views")} style={place}
           onKeyDown={e => window.menuKeyNav(e, popRef.current, '.wp-pop-item', () => close(true))}>
-          {conns.map(c => {
-            const list = views.filter(v => v.connId === c.id);
-            if (!list.length) return null;
-            return (
-              <React.Fragment key={c.id}>
-                <div className="wp-pop-group">
-                  <span>{c.name}</span>
-                  <span className="wp-pop-plat">{W.PLATFORMS[c.platform]?.label}</span>
-                </div>
-                {list.map(v => (
-                  <button key={v.id} type="button" role="menuitemradio" aria-checked={v.id === view.id}
-                    className={`wp-pop-item${v.id === view.id ? " on" : ""}`}
-                    onClick={() => { close(false); onSelect(v.id); }}>
-                    <_WPV_Icon name={_wpKindIcon(v.kind)} size={13} />
-                    <span className="wp-pop-label">{v.name || OMP_TR("Untitled view")}</span>
-                    <span className="wp-pop-meta">{_wpvKindLabel(v.kind)}</span>
-                    {v.id === view.id && <_WPV_Icon name="check" size={12} />}
-                  </button>
-                ))}
-              </React.Fragment>
-            );
-          })}
-          <div className="wp-pop-sep" />
-          <button type="button" role="menuitem" className="wp-pop-item" onClick={() => { close(false); onEditView(); }}>
-            <_WPV_Icon name="edit" size={13} /><span className="wp-pop-label">{OMP_TR("Edit current view…")}</span>
-          </button>
-          <button type="button" role="menuitem" className="wp-pop-item" onClick={() => { close(false); onNewView(); }}>
-            <_WPV_Icon name="plus" size={13} /><span className="wp-pop-label">{OMP_TR("New view…")}</span>
-          </button>
-          <button type="button" role="menuitem" className="wp-pop-item" onClick={() => { close(false); onAddConn(); }}>
-            <_WPV_Icon name="link" size={13} /><span className="wp-pop-label">{OMP_TR("Add connection…")}</span>
-          </button>
+          {showSearch && (
+            <div className="wp-filter-search">
+              <_WPV_Icon name="search" size={11} />
+              <input type="search" value={q} onChange={e => setQ(e.target.value)}
+                placeholder={OMP_TR("Search views…")} autoFocus
+                onKeyDown={e => {
+                  if (e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); popRef.current?.querySelector('.wp-pop-item')?.focus(); }
+                  else if (e.key === "Enter") { e.preventDefault(); popRef.current?.querySelector('[role="menuitemradio"]')?.click(); }
+                  else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
+                }} />
+              {q && <button type="button" className="btn ghost icon small" aria-label={OMP_TR("Clear filter")} onClick={() => setQ("")}><_WPV_Icon name="close" size={10} /></button>}
+            </div>
+          )}
+          <div className="wp-pop-list">
+            {conns.map(c => {
+              const list = filteredViews.filter(v => v.connId === c.id);
+              if (!list.length) return null;
+              return (
+                <React.Fragment key={c.id}>
+                  <div className="wp-pop-group">
+                    <span>{c.name}</span>
+                    <span className="wp-pop-plat">{W.PLATFORMS[c.platform]?.label}</span>
+                  </div>
+                  {list.map(v => (
+                    <button key={v.id} type="button" role="menuitemradio" aria-checked={v.id === view.id}
+                      className={`wp-pop-item${v.id === view.id ? " on" : ""}`}
+                      onClick={() => { close(false); onSelect(v.id); }}>
+                      <_WPV_Icon name={_wpKindIcon(v.kind)} size={13} />
+                      <span className="wp-pop-label">{v.name || OMP_TR("Untitled view")}</span>
+                      <span className="wp-pop-meta">{_wpvKindLabel(v.kind)}</span>
+                      {v.id === view.id && <_WPV_Icon name="check" size={12} />}
+                    </button>
+                  ))}
+                </React.Fragment>
+              );
+            })}
+            {needle && !views.some(v => `${v.name} ${v.kind}`.toLowerCase().includes(needle)) && (
+              <div className="wp-pop-empty">{OMP_TR("No match")}</div>
+            )}
+            <div className="wp-pop-sep" />
+            <button type="button" role="menuitem" className="wp-pop-item" onClick={() => { close(false); onEditView(); }}>
+              <_WPV_Icon name="edit" size={13} /><span className="wp-pop-label">{OMP_TR("Edit current view…")}</span>
+            </button>
+            <button type="button" role="menuitem" className="wp-pop-item" onClick={() => { close(false); onNewView(); }}>
+              <_WPV_Icon name="plus" size={13} /><span className="wp-pop-label">{OMP_TR("New view…")}</span>
+            </button>
+            <button type="button" role="menuitem" className="wp-pop-item" onClick={() => { close(false); onAddConn(); }}>
+              <_WPV_Icon name="link" size={13} /><span className="wp-pop-label">{OMP_TR("Add connection…")}</span>
+            </button>
+          </div>
         </div>
       )}
     </>
@@ -173,20 +193,13 @@ function _WP_ViewMenu({ view, views, conns, onSelect, onEditView, onNewView, onA
 
 function _WP_AssigneeFilter({ items, kind, value, onChange }) {
   const { place, open, triggerRef, popRef, close, toggle } = _wpUsePopover(220);
+  const V = window.OMP_WORK_VIEWS;
+  const [q, setQ] = React.useState("");
+  React.useEffect(() => { if (!open) setQ(""); }, [open]);
   if (kind === "pipelines") return null;
-
-  const counts = new Map();
-  let unassigned = 0;
-  for (const it of items) {
-    const people = kind === "mrs" ? (it.author ? [it.author] : []) : (it.assignees ?? []);
-    if (!people.length) unassigned++;
-    for (const p of people) counts.set(p, (counts.get(p) ?? 0) + 1);
-  }
-  const people = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const { people, filteredPeople, unassigned, needle } = V.filterPeople(items, kind, q);
   if (people.length === 0) return null;
-
   const label = value === "__none__" ? OMP_TR("Unassigned") : value ? value : (kind === "mrs" ? OMP_TR("Author") : OMP_TR("Assignee"));
-
   return (
     <>
       <button ref={triggerRef} type="button" className={`wp-filter-btn${value ? " on" : ""}`}
@@ -199,27 +212,47 @@ function _WP_AssigneeFilter({ items, kind, value, onChange }) {
       {open && (
         <div ref={popRef} className="wp-filter-pop" role="menu" aria-label={OMP_TR("Filter by person")} style={place}
           onKeyDown={e => window.menuKeyNav(e, popRef.current, '[role="menuitem"]', () => close(true))}>
-          <button type="button" role="menuitem" className={`wp-pop-item${!value ? " on" : ""}`}
-            onClick={() => { close(false); onChange(""); }}>
-            <span className="wp-pop-label">{OMP_TR("Everyone")}</span>
-            <span className="wp-pop-meta">{items.length}</span>
-          </button>
-          {kind === "issues" && unassigned > 0 && (
-            <button type="button" role="menuitem" className={`wp-pop-item${value === "__none__" ? " on" : ""}`}
-              onClick={() => { close(false); onChange("__none__"); }}>
-              <span className="wp-pop-label">{OMP_TR("Unassigned")}</span>
-              <span className="wp-pop-meta">{unassigned}</span>
-            </button>
-          )}
-          <div className="wp-pop-sep" />
-          {people.map(([name, n]) => (
-            <button key={name} type="button" role="menuitem" className={`wp-pop-item${value === name ? " on" : ""}`}
-              onClick={() => { close(false); onChange(value === name ? "" : name); }}>
-              <span className="wp-avatar" aria-hidden="true">{name.slice(0, 2)}</span>
-              <span className="wp-pop-label">{name}</span>
-              <span className="wp-pop-meta">{n}</span>
-            </button>
-          ))}
+          <div className="wp-filter-search">
+            <_WPV_Icon name="search" size={11} />
+            <input type="search" value={q} onChange={e => setQ(e.target.value)}
+              placeholder={kind === "mrs" ? OMP_TR("Search author…") : OMP_TR("Search assignee…")} autoFocus
+              onKeyDown={e => {
+                if (e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); popRef.current?.querySelector('[role="menuitem"]')?.focus(); }
+                else if (e.key === "Enter" && filteredPeople.length > 0) { e.preventDefault(); onChange(filteredPeople[0][0]); close(true); }
+                else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
+              }} />
+            {q && <button type="button" className="btn ghost icon small" aria-label={OMP_TR("Clear filter")} onClick={() => setQ("")}><_WPV_Icon name="close" size={10} /></button>}
+          </div>
+          <div className="wp-pop-list">
+            {!needle && (
+              <>
+                <button type="button" role="menuitem" className={`wp-pop-item${!value ? " on" : ""}`}
+                  onClick={() => { close(false); onChange(""); }}>
+                  <span className="wp-pop-label">{OMP_TR("Everyone")}</span>
+                  <span className="wp-pop-meta">{items.length}</span>
+                </button>
+                {kind === "issues" && unassigned > 0 && (
+                  <button type="button" role="menuitem" className={`wp-pop-item${value === "__none__" ? " on" : ""}`}
+                    onClick={() => { close(false); onChange("__none__"); }}>
+                    <span className="wp-pop-label">{OMP_TR("Unassigned")}</span>
+                    <span className="wp-pop-meta">{unassigned}</span>
+                  </button>
+                )}
+                <div className="wp-pop-sep" />
+              </>
+            )}
+            {filteredPeople.map(([name, n]) => (
+              <button key={name} type="button" role="menuitem" className={`wp-pop-item${value === name ? " on" : ""}`}
+                onClick={() => { close(false); onChange(value === name ? "" : name); }}>
+                <span className="wp-avatar" aria-hidden="true">{name.slice(0, 2)}</span>
+                <span className="wp-pop-label">{name}</span>
+                <span className="wp-pop-meta">{n}</span>
+              </button>
+            ))}
+            {needle && filteredPeople.length === 0 && (
+              <div className="wp-pop-empty">{OMP_TR("No match")}</div>
+            )}
+          </div>
         </div>
       )}
     </>
@@ -228,18 +261,12 @@ function _WP_AssigneeFilter({ items, kind, value, onChange }) {
 
 function _WP_LabelFilter({ items, columns, kind, value, onChange }) {
   const { place, open, triggerRef, popRef, close, toggle } = _wpUsePopover(240);
+  const V = window.OMP_WORK_VIEWS;
+  const [q, setQ] = React.useState("");
+  React.useEffect(() => { if (!open) setQ(""); }, [open]);
   if (kind !== "issues") return null;
-
-  const colSet = new Set(columns);
-  const counts = new Map();
-  for (const it of items) {
-    for (const l of it.labels ?? []) {
-      if (!colSet.has(l)) counts.set(l, (counts.get(l) ?? 0) + 1);
-    }
-  }
-  const labels = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const { labels, filteredLabels, needle } = V.filterLabels(items, columns, q);
   if (labels.length === 0) return null;
-
   return (
     <>
       <button ref={triggerRef} type="button" className={`wp-filter-btn${value ? " on" : ""}`}
@@ -251,23 +278,42 @@ function _WP_LabelFilter({ items, columns, kind, value, onChange }) {
       {open && (
         <div ref={popRef} className="wp-filter-pop" role="menu" aria-label={OMP_TR("Filter by label")} style={place}
           onKeyDown={e => window.menuKeyNav(e, popRef.current, '[role="menuitem"]', () => close(true))}>
-          <button type="button" role="menuitem" className={`wp-pop-item${!value ? " on" : ""}`}
-            onClick={() => { close(false); onChange(""); }}>
-            <span className="wp-pop-label">{OMP_TR("All labels")}</span>
-            <span className="wp-pop-meta">{items.length}</span>
-          </button>
-          <div className="wp-pop-sep" />
-          {labels.map(([name, n]) => (
-            <button key={name} type="button" role="menuitem" className={`wp-pop-item${value === name ? " on" : ""}`}
-              onClick={() => { close(false); onChange(value === name ? "" : name); }}>
-              <span className="wp-pop-label">{name}</span>
-              <span className="wp-pop-meta">{n}</span>
-            </button>
-          ))}
+          <div className="wp-filter-search">
+            <_WPV_Icon name="search" size={11} />
+            <input type="search" value={q} onChange={e => setQ(e.target.value)}
+              placeholder={OMP_TR("Search labels…")} autoFocus
+              onKeyDown={e => {
+                if (e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); popRef.current?.querySelector('[role="menuitem"]')?.focus(); }
+                else if (e.key === "Enter" && filteredLabels.length > 0) { e.preventDefault(); onChange(filteredLabels[0][0]); close(true); }
+                else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
+              }} />
+            {q && <button type="button" className="btn ghost icon small" aria-label={OMP_TR("Clear filter")} onClick={() => setQ("")}><_WPV_Icon name="close" size={10} /></button>}
+          </div>
+          <div className="wp-pop-list">
+            {!needle && (
+              <>
+                <button type="button" role="menuitem" className={`wp-pop-item${!value ? " on" : ""}`}
+                  onClick={() => { close(false); onChange(""); }}>
+                  <span className="wp-pop-label">{OMP_TR("All labels")}</span>
+                  <span className="wp-pop-meta">{items.length}</span>
+                </button>
+                <div className="wp-pop-sep" />
+              </>
+            )}
+            {filteredLabels.map(([name, n]) => (
+              <button key={name} type="button" role="menuitem" className={`wp-pop-item${value === name ? " on" : ""}`}
+                onClick={() => { close(false); onChange(value === name ? "" : name); }}>
+                <span className="wp-pop-label">{name}</span>
+                <span className="wp-pop-meta">{n}</span>
+              </button>
+            ))}
+            {needle && filteredLabels.length === 0 && (
+              <div className="wp-pop-empty">{OMP_TR("No match")}</div>
+            )}
+          </div>
         </div>
       )}
     </>
   );
 }
-
 Object.assign(window, { _WP_Key, _WP_Assignee, _WP_ViewMenu, _WP_AssigneeFilter, _WP_LabelFilter, _wpKindIcon, _wpUseDialog });

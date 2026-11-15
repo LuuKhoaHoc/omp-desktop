@@ -62,6 +62,8 @@ const EMPTY = { overall: null, byModel: [], byFolder: [], byAgentType: [] };
 // in approval-rules-panel.jsx.
 function UsageStatsPanel({ onClose, profileLabel }) {
   const bridge = window.OMP_BRIDGE;
+  const scrimRef = React.useRef(null);
+  useModalLayer(scrimRef);
   const [data, setData]       = React.useState(EMPTY);
   const [loading, setLoading] = React.useState(false);
   const [error, setError]     = React.useState(null);
@@ -98,8 +100,8 @@ function UsageStatsPanel({ onClose, profileLabel }) {
 
   const overall = data.overall;
 
-  return (
-    <div className="bridge-scrim" onClick={onClose} style={{ paddingTop: "6vh" }}>
+  return ReactDOM.createPortal(
+    <div ref={scrimRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={OMP_TR("usage statistics")} className="bridge-scrim" onClick={onClose} onKeyDown={e => { e.stopPropagation(); if (e.key === "Escape") onClose(); }} style={{ paddingTop: "6vh" }}>
       <div className="stats-panel" onClick={e => e.stopPropagation()}>
         <div className="stats-head">
           <_StatsIcon name="cost" size={13} color="var(--accent)" />
@@ -186,9 +188,10 @@ function UsageStatsPanel({ onClose, profileLabel }) {
               )}
             </>
           )}
+          <window.TaskUsageSection />
         </div>
       </div>
-    </div>
+    </div>, document.body
   );
 }
 

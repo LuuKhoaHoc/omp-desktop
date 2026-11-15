@@ -17,6 +17,7 @@
 .wp-head-title { font-weight: 600; color: var(--fg); margin-right: 4px; }
 .wp-head .btn.icon { width: 28px; height: 28px; }
 .wp-head .btn.icon.on { color: var(--accent); }
+.wp-head > .wp-seg { align-self: center; }
 .wp-scroll { flex: 1; min-height: 0; overflow: auto; }
 .wp-banner { margin: 8px 12px 0; }
 @keyframes wp-spin { to { transform: rotate(360deg); } }
@@ -56,7 +57,25 @@
   border-radius: 10px; border: 1px solid var(--line);
   background: var(--bg-elevated); box-shadow: var(--shadow-pop);
   display: flex; flex-direction: column; gap: 2px;
-  max-height: min(440px, 70vh); overflow: auto;
+  max-height: min(440px, 70vh); overflow: hidden;
+}
+.wp-filter-search {
+  display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+  border-radius: 7px; background: var(--bg-input); border: 1px solid var(--line);
+  margin-bottom: 3px; flex: none;
+}
+.wp-filter-search input {
+  all: unset; flex: 1; font-size: var(--d-text-xs); color: var(--fg); min-width: 0;
+}
+.wp-filter-search:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wp-filter-search input::placeholder { color: var(--fg-4); }
+.wp-filter-search .ui-icon { color: var(--fg-4); flex: none; }
+.wp-pop-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 320px; overflow-y: auto; overflow-x: hidden;
+}
+.wp-pop-empty {
+  padding: 8px; font-size: var(--d-text-xs); color: var(--fg-4); text-align: center;
 }
 .theme-kiln :is(.wp-view-pop, .wp-filter-pop) {
   border-color: transparent;

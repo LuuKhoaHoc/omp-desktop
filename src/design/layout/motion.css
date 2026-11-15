@@ -98,7 +98,10 @@
    class goes the finished animations stay finished, where a name coming
    back would start them all. */
 .tab-switching :is(.rail, .wp-panel, .tree-drawer, .browser-dock, .wp-drawer, .wp-drawer-scrim, .split, .term-panel,
-    .tb-sub, .tab, .chat-scroll, .ip-tab-stage, .fade-up) { animation-duration: 0s; }
+    .tb-sub, .tab, .tab-cluster, .tab-cluster-head, .tab-bar-mark, .chat-scroll, .ip-tab-stage, .fade-up) {
+  animation-duration: 0s;
+  transition-duration: 0s;
+}
 
 @media (prefers-reduced-motion: reduce) {
   :is(.bridge-scrim, .kanban-scrim, .gitb-scrim, .fp-scrim, .wp-drawer-scrim), :is(.bridge-scrim, .kanban-scrim, .gitb-scrim, .fp-scrim) > *,
