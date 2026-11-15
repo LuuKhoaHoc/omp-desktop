@@ -492,7 +492,7 @@ function WorkPanel({ onAddToChat } = {}) {
         )}
       </div>
       {state.error && <div className="wp-note err wp-banner"><_WP_Icon name="warn" size={12} /> {state.error}</div>}
-      <div className="wp-scroll">
+      <div className={`wp-scroll${kind === "issues" && layout === "gantt" ? " gantt" : ""}`}>
         {kind === "mrs" ? <MrList items={shown} activeId={open?.id} onOpen={setOpen} />
           : kind === "pipelines" ? <PipeList items={shown} activeId={open?.id} onOpen={setOpen} />
           : layout === "gantt" ? <_WP_Gantt tickets={shown} columns={boardCols} activeId={open?.id} onOpen={setOpen} showClosed={showClosed} />

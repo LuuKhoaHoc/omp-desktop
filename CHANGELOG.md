@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Work panel: Gantt's timeline scrolls vertically without trapping scrolling in a nested view container; other issue types keep their normal list scrolling.
 - Running tab indicators stay visible between assistant turns in the same agent run.
 - Sending a prompt positions the transcript before paint rather than scrolling after it appears.
 - Switching chat sessions no longer animates the tab strip's colours and marker; shortcut groups no longer repeat, and shortcut search filters by action or chord.

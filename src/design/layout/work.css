@@ -19,6 +19,7 @@
 .wp-head .btn.icon.on { color: var(--accent); }
 .wp-head > .wp-seg { align-self: center; }
 .wp-scroll { flex: 1; min-height: 0; overflow: auto; }
+.wp-scroll.gantt { display: flex; flex-direction: column; overflow: hidden; }
 .wp-banner { margin: 8px 12px 0; }
 @keyframes wp-spin { to { transform: rotate(360deg); } }
 .wp-spin { animation: wp-spin 900ms linear infinite; }
