@@ -4772,6 +4772,11 @@
       return _gitBrowserInvoke("git_browser_commit_file", { sha, relPath });
     },
 
+    /** All local and remote-tracking branches for a new-session worktree picker. */
+    listWorktreeBranches(sourcePath) {
+      return _invokeResult("list_session_worktree_branches", { sourcePath });
+    },
+
     /** The branches the status bar's picker offers: `Branch[]` (`{ name,
      *  remote, at }`), newest tip first, without the checked-out one or a
      *  remote branch whose local one exists. */
@@ -5191,10 +5196,10 @@
       return _openReported(cwd, { profile });
     },
 
-    /** Create a new, isolated Git worktree and open a session in it. */
-    async openSessionInWorktree(sourcePath, profile = _activeProfileId()) {
+    /** Create an isolated worktree from the selected base branch, then open a session in it. */
+    async openSessionInWorktree(sourcePath, profile = _activeProfileId(), baseBranch) {
       const result = await _invokeResult("create_session_worktree", {
-        sourcePath, label: window.OMP_PROJECT_NAV.basename(sourcePath),
+        sourcePath, baseBranch, label: window.OMP_PROJECT_NAV.basename(sourcePath),
       });
       if (!result.ok) {
         _reportOpenFailure(result.error);

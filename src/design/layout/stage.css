@@ -75,6 +75,36 @@
 /* Fills the column; the canvas draws its own background (see
    design/empty-workspace.jsx), so it needs no fill here. */
 .empty-ws-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.empty-ws-start {
+  position: absolute; z-index: 1; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(420px, calc(100% - 40px)); padding: 22px;
+  display: flex; flex-direction: column; gap: 14px;
+  background: color-mix(in oklab, var(--bg-window) 94%, transparent);
+  border: 1px solid var(--line); border-radius: var(--r-3);
+  box-shadow: 0 16px 48px color-mix(in oklab, #000 22%, transparent);
+  backdrop-filter: blur(14px);
+}
+.empty-ws-start h1 { margin: 0; font-size: var(--d-text-lg); font-weight: 650; }
+.empty-ws-project, .empty-ws-branch { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; }
+.empty-ws-project label, .empty-ws-branch label { grid-column: 1 / -1; color: var(--fg-3); font-size: var(--d-text-xs); }
+.empty-ws-project select, .empty-ws-branch select {
+  min-width: 0; height: 32px; padding: 0 9px; color: var(--fg-1);
+  background: var(--bg-input); border: 1px solid var(--line); border-radius: var(--r-1);
+}
+.empty-ws-project select:focus-visible, .empty-ws-branch select:focus-visible,
+.empty-ws-start button:focus-visible, .empty-ws-worktree:focus-within {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.empty-ws-browse { height: 32px; display: inline-flex; align-items: center; gap: 6px; }
+.empty-ws-worktree { display: flex; align-items: center; gap: 8px; color: var(--fg-2); font-size: var(--d-text-sm); }
+.empty-ws-hint, .empty-ws-error { margin: -8px 0 0 24px; color: var(--fg-3); font-size: var(--d-text-xs); line-height: 1.45; }
+.empty-ws-error { color: var(--rose); }
+.empty-ws-open { align-self: flex-end; min-height: 32px; }
+@media (max-width: 520px) {
+  .empty-ws-start { padding: 16px; }
+  .empty-ws-project { grid-template-columns: minmax(0, 1fr); }
+  .empty-ws-browse { justify-self: start; }
+}
 /* Bridge notes float over the rain, below the logo. */
 .empty-ws-notes {
   position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);

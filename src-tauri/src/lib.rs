@@ -1685,10 +1685,19 @@ async fn recent_projects_remove(
     with_blocking(&recents, move |s| s.remove(&key, &path)).await
 }
 
-/// Create a new app-managed linked worktree and branch from the source repo's current HEAD.
+/// List selectable local and remote base branches for a source project.
+#[tauri::command]
+async fn list_session_worktree_branches(
+    source_path: String,
+) -> Result<Vec<worktree::BaseBranch>, String> {
+    off_ipc(move || worktree::list_base_branches(Path::new(&source_path))).await?
+}
+
+/// Create an app-managed worktree from a validated base branch selector.
 #[tauri::command]
 async fn create_session_worktree(
     source_path: String,
+    base_branch: String,
     label: String,
     app: AppHandle,
 ) -> Result<worktree::CreatedWorktree, String> {
@@ -1696,7 +1705,8 @@ async fn create_session_worktree(
         .path()
         .app_data_dir()
         .map_err(|e| format!("no app data dir: {e}"))?;
-    off_ipc(move || worktree::create(&app_data, Path::new(&source_path), &label)).await?
+    off_ipc(move || worktree::create(&app_data, Path::new(&source_path), &base_branch, &label))
+        .await?
 }
 
 /// The open-tab layout saved by the previous run (issue #17), minus tabs
@@ -2096,6 +2106,7 @@ pub fn run() {
             streaming_message,
             open_project,
             pick_attachments,
+            list_session_worktree_branches,
             create_session_worktree,
             take_pending_open_projects,
             start_git_watch,

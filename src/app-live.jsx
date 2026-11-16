@@ -926,14 +926,23 @@ function App() {
       console.error("[app] failed to open project:", err);
     }
   };
-  const handleNewWorktree = async (sourcePath = null, profile = _activeProfileId()) => {
-    if (!bridge) return;
-    const path = sourcePath || await bridge.pickFolder();
-    if (!path) return;
+  const handleNewWorktree = async (sourcePath, profile = _activeProfileId(), baseBranch) => {
+    if (!bridge || !sourcePath || !baseBranch) return;
     try {
-      await bridge.openSessionInWorktree(path, profile);
+      await bridge.openSessionInWorktree(sourcePath, profile, baseBranch);
     } catch (err) {
       console.error("[app] failed to open isolated worktree:", err);
+      throw err;
+    }
+  };
+
+  const handleNewSession = async (sourcePath, profile = _activeProfileId()) => {
+    if (!bridge || !sourcePath) return;
+    try {
+      await bridge.openSession(sourcePath, profile);
+    } catch (err) {
+      console.error("[app] failed to open project:", err);
+      throw err;
     }
   };
 
@@ -1262,7 +1271,9 @@ function App() {
             <div ref={stageRef} style={panes.stageStyle} className={`stage ${side === "browser" ? `with-browser${browserFull ? " browser-full" : ""}` : sideRail ? `with-${sideRail}${filesFull ? " files-full" : ""}${panelFull ? " panel-full" : ""}` : ""}`}>
               <main className="session" onFocusCapture={prAutomation.onConversationFocus}>
                 {noTab ? (
-                  <EmptyWorkspace notes={workspaceNotes} screen={t.startScreen} paused={stab.active} />
+                  <EmptyWorkspace notes={workspaceNotes} screen={t.startScreen} paused={stab.active}
+                    bridge={bridge} recentProjects={recentProjects} profileId={noTabProfileId}
+                    onOpenSession={handleNewSession} onOpenWorktree={handleNewWorktree} />
                 ) : (<>
                   <ChatView key={activeSessionId} messages={messages}
                     planMode={plan.mode}

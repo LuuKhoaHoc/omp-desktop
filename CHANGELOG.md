@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Browser panel: a context menu on right click with open link in new tab or the system browser, copy link address, cut, copy, paste, select all, back, forward, reload and copy page address.
+- The empty workspace can start a chat in a selected project or create a new isolated worktree from a base branch; choosing the base branch is required.
 
 ### Fixed
 

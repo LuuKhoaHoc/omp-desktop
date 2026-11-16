@@ -9,26 +9,26 @@ date: 2026-11-15
 
 ## Summary
 
-Add an explicit, opt-in way to open a project as an isolated Git worktree for a new chat session. Today each tab has a separate omp process but opening the same project reuses the same filesystem and branch, so parallel sessions can modify the same checkout (including `develop`). A worktree gives each new isolated session its own checkout and generated branch. Persist the worktree path and branch association so restored tabs reopen in the same workspace. Closing the tab keeps the worktree and branch; no working files or branch are deleted automatically.
+Add an explicit, opt-in way to start a chat session in an isolated Git worktree from the new-session flow. The user chooses a project, base branch, and whether to create a new worktree, as in the supplied reference. Session mode is out of scope and continues to follow the existing approval-mode policy. Persist the worktree path and branch association so restored tabs reopen in the same workspace. Closing the tab keeps the worktree and branch; no working files or branch are deleted automatically.
 
 ## Requirements
 
-- R1. Opening a project offers normal open and explicit "Open in isolated worktree" actions; normal open remains the default and keeps current behavior.
-- R2. Isolated worktree creation is available only for a valid Git working repository with a commit/HEAD. Report clear errors without creating a ghost tab or leaving partial directories/branches.
-- R3. Create a unique local branch and linked worktree from the source repository's current `HEAD` commit. Never checkout or modify the source worktree's branch, index, or uncommitted files. If branch/path creation fails, do not silently fall back to the source checkout.
+- R1. The new-session flow offers project, base-branch and a `New worktree` option. Normal sessions remain the default; opting into a worktree creates an isolated session for the selected project and branch.
+- R2. Isolated worktree creation is available only for a valid Git working repository and a selected local or remote-tracking base branch whose tip resolves to a commit. Report clear errors without creating a ghost tab or leaving partial directories/branches.
+- R3. The native creation command accepts a canonical source project path, a validated `baseBranch`, and a user-facing label. It creates a unique local branch and linked worktree starting at the selected `baseBranch` tip, not unconditionally at `repo.head_id()`. Never checkout or modify the source worktree's branch, index, or uncommitted files. If branch/path creation fails, do not silently fall back to the source checkout.
 - R3a. Each isolated session gets a newly created, distinct worktree; the feature does not offer attaching an existing worktree to another session, preventing two tabs from silently sharing one working directory.
 - R4. Show the isolation state and branch in the session UI so users can distinguish the worktree tab from the original checkout. Preserve existing Git Browser, branch picker, terminal cwd, browser, widgets, approval-mode, and agent cwd contracts by making the worktree directory the tab's project path.
 - R5. Persist the worktree directory directly as the tab's `OpenTab.path`, plus optional source-repo/branch metadata for display. Restart restore opens that same path and never creates another worktree. Older layouts without metadata keep restoring unchanged.
 - R6. Closing a tab, changing profile, or restarting omp does not remove a worktree or branch. No automatic cleanup, branch deletion, reset, merge, or checkout of the original worktree.
-- R7. Run Git only through the trusted absolute executable/PATH and `spawn_gate::spawn`; attach the process tree to `ProcessSupervisor` and use `child_run::collect` with a fixed deadline and stdout/stderr caps. The webview sends only a source project path and display label, never Git arguments or a destination path.
-- R8. Add deterministic tests for branch naming/collision, path validation, create failure rollback, persistence/restore compatibility, and worktree isolation. Document recovery/retention behavior and add an Unreleased changelog entry.
+- R7. Run Git only through the trusted absolute executable/PATH and `spawn_gate::spawn`; attach the process tree to `ProcessSupervisor` and use `child_run::collect` with a fixed deadline and stdout/stderr caps. The webview sends only the source project path, selected branch name and display label, never Git arguments or a destination path. The backend independently resolves and validates the branch name and reads its tip.
+- R8. Add deterministic tests for branch naming/collision, selected-base resolution (including remote-tracking bases), path validation, create failure rollback, persistence/restore compatibility, and worktree isolation. Document recovery/retention behavior and add an Unreleased changelog entry.
 
 ## Scope Boundaries
 
-- No automatic conversion of already-open tabs into worktrees; the action applies when creating a new project session.
+- No automatic conversion of already-open tabs into worktrees; the option applies when creating a new project session.
 - No automatic worktree or branch deletion, even after tab close; explicit worktree management UI and cleanup are a later feature.
 - No merge, cherry-pick, rebase, push, PR creation, or worktree synchronization workflow.
-- No change to normal project opening, existing tab folder ownership, Git Browser semantics, branch switching semantics, profile behavior, or omp version floor.
+- No change to normal project opening, existing tab folder ownership, Git Browser semantics, branch switching semantics, profile/approval-mode behavior, or omp version floor.
 - No commit, push, app installation, or unrelated Git workflow redesign in this implementation.
 
 ## Context & Research
@@ -61,12 +61,12 @@ Add an explicit, opt-in way to open a project as an isolated Git worktree for a 
 
 ## Key Technical Decisions
 
-- **Explicit opt-in per new session:** keep normal project opening unchanged; expose an isolated-open action next to the existing project-open flow. Do not add a global default that can surprise existing workflows.
-- **Create from current HEAD, not working-copy changes:** the isolated branch starts from the source repository's checked-out commit, avoiding implicit copying/stashing of staged or uncommitted changes. Explain this at the opt-in action.
-- **Unique generated branch:** generate a safe branch name from the selected project/session label plus a stable unique session token; refuse collision and retry with a new suffix, never reuse or force an existing branch. Branch naming must be validated with Git's own ref-format rules or equivalent conservative validation.
+- **Explicit startup choice:** expose project, base branch and `New worktree` in the new-session flow. Keep the regular checkout as the default, so existing project sessions remain unchanged. Session approval mode remains resolved by the existing project/default policy.
+- **Create from selected base-branch tip:** the UI sends the selected branch identifier, but native code resolves it against refs and verifies that it peels to a commit. Do not reuse `worktree::create` unchanged: it reads `repo.head_id()` at `src-tauri/src/worktree.rs:36-45`, which ignores the user's selected base branch. The worktree creation path must take the resolved base commit/ref and create a fresh local branch at that tip; it must never run checkout/switch in or mutate the source worktree's branch, index, or uncommitted files. Explain that uncommitted changes are not copied.
+- **Unique generated branch:** generate a safe new local branch name from the selected project/session label plus a stable unique session token; refuse collisions and retry with a new suffix, never reuse or force an existing branch. Branch naming must be validated with Git's own ref-format rules or equivalent conservative validation.
 - **App-managed destination:** choose a deterministic app data subdirectory keyed by canonical repository identity, with a unique worktree leaf. Keep the generated path outside the repository checkout and avoid trusting a destination supplied by the UI. Confirm app data directory behavior and permissions in the native implementation before settling the exact layout.
 - **Atomic user-visible creation:** create the worktree before registering/spawning the session; if startup then fails, retain the created worktree (safe, recoverable) and report its location rather than deleting user-visible Git data. If the `git worktree add` command itself fails after creating a partial target, cleanup only the exact app-generated empty/registered target after verifying Git state; otherwise leave it and report recovery instructions.
-- **Persist explicit provenance:** keep the actual worktree path as the tab's project path for all existing consumers, and persist optional source repo path/branch metadata in `OpenTab` so the UI can distinguish a linked worktree and restore it predictably.
+- **Persist explicit provenance:** keep the actual worktree path as the tab's project path for all existing consumers, and persist optional source repo/base branch/generated branch metadata in `OpenTab` so the UI can distinguish a linked worktree and restore it predictably.
 - **Keep on close:** lifecycle follows Git's explicit retention model; tab close and process respawn never remove worktree data.
 - **Exclusive session ownership:** never attach a second tab to an existing linked worktree. Every isolated session gets a new worktree directory and branch, so each tab has its own writable filesystem and index.
 - **Navigation identity:** the actual worktree path remains the folder identity used by project grouping and recent projects. Each unique worktree therefore forms its own project group; source-repository metadata is explanatory only and must not merge distinct worktrees into one tab group.
@@ -75,17 +75,19 @@ Add an explicit, opt-in way to open a project as an isolated Git worktree for a 
 
 ### U1. Native worktree creation API
 
-**Goal:** Safely create a linked worktree and unique branch from a canonical source repo.
+**Goal:** Safely create a linked worktree and unique local branch from the selected base branch of a canonical source repo.
 
 **Requirements:** R2, R3, R7.
 
 **Dependencies:** Approved plan.
 
-**Files:** Add a focused module under `src-tauri/src/` (candidate `worktree.rs`); modify `src-tauri/src/lib.rs`; reuse `workspace` path/repository validation patterns, `child_path`, `spawn_gate`, `child_run::collect`, and `ProcessSupervisor`.
+**Files:** Modify the existing `src-tauri/src/worktree.rs` and `src-tauri/src/lib.rs`; reuse `workspace` path/repository validation patterns, `child_path`, `spawn_gate`, `child_run::collect`, and `ProcessSupervisor`.
 
-**Approach:** Accept typed source directory and user-facing label; canonicalize and discover the repo root, verify non-bare repo and commit HEAD, derive app-owned destination from canonical repo identity, and generate a unique branch. Build Git with the absolute binary and trusted PATH (same trusted lookup as `workspace::git`), spawn via `spawn_gate::spawn`, attach `ProcessSupervisor`, then call `child_run::collect` with a 30-second deadline, 16 KiB stdout cap and 16 KiB retained stderr tail. On timeout, output overflow, or runner error, `collect` terminates and reaps the process tree; return a concise typed error, inspect Git worktree registration before deciding whether any app-generated partial destination is safe to clean, and never delete a branch/worktree when state is uncertain. Return `{ path, sourceRepo, branch, baseCommit }`. Do not accept raw args or arbitrary destination path from the frontend.
+**Approach:** Extend the typed native create API to accept `base_branch`. Canonicalize and discover the source repo, resolve exactly one local or remote-tracking branch ref by its validated short name (disambiguate remote names), and verify its tip resolves to a commit. Pass the resolved base to branch/worktree creation; do not use `repo.head_id()` as the base except when the user explicitly selected the current branch. Use trusted Git resolution/ref checks before `git worktree add -b <generated-branch> <app-owned-path> <resolved-base>`. Keep the source checkout untouched. The webview never supplies Git args or a target path. Spawn through `spawn_gate::spawn`, attach `ProcessSupervisor`, and use `child_run::collect` with a 30-second deadline, 16 KiB stdout cap and 16 KiB retained stderr tail. On failure, inspect Git worktree registration before cleaning any app-generated partial destination; otherwise report recovery details without deleting uncertain data. Return `{ path, sourceRepo, branch, baseCommit }`.
 
-**Verification:** Rust unit/integration tests use disposable local repos to check base HEAD, distinct index/filesystem, unchanged source branch/index/uncommitted files, branch collision handling, missing HEAD/non-repo/errors, timeout/output overflow termination and bounded error output, plus no orphaned tab registration.
+**Verification:** Rust tests use disposable local repos with at least two branches at different commits to prove the selected branch tip becomes the new worktree HEAD, including a remote-tracking base. Assert the generated branch is new and checked out only in the new worktree, and source branch/HEAD/index/uncommitted file bytes remain unchanged. Cover ambiguous/invalid/missing branches, detached/unborn repos, collisions, create failure, timeout/output overflow and bounded errors.
+
+
 
 
 ### U2. Session persistence and restore
@@ -98,23 +100,26 @@ Add an explicit, opt-in way to open a project as an isolated Git worktree for a 
 
 **Files:** Modify `src-tauri/src/open_tabs.rs`, `src-tauri/src/lib.rs`, `src/live.js`, and relevant pure project navigation helpers/tests.
 
-**Approach:** Add optional serde-defaulted source repository and isolation branch metadata to `OpenTab`; pass metadata with tab registry and open-tab save/load. Restore uses the saved worktree path as cwd, verifies it still exists and is a valid Git worktree, and never calls create on restore. Missing/broken worktree follows existing skipped-folder/error reporting without silently opening the source checkout. Respawn and close retain the directory and branch. Keep old JSON layouts compatible.
+**Approach:** Add optional serde-defaulted source repository, base branch and generated branch metadata to `OpenTab`; pass metadata with tab registry and open-tab save/load. Restore uses the saved worktree path as cwd, verifies it still exists and is a valid Git worktree, and never calls create on restore. Missing/broken worktree follows existing skipped-folder/error reporting without silently opening the source checkout. Respawn and close retain the directory and branch. Keep old JSON layouts compatible.
 
-**Verification:** Rust tests for old/new JSON, valid and missing worktree restore; JS pure tests for tab serialization/restore mapping; verify profile and approval-mode respawns retain the same worktree cwd.
+**Verification:** Rust tests for old/new JSON and valid/missing worktree restore; JS pure tests for tab serialization/restore mapping; verify profile and approval-mode respawns retain the same worktree cwd.
 
-### U3. Opt-in project UI and isolation identity
 
-**Goal:** Let the user choose isolation at project-session creation and make the active worktree obvious.
+
+### U3. New-session UI and isolation identity
+
+**Goal:** Let the user choose project, base branch and worktree isolation before creating a chat; make the active worktree obvious. Session approval mode is not changed by this feature.
 
 **Requirements:** R1, R4.
 
 **Dependencies:** U1, U2.
 
-**Files:** Modify `src/design/project-sidebar.jsx`, `src/app-live.jsx`, `src/live.js`, tab/status UI (likely `src/design/chrome.jsx` or project tab components, confirm exact owner before editing), matching `src/design/layout/` CSS, `src/app/i18n-zh.js`, `src/index.html` only if a new script is introduced, `CHANGELOG.md`, and focused frontend tests.
+**Files:** Locate and modify the actual new-session/start screen and its state/bridge owners, `src/app-live.jsx`, `src/live.js`, tab/status UI, matching `src/design/layout/` CSS, `src/app/i18n-zh.js`, `CHANGELOG.md`, and focused frontend tests. Reuse the existing `NewTabMenu` worktree action only where it remains an appropriate entry point; it does not replace the requested project/base-branch form. Do not modify approval-mode settings or contracts.
 
-**Approach:** Add a clear secondary "Open isolated worktree…" action that uses the same native folder picker then invokes the typed native creation command and opens a new tab at the returned worktree path. Normal open remains untouched. Show an explicit worktree indicator and branch in tab/status UI, with a tooltip or accessible label identifying the source repo. Use existing design tokens, OMP_TR, keyboard focus and narrow-width behavior; explain that uncommitted changes in the source checkout are not copied.
+**Approach:** Implement the reference flow as an accessible new-session surface: project choice, base branch populated from the selected project's native branch list, and `New worktree` checkbox. When disabled, preserve the existing session-in-project behavior. When enabled, submit the selected base branch to the typed native API and open a session using the returned worktree. Do not create a session until required choices resolve successfully; surface backend errors and avoid ghost tabs. Show worktree branch/source identity in the tab/status UI. Localize strings, use existing design tokens, keyboard focus and compact-width behavior; explain that source uncommitted changes remain in the original checkout. Approval mode continues through the existing default/project policy without a new per-session selector.
 
-**Verification:** Pure/UI regressions cover both choices, failed creation leaves no ghost session, localization coverage, keyboard interaction and correct per-tab identity. Inspect actual visible application or headed browser UI when available; check light/dark themes and compact width.
+**Verification:** Pure/UI regressions cover normal vs isolated choice, base-branch propagation, project changes refreshing branch choices, failure leaving no ghost session, localization, keyboard interaction, per-tab identity and narrow layouts. Inspect the actual visible UI in the app/browser harness when available; check light/dark themes.
+
 
 ### U4. Documentation and focused verification
 
@@ -126,22 +131,21 @@ Add an explicit, opt-in way to open a project as an isolated Git worktree for a 
 
 **Files:** Update `docs/architecture/session-model.md`, `docs/architecture/reopening-tabs.md`, `docs/architecture/git-browser.md`, `AGENTS.md` feature table/invariants as appropriate, and `CHANGELOG.md` Unreleased.
 
-**Approach:** Document opt-in behavior, branch base, destination, restore and retention semantics; state explicitly that closing a tab keeps worktree/branch and that cleanup is manual Git work until a dedicated manager exists. Run focused tests, Rust format/test/clippy for Rust changes, npm test or the narrow affected suite plus frontend build checks, and one actual UI scenario.
+**Approach:** Document opt-in behavior, selected base branch resolution, branch creation, source-checkout invariants, restore and retention semantics; state explicitly that closing a tab keeps worktree/branch and cleanup is manual until a dedicated manager exists. Run focused tests, Rust format/test/clippy for Rust changes, npm test or the narrow affected suite plus frontend build checks, and one actual UI scenario.
 
-**Verification:** Open one normal tab and one isolated worktree tab for the same repo; confirm different absolute cwd/branch, source worktree branch and dirty files unchanged, Git Browser shows isolated changes, switch tabs without leaking labels, close/restart/restore preserves the worktree. Report any UI/native verification blocked by the environment.
+**Verification:** Open one normal tab and one isolated worktree tab for the same repo; confirm different absolute cwd/branch, new branch HEAD equals selected base branch tip, source checkout branch/HEAD/index/dirty files unchanged, Git Browser shows isolated changes, switch tabs without leaking labels, close/restart/restore preserves the worktree. Report any UI/native verification blocked by the environment.
 
 ## System-Wide Impact
 
-- **Interaction graph:** project sidebar action → native worktree creation → per-tab path/metadata → `start_session` cwd → git watcher, terminal, browser overlay, widgets and Git Browser all operate on the new worktree → open-tabs persistence restores it later.
-- **API surface parity:** add a narrow typed Tauri command and optional open-tab JSON fields; no raw Git CLI arguments or caller-controlled target path cross IPC.
-- **Unchanged invariants:** normal project opens use their original folder; one tab still owns one omp process; `close_tab` remains the only path ending a tab's resources; `stop_session` respawns same-tab omp only; closing a worktree tab retains its linked worktree and branch.
+- **Interaction graph:** new-session project/base-branch/worktree choices → native branch resolution and worktree creation → per-tab path/provenance → `start_session` cwd → git watcher, terminal, browser overlay, widgets and Git Browser all operate on the new worktree → open-tabs persistence restores it later.
+- **API surface parity:** add a narrow typed Tauri command accepting source path, validated base branch and display label plus optional open-tab metadata; no raw Git arguments or caller-controlled target path cross IPC. Approval mode remains resolved by the existing project/default policy.
+- **Unchanged invariants:** normal sessions use their selected checkout; one tab still owns one omp process; `close_tab` remains the only path ending a tab's resources; `stop_session` respawns same-tab omp only; creating a worktree never checks out or modifies the source checkout; closing a worktree tab retains its linked worktree and branch.
 
 ## Risks & Dependencies
 
 | Risk | Mitigation |
 | :--- | :--- |
-| Generated branch name already exists or is checked out | Unique session token; validate through native Git/ref checks; retry only with a fresh safe name; never force/reuse. |
-| Repo has uncommitted changes and user expects them copied | State clearly that base is current HEAD and source working-copy changes remain only in source checkout. |
+| Repo has uncommitted changes and user expects them copied | State clearly that the selected base branch tip is used and source working-copy changes remain only in the original checkout. |
 | `git worktree add` fails after making filesystem or metadata changes | Bounded command, verify `git worktree list --porcelain`, cleanup only an exact app-owned empty target when safe; otherwise report path and recovery. |
 | Worktree directory is manually moved/deleted before restore | Validate on restore and report the missing worktree; never fall back to the source checkout silently. |
 | App data worktree destination crosses filesystem or lacks space/permissions | Use repository/path validation, show actionable errors, and verify data-directory policy and platform constraints before implementation. |
