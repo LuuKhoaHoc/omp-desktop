@@ -102,4 +102,19 @@ check("cancel after the run started is harmless and a new window still runs", ()
   assert.equal(runs, 2);
 });
 
+check("default timers do not call setTimeout with the timers object as this", () => {
+  const calls = [];
+  const strict = (name) => function (...a) {
+    if (this !== undefined && this !== globalThis) throw new TypeError(`Illegal invocation: ${name}`);
+    calls.push(name);
+    return 1;
+  };
+  const w = {};
+  new Function("window", "setTimeout", "clearTimeout", readFileSync(join(root, "src/app/coalesce.js"), "utf8"))(w, strict("set"), strict("clear"));
+  const c = w.OMP_COALESCE.createCoalescer(() => {}, 1);
+  c.schedule();
+  c.cancel();
+  assert.deepEqual(calls, ["set", "clear"]);
+});
+
 console.log(`test-coalesce: ${passed} checks passed`);

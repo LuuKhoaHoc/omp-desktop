@@ -10,7 +10,11 @@
   "use strict";
 
   /** `fn` runs once, `ms` after the first `schedule()` of a window. */
-  function createCoalescer(fn, ms = 16, timers = { set: setTimeout, clear: clearTimeout }) {
+  // Arrow wrappers, not `{ set: setTimeout }`: a browser's setTimeout called as
+  // `timers.set(...)` throws "Illegal invocation" (its `this` is `timers`).
+  const DEFAULT_TIMERS = { set: (cb, ms) => setTimeout(cb, ms), clear: (h) => clearTimeout(h) };
+
+  function createCoalescer(fn, ms = 16, timers = DEFAULT_TIMERS) {
     let handle = null;
     return {
       schedule() {

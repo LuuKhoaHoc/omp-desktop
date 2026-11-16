@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Streaming replies no longer throw `Illegal invocation` on every delta frame, so the 16 ms refresh window actually takes effect in a browser-based webview.
 - Work panel: Gantt's timeline scrolls vertically without trapping scrolling in a nested view container; other issue types keep their normal list scrolling.
 - Running tab indicators stay visible between assistant turns in the same agent run.
 - Sending a prompt positions the transcript before paint rather than scrolling after it appears.
