@@ -1063,7 +1063,7 @@ function CommandBridge({ open, onClose, onPick, onPickModel, currentModelId, pro
                       </span>
                     )}
                     <Icon name={drillsIn ? "chevR" : "arrow"} size={11} color="var(--fg-4)"
-                      style={{ marginLeft: drillsIn ? 8 : "auto" }} />
+                      style={{ marginLeft: drillsIn ? 8 : "auto", width: "0.6875rem", height: "0.6875rem" }} />
                   </button>
                 );
               })}
