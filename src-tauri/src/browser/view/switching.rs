@@ -98,6 +98,13 @@ impl Core {
             // Best effort: turning annotate on installs it again and says why not.
             let _ = self.install_overlay(&session);
             self.apply_viewport(&session, size)?;
+            let url = lock(&self.inner)
+                .pages
+                .iter()
+                .find(|p| p.target_id == target_id)
+                .map(|p| p.url.clone()) // owned: the lock must not span the CDP call
+                .unwrap_or_default();
+            self.apply_blank_background(&session, &url);
             lock(&self.inner).mark_shown(generation);
             Ok(())
         });

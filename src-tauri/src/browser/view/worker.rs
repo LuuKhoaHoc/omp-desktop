@@ -78,14 +78,17 @@ fn handle(core: &Core, session: Option<&str>, method: &str, params: &Value) {
                 });
             }
         }
-        _ if session.is_some_and(|s| lock(&core.inner).is_active_session(s)) => {
-            on_page_event(core, method, params);
+        _ => {
+            // The event's own session, checked here and used below: a switch
+            // between this check and a command must not send to the new page.
+            if let Some(s) = session.filter(|s| lock(&core.inner).is_active_session(s)) {
+                on_page_event(core, s, method, params);
+            }
         }
-        _ => {}
     }
 }
 
-fn on_page_event(core: &Core, method: &str, params: &Value) {
+fn on_page_event(core: &Core, session: &str, method: &str, params: &Value) {
     match method {
         "Page.frameNavigated" => {
             let frame = &params["frame"];
@@ -99,6 +102,9 @@ fn on_page_event(core: &Core, method: &str, params: &Value) {
                     }
                     s.error = failed.map(|url| format!("could not load {url}"));
                 });
+                if let Some(url) = url {
+                    core.apply_blank_background(session, url);
+                }
                 let _ = core.refresh_history();
             }
         }
@@ -267,11 +273,12 @@ mod tests {
         core.update_state(|s| s.can_back = false);
         committing.store(true, Ordering::SeqCst);
         let committed = json!({ "frame": { "id": "a", "url": "data:text/html,a" } });
-        on_page_event(&core, "Page.frameNavigated", &committed);
+        on_page_event(&core, "sa", "Page.frameNavigated", &committed);
         assert!(!lock(&core.inner).state.can_back, "asked while committing");
         committing.store(false, Ordering::SeqCst);
         on_page_event(
             &core,
+            "sa",
             "Page.frameStoppedLoading",
             &json!({ "frameId": "a" }),
         );
@@ -312,5 +319,39 @@ mod tests {
             states.last_error().as_deref(),
             Some("cannot open a page: nope")
         );
+    }
+
+    #[test]
+    fn a_blank_page_is_painted_dark_and_a_real_page_gets_the_default_back() {
+        let seen = Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+        let log = Arc::clone(&seen);
+        let (core, _states, _sent) = fake_core(move |request| {
+            if request["method"] == "Emulation.setDefaultBackgroundColorOverride" {
+                lock(&log).push(request.clone());
+            }
+            None
+        });
+        // The tab was switched to "sb" while an event from "sa" was queued.
+        lock(&core.inner).set_active("a", "sb");
+        let blank = json!({ "frame": { "id": "a", "url": "about:blank" } });
+        let real = json!({ "frame": { "id": "a", "url": "https://example.com/" } });
+        on_page_event(&core, "sa", "Page.frameNavigated", &blank);
+        on_page_event(&core, "sb", "Page.frameNavigated", &real);
+        let sent = crate::test_support::eventually(Duration::from_secs(5), || {
+            let sent = lock(&seen).clone();
+            (sent.len() == 2).then_some(sent)
+        })
+        .expect("both commands reach the page");
+        assert_eq!(sent.len(), 2, "one command per main-frame navigation");
+        assert_eq!(
+            sent[0]["sessionId"], "sa",
+            "the event's own session, not the one shown now"
+        );
+        assert_eq!(
+            sent[0]["params"]["color"],
+            json!({ "r": 11, "g": 13, "b": 20, "a": 1 })
+        );
+        assert_eq!(sent[1]["sessionId"], "sb");
+        assert_eq!(sent[1]["params"], json!({}), "the override is cleared");
     }
 }
