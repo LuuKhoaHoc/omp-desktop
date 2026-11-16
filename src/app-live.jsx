@@ -256,7 +256,12 @@ function App() {
   const side = entryOf(sides, planKey, "rail");
   const setSide = React.useCallback(
     next => setSides(m => updateEntry(m, planKey, "rail", () => next)), [planKey]);
-  const toggleSide = kind => setSide(side === kind ? "rail" : kind);
+  const toggleSide = kind => {
+    // Turning the browser panel off stops this tab's Chromium (browser.md);
+    // the next open or agent connection launches a fresh one.
+    if (kind === "browser" && side === "browser") bridge?.browserStop(planKey);
+    setSide(side === kind ? "rail" : kind);
+  };
   const setBrowserOpen = React.useCallback(
     on => setSides(m => updateEntry(m, planKey, "rail", s => (on ? "browser" : s === "browser" ? "rail" : s))), [planKey]);
   const setFilesOpen = React.useCallback(

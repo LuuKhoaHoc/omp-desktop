@@ -232,7 +232,7 @@ Agent actions still go through omp's normal tool approval flow under the tab's r
 Limits:
 
 - **The agent drives the page you see.** omp treats a `cdpUrl` browser as a borrowed, user-driven one: it never opens a tab of its own there and works in the visible page, so its navigation replaces the page you were on. Nothing in the desktop can give it a separate tab.
-- One Chromium per desktop tab that used the browser, running until that tab closes: no cap and no idle shutdown.
+- One Chromium per desktop tab that used the browser. It stops when the panel's toggle turns off (`browser_stop`, `BrowserManager::stop_browser`: the entry, overlay and proxy stay) and when the tab closes. The next panel open or agent browser call launches a new one, which is slower than a running browser. No cap.
 - omp waits 5 seconds for the CDP endpoint, while a cold Chromium launch may take up to the 10-second startup timeout; a slow first launch can fail the agent's first browser call, and the next one finds Chromium running.
 - An explicit `app.relay` / `app.tern` / `app.cdp_url` in a tool call and the `PI_BROWSER_RELAY` environment variable still outrank the overlay: the agent then drives a different browser than the panel shows.
 - Requires a compatible installed Chromium-based browser or omp's Chrome for Testing; snap and flatpak packages are not candidates. No bundled browser or downloader.

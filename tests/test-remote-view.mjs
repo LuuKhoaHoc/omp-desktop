@@ -310,13 +310,15 @@ test("publisher unmount removes listeners even when asynchronous registration fi
 // startup, avoiding process spawning or filesystem effects in this test.
 function liveBridge() {
   const window = {
-    OMP_SLASH: { LOCAL_COMMANDS: [] }, OMP_SUBAGENTS: { emptySubagents: () => ({}) },
+    OMP_SLASH: { LOCAL_COMMANDS: [] }, OMP_SUBAGENTS: { emptySubagents: () => ({}), listAgents: () => [], isLive: () => false },
     OMP_QUEUE: { EMPTY_QUEUE: {} }, OMP_GOAL: { UNKNOWN: {} }, OMP_EXT_WIDGETS: { EMPTY: {} },
     OMP_TRANSCRIPT: {}, OMP_PROMPT_HISTORY: { DEFAULT_LIMIT: 100 },
     OMP_SESSION_PREFS: { fromTweaks: () => ({}) }, OMP_TWEAKS_STORE: { read: () => ({}) },
     INTENT_FRAMING: () => "", timeNow: () => "00:00",
   };
   runInNewContext(source("src/app/live-voice.js"), { window });
+  runInNewContext(source("src/app/coalesce.js"), { window });
+  runInNewContext(source("src/app/tab-idle.js"), { window });
   const logs = [], calls = [], listeners = new Map();
   runInNewContext(source("src/live.js"), { window, console: { log() {}, error: (...args) => logs.push(args) } });
   let fail = false, stopped = 0;

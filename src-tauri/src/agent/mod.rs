@@ -330,10 +330,12 @@ impl AgentBridge {
         Ok(())
     }
 
-    /// Kills the session's process tree and drops its session-scoped
-    /// approval grants (`rule_book.clear_session`) — those must not
-    /// silently apply to whatever process later reuses this session id.
-    pub fn stop_session(&self, session_id: &str, rule_book: &crate::approval::RuleBook) {
+    /// Kills the session's process tree. `rule_book: Some` also drops its
+    /// session-scoped approval grants — those must not silently apply to
+    /// whatever process later reuses this session id (respawns, approval-mode
+    /// restarts, tab close). `None` keeps them: a suspended tab resumes the
+    /// same conversation under the same session id (`app/tab-idle.js`).
+    pub fn stop_session(&self, session_id: &str, rule_book: Option<&crate::approval::RuleBook>) {
         let removed = {
             // Best-effort cleanup: silently bail on a poisoned lock
             // rather than panicking. The map is only readable in error
@@ -352,12 +354,11 @@ impl AgentBridge {
             }
             removed
         };
-        if let Some(inner) = removed {
-            reap_and_clear_grants(session_id, inner, rule_book);
-        } else {
-            // No live session to reap, but stale grants for this id must
-            // still go — `reap_and_clear_grants` would have done it.
+        if let Some(rule_book) = rule_book {
             rule_book.clear_session(session_id);
+        }
+        if let Some(inner) = removed {
+            reap_process(inner);
         }
         self.clear_error(session_id);
     }
@@ -557,13 +558,19 @@ impl Drop for AgentBridge {
 /// pins), not the only clearing site.
 fn reap_and_clear_grants(
     session_id: &str,
-    mut prev: BridgeInner,
+    prev: BridgeInner,
     rule_book: &crate::approval::RuleBook,
 ) {
+    rule_book.clear_session(session_id);
+    reap_process(prev);
+}
+
+/// Kills `prev`'s process tree and marks it dead, leaving its approval grants
+/// alone (`AgentBridge::stop_session` decides those).
+fn reap_process(mut prev: BridgeInner) {
     prev.alive.store(false, Ordering::Release);
     // Both callers already cleared `alive` and the tracker under `sessions`
     // so a replacement session's state cannot be wiped after the lock drops.
-    rule_book.clear_session(session_id);
     prev.stdin = None;
     let prev_supervisor = prev.supervisor.take();
     if let Some(mut c) = prev.child.take() {
@@ -1032,7 +1039,27 @@ mod tests {
             .insert(sid.into(), idle_inner(Arc::new(AtomicBool::new(true))));
         let dir = crate::test_support::TempDir::new("tracker", "stop-session");
         let rules = crate::approval::RuleBook::new(dir.path().to_path_buf());
-        bridge.stop_session(sid, &rules);
+        bridge.stop_session(sid, Some(&rules));
         assert!(!tracker.snapshot().contains_key(sid));
+    }
+
+    #[test]
+    fn suspending_a_session_keeps_its_grants_and_stopping_it_drops_them() {
+        let dir = crate::test_support::TempDir::new("tracker", "suspend-grants");
+        let rules = crate::approval::RuleBook::new(dir.path().to_path_buf());
+        let bridge = AgentBridge::new();
+        rules
+            .grant(
+                "sess-susp",
+                None,
+                "bash",
+                crate::approval::RuleScope::Session,
+            )
+            .unwrap();
+        // No live process here: the grant decision must still apply.
+        bridge.stop_session("sess-susp", None);
+        assert!(rules.is_granted("sess-susp", None, "bash"));
+        bridge.stop_session("sess-susp", Some(&rules));
+        assert!(!rules.is_granted("sess-susp", None, "bash"));
     }
 }

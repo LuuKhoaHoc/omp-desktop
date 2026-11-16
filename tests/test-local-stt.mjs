@@ -159,6 +159,8 @@ function loadBridgeWithLocalStt({ status, statusError = null, statusPromise = nu
     "src/app/goal.js",
     "src/app/extension-widgets.js",
     "src/design/tweaks/use-tweaks.js",
+    "src/app/coalesce.js",
+    "src/app/tab-idle.js",
     "src/live.js",
   ];
   const timeout = (fn, ms) => { const t = setTimeout(fn, ms); t.unref(); return t; };

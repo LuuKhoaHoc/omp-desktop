@@ -282,6 +282,13 @@ pub async fn browser_close_panel(session_id: String, app: AppHandle) -> Result<(
     crate::off_ipc(move || app.state::<BrowserManager>().close_panel(&session_id)).await?
 }
 
+/// The panel's toggle turned off: stop this tab's Chromium, keep its entry
+/// (see `BrowserManager::stop_browser`).
+#[tauri::command]
+pub async fn browser_stop(session_id: String, app: AppHandle) -> Result<(), String> {
+    crate::off_ipc(move || app.state::<BrowserManager>().stop_browser(&session_id)).await
+}
+
 #[tauri::command]
 pub async fn browser_resize(
     session_id: String,

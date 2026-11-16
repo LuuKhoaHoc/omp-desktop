@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- A background tab's omp process stops after ten minutes of quiet with nothing running, queued or pending, and resumes its conversation when the tab is shown again. Its browser and terminal stay.
+- Turning the browser panel off stops that tab's Chromium; the next panel open or agent browser call starts a new one, which takes longer.
+- Streaming replies refresh the UI at most once per 16 ms window instead of once per delta frame.
+
 ### Fixed
 
 - Work panel: Gantt's timeline scrolls vertically without trapping scrolling in a nested view container; other issue types keep their normal list scrolling.

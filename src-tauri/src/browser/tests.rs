@@ -765,6 +765,29 @@ fn release_removes_profile_and_overlay_and_refuses_later_launches() {
     assert_eq!(launch_count(&dir), 1);
 }
 
+/// The toggle's stop kills Chromium and its profile, keeps the entry and the
+/// overlay, and the next launch works again. Idempotent.
+#[cfg(unix)]
+#[test]
+fn stop_browser_keeps_the_entry_and_relaunches_on_demand() {
+    let dir = tempdir("mgr-stop-browser");
+    let bin = fake_chromium(&dir, "0");
+    let m = manager_using(&dir.join("root"), &bin);
+    let overlay = m.allocate("s1").unwrap();
+    m.chromium("s1").unwrap();
+    let profile = m.profile_dir_for_test("s1").unwrap();
+    assert!(profile.exists());
+    m.stop_browser("s1");
+    m.stop_browser("s1");
+    m.stop_browser("unknown");
+    assert!(!profile.exists(), "stopped browser's profile removed");
+    assert!(overlay.exists(), "overlay kept for the next launch");
+    assert!(m.port("s1").is_some(), "entry kept");
+    m.chromium("s1").unwrap();
+    assert_eq!(launch_count(&dir), 2);
+    m.release("s1");
+}
+
 /// Closing many tabs releases exactly their browsers; unknown ids are fine.
 #[cfg(unix)]
 #[test]

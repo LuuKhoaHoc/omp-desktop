@@ -179,7 +179,7 @@ function testLiveChrome(navigatorStub, { withKeymap = false } = {}) {
   const winObj = {
     navigator: navigatorStub,
     OMP_SLASH: { LOCAL_COMMANDS: [] },
-    OMP_SUBAGENTS: { emptySubagents: () => ({}) },
+    OMP_SUBAGENTS: { emptySubagents: () => ({}), listAgents: () => [], isLive: () => false },
     OMP_QUEUE: { EMPTY_QUEUE: {} },
     OMP_GOAL: { UNKNOWN: {} },
     OMP_EXT_WIDGETS: { EMPTY: {} },
@@ -221,6 +221,8 @@ function testLiveChrome(navigatorStub, { withKeymap = false } = {}) {
   runInNewContext(source("src/app/platform.js"), ctx);
   if (withKeymap) runInNewContext(source("src/app/keymap.js"), ctx);
   runInNewContext(source("src/app/live-voice.js"), ctx);
+  runInNewContext(source("src/app/coalesce.js"), ctx);
+  runInNewContext(source("src/app/tab-idle.js"), ctx);
   runInNewContext(source("src/live.js"), ctx);
 
   const click = (classes) => {
@@ -371,7 +373,7 @@ function renderComposerSuite(navigatorStub, { locale = "en", customBindings = nu
       inlinePaste: (d) => d,
     },
     OMP_QUEUE: { EMPTY_QUEUE: {}, restoredDraft: () => "" },
-    OMP_SUBAGENTS: { emptySubagents: () => ({}) },
+    OMP_SUBAGENTS: { emptySubagents: () => ({}), listAgents: () => [], isLive: () => false },
     OMP_GOAL: { UNKNOWN: {} },
     OMP_EXT_WIDGETS: { EMPTY: {} },
     OMP_TRANSCRIPT: {},
@@ -424,6 +426,8 @@ function renderComposerSuite(navigatorStub, { locale = "en", customBindings = nu
     winObj.OMP_KEYMAP.setResolved(winObj.OMP_KEYMAP.resolve(winObj.OMP_KEYMAP.KEYMAP_ACTIONS, customBindings));
   }
   runInNewContext(source("src/app/live-voice.js"), ctx);
+  runInNewContext(source("src/app/coalesce.js"), ctx);
+  runInNewContext(source("src/app/tab-idle.js"), ctx);
   runInNewContext(source("src/live.js"), ctx);
   runInNewContext(compiledComposer, ctx);
 
