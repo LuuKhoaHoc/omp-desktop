@@ -14,11 +14,13 @@ const { listRows: _GB_listRows, stepFile: _GB_stepFile } = window.OMP_GIT_BROWSE
 
 // Memoised: App re-renders on every streamed frame, and none of them touch
 // these props (`edits` is a count, not the transcript).
-const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath, branch, edits }) {
+const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath, branch, edits, project }) {
   window.OMP_I18N.useLocale();
   const g = window.useGitBrowser({ bridge, initialPath, branch, edits });
   const rootRef = React.useRef(null);
   const viewRef = React.useRef(null);   // the file view's { next, prev, toggleFull }
+  // The worktree manager (git/worktree-panel.jsx), open over this browser.
+  const [worktreesOpen, setWorktreesOpen] = React.useState(false);
 
   // The dialog takes focus, so keystrokes never reach the hidden composer;
   // on close the focus goes back where it was (the composer, usually).
@@ -103,6 +105,7 @@ const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath
           <span className="gitb-head-stats mono">
             {g.status && <span>{changed} {OMP_TR("changed")}</span>}
           </span>
+          <button type="button" className="btn ghost" onClick={() => setWorktreesOpen(true)} title={OMP_TR("worktrees")} aria-label={OMP_TR("worktrees")}><_GB_Icon name="branch" size={12} /></button>
           <button type="button" className="btn ghost" onClick={g.refresh} title={OMP_TR("refresh")} aria-label={OMP_TR("refresh")}><_GB_Icon name="refresh" size={12} /></button>
           <button type="button" className="btn ghost" onClick={onClose} title={OMP_TR("close (Esc)")} aria-label={OMP_TR("close")}><_GB_Icon name="close" size={12} /></button>
         </div>
@@ -123,6 +126,7 @@ const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath
           </div>
         )}
       </div>
+      {worktreesOpen && <window.WorktreePanel bridge={bridge} repoPath={project} onClose={() => setWorktreesOpen(false)} onOpened={onClose} />}
     </div>
   );
 });

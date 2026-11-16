@@ -59,6 +59,7 @@ mod widgets;
 mod work;
 mod workspace;
 mod worktree;
+mod worktree_manage;
 
 use agent::AgentBridge;
 use approval::RuleBook;
@@ -992,6 +993,25 @@ async fn git_browser_commit_file(
 #[tauri::command]
 async fn git_browser_branches(path: String) -> Result<Vec<git_browser::Branch>, String> {
     off_ipc(move || git_browser::branches(Path::new(&path))).await?
+}
+
+/// Every worktree of the tab's repository, the primary checkout first — see
+/// `worktree_manage::list`. `async` + `spawn_blocking`: see `git_browser_status`.
+#[tauri::command]
+async fn git_worktrees_list(path: String) -> Result<Vec<worktree_manage::Worktree>, String> {
+    off_ipc(move || worktree_manage::list(Path::new(&path))).await?
+}
+
+/// Check an existing branch out in a new worktree — see `worktree_manage::add`.
+#[tauri::command]
+async fn git_worktree_add(path: String, branch: String, target: String) -> Result<(), String> {
+    off_ipc(move || worktree_manage::add(Path::new(&path), &branch, &target)).await?
+}
+
+/// Remove a linked worktree — see `worktree_manage::remove`.
+#[tauri::command]
+async fn git_worktree_remove(path: String, target: String, force: bool) -> Result<(), String> {
+    off_ipc(move || worktree_manage::remove(Path::new(&path), &target, force)).await?
 }
 
 /// A file of the tab's project for the in-app preview — see
@@ -2089,6 +2109,9 @@ pub fn run() {
             git_browser_file,
             git_browser_log,
             git_browser_branches,
+            git_worktrees_list,
+            git_worktree_add,
+            git_worktree_remove,
             git_browser_commit,
             git_browser_commit_file,
             project_file_read,

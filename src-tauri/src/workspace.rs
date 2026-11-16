@@ -277,6 +277,44 @@ pub fn accept(repo_root: &Path, rel_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// [`git_output`]'s bounded sibling for `worktree_manage`: `child_run::collect`
+/// with an output cap and a deadline, as the other new children here use.
+pub fn git_run(work_dir: &Path, args: &[&str], label: &str) -> Result<Vec<u8>, String> {
+    use std::time::{Duration, Instant};
+    const CAP: usize = 1024 * 1024;
+    const ERR_CAP: usize = 16 * 1024;
+    const DEADLINE: Duration = Duration::from_secs(60);
+    let mut cmd = git(work_dir)?;
+    cmd.args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    crate::supervisor::ProcessSupervisor::prepare(&mut cmd);
+    let mut child = crate::spawn_gate::spawn(&mut cmd)
+        .map_err(|e| format!("failed to run git {label}: {e}"))?;
+    let supervisor = crate::supervisor::ProcessSupervisor::attach(&child);
+    let done = crate::child_run::collect(
+        &mut child,
+        &supervisor,
+        CAP,
+        ERR_CAP,
+        Instant::now() + DEADLINE,
+        |_| Ok(()),
+    )
+    .map_err(|e| match e {
+        crate::child_run::WaitError::Overflow => format!("git {label} output too large"),
+        crate::child_run::WaitError::TimedOut => format!("git {label} timed out"),
+        crate::child_run::WaitError::Failed(error) => format!("git {label} failed: {error}"),
+    })?;
+    if !done.status.success() {
+        return Err(format!(
+            "git {label} failed: {}",
+            String::from_utf8_lossy(&done.stderr).trim_end()
+        ));
+    }
+    Ok(done.stdout)
+}
+
 /// Switch the work tree to `name`, a branch [`crate::git_browser::branches`]
 /// lists (`remote` says which kind): a local branch (`git switch`), or a
 /// remote-tracking one, which gets a local branch of its name tracking it

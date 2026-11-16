@@ -4714,6 +4714,22 @@
       return _gitBrowserInvoke("workspace_switch_branch", { name, remote });
     },
 
+    /** The repository's worktrees, primary checkout first (`git worktree list`,
+     *  with each one's changed-file count). */
+    gitWorktrees() {
+      return _gitBrowserInvoke("git_worktrees_list", {});
+    },
+
+    /** Check an existing local branch out in a new worktree at `target`. */
+    gitWorktreeAdd(branch, target) {
+      return _gitBrowserInvoke("git_worktree_add", { branch, target });
+    },
+
+    /** Remove the linked worktree at `target`; `force` drops its changes. */
+    gitWorktreeRemove(target, force) {
+      return _gitBrowserInvoke("git_worktree_remove", { target, force: Boolean(force) });
+    },
+
     /** A file of the active tab's project for the preview (issue #39):
      *  `FilePreview` from src-tauri/src/project_file.rs, as `{ok, value |
      *  error}`; null with no tab. Rust takes the folder from the tab, so only

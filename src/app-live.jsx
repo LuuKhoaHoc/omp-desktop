@@ -1506,7 +1506,7 @@ function App() {
         // (app/use-git-browser.jsx).
         <GitBrowser key={gitProject ?? ""} bridge={bridge}
           initialPath={gitOpen.project === gitProject ? gitOpen.path : null}
-          onClose={closeGit} branch={activeProject.branch ?? null} edits={gitEdits} />
+          onClose={closeGit} branch={activeProject.branch ?? null} edits={gitEdits} project={gitProject} />
       )}
 
       {preview && preview.key === planKey && (
