@@ -97,7 +97,8 @@ impl Core {
             );
             // Best effort: turning annotate on installs it again and says why not.
             let _ = self.install_overlay(&session);
-            self.apply_viewport(&session, size)?;
+            // Before the viewport starts the screencast: the first frame must
+            // not show the page's default white.
             let url = lock(&self.inner)
                 .pages
                 .iter()
@@ -105,6 +106,7 @@ impl Core {
                 .map(|p| p.url.clone()) // owned: the lock must not span the CDP call
                 .unwrap_or_default();
             self.apply_blank_background(&session, &url);
+            self.apply_viewport(&session, size)?;
             lock(&self.inner).mark_shown(generation);
             Ok(())
         });
@@ -129,7 +131,9 @@ impl Core {
 #[cfg(test)]
 mod tests {
     use super::super::tests::{fake_core, sent_count};
+    use crate::browser::lock;
     use crate::browser::tests::cdp_error;
+    use serde_json::json;
 
     #[test]
     fn a_switch_that_failed_is_retried_when_the_page_is_picked_again() {
@@ -167,6 +171,24 @@ mod tests {
             sent_count(&sent, "Page.enable"),
             2,
             "a page shown is not switched to again"
+        );
+    }
+
+    #[test]
+    fn a_blank_page_gets_its_background_before_the_screencast_starts() {
+        let (core, _states, sent) = fake_core(|_| None);
+        lock(&core.inner).upsert_page(&json!({ "targetId": "b", "url": "about:blank" }));
+        assert_eq!(core.switch_to("b"), Ok(()));
+        let order = lock(&sent).clone();
+        let at = |method: &str| {
+            order
+                .iter()
+                .position(|m| m == method)
+                .unwrap_or_else(|| panic!("{method} was not sent: {order:?}"))
+        };
+        assert!(
+            at("Emulation.setDefaultBackgroundColorOverride") < at("Page.startScreencast"),
+            "the override must precede the first frame: {order:?}"
         );
     }
 }
