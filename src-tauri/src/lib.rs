@@ -345,9 +345,10 @@ async fn conversation_tree(
     off_ipc(move || conversation_tree::load(&app, &session_file, profile.as_deref())).await?
 }
 
-/// Kill the omp process for a tab session. Also drops its session-scoped
-/// approval-rule grants (see `approval::RuleBook::clear_session`) and its
-/// widget runs.
+/// Kill the omp process for a tab session. Unless `keep_grants` (a suspend,
+/// which resumes the same conversation), also drops its session-scoped
+/// approval-rule grants (see `approval::RuleBook::clear_session`). Always
+/// stops its widget runs.
 ///
 /// Deliberately does NOT touch the tab's terminal or browser: a profile switch
 /// respawns omp while its shell and Chromium stay. Both end only through
@@ -355,11 +356,12 @@ async fn conversation_tree(
 #[tauri::command]
 fn stop_session(
     session_id: String,
+    keep_grants: bool,
     bridge: State<'_, AgentBridge>,
     rule_book: State<'_, Arc<RuleBook>>,
     widget_host: State<'_, Arc<widgets::WidgetHost>>,
 ) {
-    bridge.stop_session(&session_id, &rule_book);
+    bridge.stop_session(&session_id, (!keep_grants).then_some(&**rule_book));
     widget_host.session_closed(&session_id);
 }
 
@@ -375,7 +377,7 @@ fn end_tabs<S: AsRef<str> + Sync>(app: &AppHandle, ids: &[S]) {
     let watchers = app.state::<GitWatcherState>();
     for id in ids {
         let id = id.as_ref();
-        bridge.stop_session(id, &rule_book);
+        bridge.stop_session(id, Some(&**rule_book));
         widgets.session_closed(id);
         watchers.stop(id);
     }
@@ -2074,6 +2076,7 @@ pub fn run() {
             close_all_tabs,
             browser::commands::browser_open_panel,
             browser::commands::browser_close_panel,
+            browser::commands::browser_stop,
             browser::commands::browser_resize,
             browser::commands::browser_navigate,
             browser::commands::browser_history,

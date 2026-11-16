@@ -34,6 +34,8 @@ function harness() {
     OMP_SUBAGENTS: {
       emptySubagents: () => ({}),
       subscriptionLevelFor: () => "progress",
+      listAgents: () => [],
+      isLive: () => false,
     },
     OMP_EXT_WIDGETS: { EMPTY: {} },
     OMP_SESSION_PREFS: {
@@ -60,6 +62,8 @@ function harness() {
     "app/transcript-merge.js",
     "adapter.js",
     "app/pr-automation.js",
+    "app/coalesce.js",
+    "app/tab-idle.js",
   ]) {
     new Function("window", source(path))(w);
   }

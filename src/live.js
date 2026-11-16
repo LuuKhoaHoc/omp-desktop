@@ -172,6 +172,18 @@
   // respawns only that tab (see switchSessionProfile).
   const sessionRegistry = new Map();
   const sessionSnapshots = new Map(); // id -> saved state + volatile vars
+  // Tabs whose omp was stopped on purpose (`_suspendTab`); showing one resumes it.
+  const suspendedTabs = new Set();
+  const suspendingTabs = new Map(); // id -> the stop round-trip, while in flight
+  const backgroundedAt = new Map(); // id -> when the tab last left the front
+  let _switchTarget = null; // the tab a switch is bringing forward: the idle check skips it
+  // A streaming delta's snapshot runs once per window (app/coalesce.js); a full
+  // notify cancels a queued one. Created on first use, a lookup in a function body.
+  let _streamNotify = null;
+  function scheduleStreamNotify() {
+    if (_streamNotify === null) _streamNotify = window.OMP_COALESCE.createCoalescer(() => notify(), 16);
+    _streamNotify.schedule();
+  }
   const respawnVoice = new Map(); // same-conversation voice awaiting a fresh process activation
   const gitListeners = new Map();  // session_id → Tauri unlisten fn for git://branch/{id}
   // Prompt history — one list per tab, newest-first, in memory only. Never
@@ -817,6 +829,7 @@
   }
 
   function notify() {
+    _streamNotify?.cancel(); // the full snapshot below carries what a queued streaming one would
     _trimMessages();
     // Stamp stable IDs on any message that doesn't have one yet (new pushes,
     // restored sessions, or messages from get_messages). O(N) but N ≤ 169 and
@@ -996,6 +1009,7 @@
       // journal: the replay on the way back labels the pause and clears it.
       userAbortInFlight,
     });
+    backgroundedAt.set(activeSessionId, Date.now());
   }
 
   function _restoreSession(id) {
@@ -1064,6 +1078,8 @@
   let _switchPromise = Promise.resolve();
   async function _switchToSession(id) {
     if (!window.__TAURI__) return;
+    _switchTarget = id;
+    _suspendIdleTabs(); // a switch is the moment a background tab can be seen to have gone quiet
     let done;
     const p = new Promise(resolve => { done = resolve; });
     _switchPromise = p;
@@ -1083,6 +1099,10 @@
       if (!stopped.ok && state.dictation.active) return;
     }
     if (_switchIntent !== intent || !sessionRegistry.has(id)) return;
+    if (suspendedTabs.has(id) || suspendingTabs.has(id)) {
+      await _resumeSuspended(id);
+      if (_switchIntent !== intent || !sessionRegistry.has(id)) return;
+    }
     const myGen = ++_switchGen;
 
     // Snapshot current session so we can restore it when switching back
@@ -1267,6 +1287,7 @@
     notify();
     } finally {
       if (_switchIntent === intent) _switchAwayFrom = null;
+      if (_switchTarget === id) _switchTarget = null;
       done();
     }
   }
@@ -1400,16 +1421,17 @@
   }
 
   /** Kill a session's omp process and everything bound to it (git watcher,
-   *  cached snapshot) for a respawn (`_respawnSession`); the tab and its
-   *  terminal shell stay (a tab ends only through `_closeTab`). The registry
-   *  entry is left to the caller.
+   *  cached snapshot) for a respawn (`_respawnSession`) or a suspend
+   *  (`_suspendTab`, `keepGrants`: the same conversation resumes, so its
+   *  approval grants stay); the tab and its terminal shell stay (a tab ends
+   *  only through `_closeTab`). The registry entry is left to the caller.
    *
    *  Returns a promise for the `stop_session` round-trip, which a
    *  respawn MUST await: `stop_session`'s backend body does an
    *  unconditional `sessions.remove(id)`, so if it were still queued when
    *  `start_session` installed the fresh incarnation under the same id, it
    *  would reap the *new* process instead of the dead one. */
-  function _killSessionProcess(id) {
+  function _killSessionProcess(id, keepGrants = false) {
     if (id === activeSessionId) {
       _cancelLiveRequests();
       state.liveVoice = LIVE.EMPTY;
@@ -1418,11 +1440,12 @@
     }
     let stopped = Promise.resolve();
     if (window.__TAURI__) {
-      stopped = window.__TAURI__.core.invoke("stop_session", { sessionId: id }).catch(() => {});
+      stopped = window.__TAURI__.core.invoke("stop_session", { sessionId: id, keepGrants }).catch(() => {});
       window.__TAURI__.core.invoke("stop_git_watch", { sessionId: id }).catch(() => {});
     }
     _dropGitListener(id);
     sessionSnapshots.delete(id);
+    suspendedTabs.delete(id); // a respawn starts the tab's omp itself, so nothing is left to resume
     return stopped;
   }
 
@@ -1442,7 +1465,56 @@
     _dropGitListener(id);
     respawnVoice.delete(id);
     sessionSnapshots.delete(id);
+    suspendedTabs.delete(id);
+    backgroundedAt.delete(id);
     return closed;
+  }
+
+  /** Stop a background tab's omp to free its memory (app/tab-idle.js
+   *  `suspendable`). The tab keeps its registry entry, browser and terminal
+   *  shell; `_resumeSuspended` brings the process back when the tab is shown,
+   *  resuming its conversation file. */
+  function _suspendTab(id) {
+    const stopped = _killSessionProcess(id, true);
+    suspendedTabs.add(id);
+    suspendingTabs.set(id, stopped);
+    void stopped.finally(() => { if (suspendingTabs.get(id) === stopped) suspendingTabs.delete(id); });
+    return stopped;
+  }
+
+  /** Respawn a suspended tab's omp before `_switchToSession` shows it. */
+  async function _resumeSuspended(id) {
+    if (suspendingTabs.has(id)) await suspendingTabs.get(id);
+    if (!suspendedTabs.has(id)) return;
+    suspendedTabs.delete(id);
+    const entry = sessionRegistry.get(id);
+    if (!entry) return;
+    const res = await _respawnSession(id, { profile: entry.profile, resume: entry.sessionFile || null });
+    if (!res.ok) console.error(`[live] resuming tab '${id}' failed:`, res.error);
+  }
+
+  /** Suspend every background tab that the idle rule allows (app/tab-idle.js). */
+  function _suspendIdleTabs() {
+    const now = Date.now();
+    for (const [id, entry] of sessionRegistry) {
+      if (id === activeSessionId) { backgroundedAt.delete(id); continue; }
+      if (!backgroundedAt.has(id)) backgroundedAt.set(id, now);
+      const snap = sessionSnapshots.get(id) ?? null;
+      const subagentsLive = !!snap?.subagents && window.OMP_SUBAGENTS.listAgents(snap.subagents)
+        .some(a => window.OMP_SUBAGENTS.isLive(a.status));
+      const idle = window.OMP_TAB_IDLE.suspendable({
+        isActive: false,
+        respawning: _respawning.has(id) || _switchTarget === id,
+        suspending: suspendingTabs.has(id),
+        suspended: suspendedTabs.has(id),
+        sessionFile: entry.sessionFile,
+        backgroundedAt: backgroundedAt.get(id),
+        now,
+        snap,
+        subagentsLive,
+      });
+      if (idle) void _suspendTab(id);
+    }
   }
 
   /** Listen to a Tauri event (the terminal's streams). Returns
@@ -2758,7 +2830,7 @@
       } else {
         state.messages = [...state.messages.slice(0, -1), updated];
       }
-      notify();
+      scheduleStreamNotify();
       return;
     }
 
@@ -5016,6 +5088,11 @@
      *  release there is no browser left to close, which is not an error. */
     browserClosePanel(sid) {
       return _invokeResult("browser_close_panel", { sessionId: sid });
+    },
+    /** The panel's toggle turned off: stop this tab's Chromium. Rust keeps the
+     *  tab's browser entry, so the next open or agent connection launches one. */
+    browserStop(sid) {
+      return _invokeSafe("browser_stop", { sessionId: sid });
     },
     browserResize(sid, width, height, dpr) {
       return _invokeSafe("browser_resize", { sessionId: sid, width, height, dpr });

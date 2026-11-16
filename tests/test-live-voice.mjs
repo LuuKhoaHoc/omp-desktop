@@ -343,7 +343,7 @@ function bridgeHarness() {
   const w = {
     OMP_LIVE_VOICE: V,
     OMP_SLASH: { LOCAL_COMMANDS: [] },
-    OMP_SUBAGENTS: { emptySubagents: () => ({}), subscriptionLevelFor: () => "progress", mergeSnapshots: () => ({}) },
+    OMP_SUBAGENTS: { emptySubagents: () => ({}), subscriptionLevelFor: () => "progress", mergeSnapshots: () => ({}), listAgents: () => [], isLive: () => false },
     OMP_QUEUE: { EMPTY_QUEUE: {} }, OMP_GOAL: { UNKNOWN: {} }, OMP_EXT_WIDGETS: { EMPTY: {} },
     OMP_TRANSCRIPT: {}, OMP_PROMPT_HISTORY: { DEFAULT_LIMIT: 100 },
     OMP_SESSION_PREFS: { fromTweaks: () => ({ autoCompaction: true, autoRetry: true }), closeGuardArmed: () => false },
@@ -360,6 +360,8 @@ function bridgeHarness() {
   // real process is started. Only timers for other bridge commands are unref'd.
   const timeout = (fn, ms) => { const t = setTimeout(fn, ms); t.unref(); return t; };
   // eslint-disable-next-line no-new-func
+  new Function("window", readFileSync(join(root, "src/app/coalesce.js"), "utf8"))(w);
+  new Function("window", readFileSync(join(root, "src/app/tab-idle.js"), "utf8"))(w);
   new Function("window", "setTimeout", "clearTimeout", readFileSync(join(root, "src/live.js"), "utf8"))(w, timeout, clearTimeout);
   function emit(id, frame) {
     const entries = journal.get(id) ?? [];
@@ -835,7 +837,9 @@ await checkAsync("profile respawn flushes dictation and preserves the originatin
   assert.equal(h.snapshot().activeSessionId, a);
   assert.equal(h.snapshot().dictation.active, false);
   assert.deepEqual(h.snapshot().dictationCompleted, [{ sessionId: a, captureId: command.captureId, text: "before restart", send: false }]);
-  assert.equal(h.invocations.some(call => call.command === "stop_session"), true);
+  const respawnStop = h.invocations.find(call => call.command === "stop_session");
+  assert.ok(respawnStop, "a profile respawn stops the old omp");
+  assert.equal(respawnStop.args.keepGrants, false, "a respawn drops the session's approval grants");
 });
 
 await checkAsync("profile replacement clears the previous conversation's voice", async () => {

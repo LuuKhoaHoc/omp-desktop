@@ -633,6 +633,11 @@
        Dependency-free IIFE; live.js reads window.OMP_STREAM_DELTA at its
        top-level init, so it must load before live.js. -->
   <script src="app/stream-delta.js"></script>
+  <!-- Trailing coalescer for the streaming notify (app/coalesce.js) and the idle-tab
+       rule (app/tab-idle.js). Dependency-free IIFEs; live.js reads window.OMP_COALESCE
+       at its top-level init, so both load before it. -->
+  <script src="app/coalesce.js"></script>
+  <script src="app/tab-idle.js"></script>
   <script src="app/account-quota.js"></script>
   <script src="app/task-usage.js"></script>
   <script src="app/quota-rpc.js"></script>

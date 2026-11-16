@@ -161,6 +161,22 @@ impl Entry {
         let _ = std::fs::remove_file(&self.overlay);
         *torn_down = true;
     }
+
+    /// Stop only the browser (the panel's toggle turned off): the view closes,
+    /// the storage is saved as on close, and Chromium is killed with its
+    /// profile. The entry, proxy and overlay stay, so the next connection or
+    /// panel open launches a browser again.
+    fn stop_browser(&self) {
+        let view = lock(&self.view).close();
+        if let Some(view) = view {
+            view.close();
+        }
+        let chromium = lock(&self.slot.chromium).take();
+        if let Some(chromium) = chromium {
+            chromium.save_storage(&self.slot.storage);
+            chromium.stop();
+        }
+    }
 }
 
 #[derive(Default)]
@@ -364,6 +380,15 @@ impl BrowserManager {
                 .collect()
         };
         self.finish_all(&entries);
+    }
+
+    /// Stop the session's Chromium (see [`Entry::stop_browser`]). Idempotent;
+    /// a session with no browser entry is a no-op.
+    pub fn stop_browser(&self, session_id: &str) {
+        let entry = self.state().entries.get(session_id).map(Arc::clone);
+        if let Some(entry) = entry {
+            entry.stop_browser();
+        }
     }
 
     /// Release every session, including the ones whose release is still in
