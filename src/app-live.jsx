@@ -1010,7 +1010,7 @@ function App() {
     if (order) bridge?.reorderTabs(order);
   };
   // Ctrl+Tab / Ctrl+Shift+Tab over the project tabs, in the order the
-  // sidebar lists them (as Ctrl+1..9 counts), and, when open, the settings
+  // sidebar lists them (as Alt+1..9 counts), and, when open, the settings
   // tab as the last stop. Indexed on `activeProject.id`, not
   // `activeSessionId`: `activeProject` falls back to `sessions[0]` when the
   // snapshot's `activeSessionId` is stale or empty.

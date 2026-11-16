@@ -440,8 +440,8 @@ check("edit: macOS keeps undo in its Edit menu", () => {
 
 // ── Tab numbers shown while the go-to-tab modifier is held ───────────────────
 
-check("tab numbers: the modifiers are those of the bound go-to-tab chords", () => {
-  assert.deepEqual([...K.tabNumberModifiers()].sort(), ["Control", "Meta", "OS", "Super"]);
+check("tab numbers: Alt+number defaults and bound modifiers", () => {
+  assert.deepEqual([...K.tabNumberModifiers()].sort(), ["Alt", "Meta", "OS", "Super"]);
   withBindings(Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => [`desktop.tab.goto${n}`, `alt+${n}`])), () => {
     assert.deepEqual([...K.tabNumberModifiers()], ["Alt"]);
   });
@@ -451,17 +451,17 @@ check("tab numbers: the modifiers are those of the bound go-to-tab chords", () =
   });
 });
 
-check("tab numbers: armed by the modifier, kept through digits, hidden by another key or the release", () => {
+check("tab numbers: armed by Alt, kept through digits, hidden by another key or the release", () => {
   const key = (k, extra = {}) => ({ key: k, code: "", ...extra });
-  assert.equal(K.tabNumberStep(key("Control"), true), "arm");
-  assert.equal(K.tabNumberStep(key("Control", { repeat: true }), true), null, "auto-repeat does not re-arm");
+  assert.equal(K.tabNumberStep(key("Alt"), true), "arm");
+  assert.equal(K.tabNumberStep(key("Alt", { repeat: true }), true), null, "auto-repeat does not re-arm");
   assert.equal(K.tabNumberStep(key("3"), true), null);
   assert.equal(K.tabNumberStep(key("&", { code: "Digit1" }), true), null, "a layout whose digit row types symbols");
   assert.equal(K.tabNumberStep(key("3"), false), null);
-  assert.equal(K.tabNumberStep(key("c"), true), "hide", "Ctrl+C is not asking for tab numbers");
+  assert.equal(K.tabNumberStep(key("c"), true), "hide", "Alt+C is not asking for tab numbers");
   assert.equal(K.tabNumberStep(key("Shift"), true), "hide");
-  assert.equal(K.tabNumberStep(key("Control"), false), "hide");
-  assert.equal(K.tabNumberStep(key("Alt"), true), "hide", "not a go-to-tab modifier by default");
+  assert.equal(K.tabNumberStep(key("Alt"), false), "hide");
+  assert.equal(K.tabNumberStep(key("Control"), true), "hide", "not a go-to-tab modifier by default");
 });
 
 // ── Done ──────────────────────────────────────────────────────────────────────

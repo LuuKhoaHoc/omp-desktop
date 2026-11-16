@@ -163,9 +163,9 @@ function useKeymapDispatch(handlersRef) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-// Holding the modifier of "go to tab N" (Ctrl by default) shows each tab's
-// number in the sidebar and the tab strip: a class on <html>, so nothing
-// re-renders. After a pause, so a quick Ctrl+C never flashes them; gone on
+// Holding the modifier of "go to tab N" (Alt by default; Command on macOS)
+// shows each tab's number in the sidebar and the tab strip: a class on <html>, so nothing
+// re-renders. After a pause, so a quick Alt+C never flashes them; gone on
 // release, on a key that makes it another shortcut (keymap.js
 // tabNumberStep) and when the window loses the keyboard. Capture phase: a
 // focused terminal or browser page stops the keys it takes.
