@@ -1092,7 +1092,7 @@ function App() {
     "desktop.subagents.toggle": subagentUi.togglePane,
     "desktop.browser.annotate": () => { if (side === "browser" && browser.state.status === "running") browser.setAnnotate(!browser.annotate); },
     "desktop.browser.fullView": () => { if (side === "browser") browser.setFullView(!browser.fullView); },
-    // Ctrl+1..9: the nth tab as the sidebar lists it (grouped by project,
+    // Alt+1..9: the nth tab as the sidebar lists it (grouped by project,
     // a project's conversations newest first); holding the modifier shows
     // the numbers (useTabNumberHint).
     ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => [`desktop.tab.goto${n}`, () => {
