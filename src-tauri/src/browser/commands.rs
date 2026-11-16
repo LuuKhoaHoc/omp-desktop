@@ -10,8 +10,8 @@ use tauri::{AppHandle, Manager, State};
 
 use super::annotate::CapturedImage;
 use super::view::{
-    BrowserEmit, Frame, InputEvent, Pick, Rect, Size, Status, TabInfo, TauriBrowserEmit, View,
-    ViewState,
+    BrowserEmit, Frame, InputEvent, PageContext, Pick, Rect, Size, Status, TabInfo,
+    TauriBrowserEmit, View, ViewState,
 };
 use super::{lock, BrowserManager, Entry, NO_BROWSER};
 
@@ -58,6 +58,12 @@ impl BrowserEmit for OpenEmit {
     fn pick(&self, sid: &str, p: &Pick) {
         if self.live() {
             self.emit.pick(sid, p);
+        }
+    }
+
+    fn copied(&self, sid: &str, text: &str) {
+        if self.live() {
+            self.emit.copied(sid, text);
         }
     }
 }
@@ -370,6 +376,17 @@ pub async fn browser_cursor(
     app: AppHandle,
 ) -> Result<&'static str, String> {
     with_view(app, session_id, move |v| v.cursor_at(x, y)).await
+}
+
+/// What the shown page has at `(x, y)` (page CSS px), for the context menu.
+#[tauri::command]
+pub async fn browser_context(
+    session_id: String,
+    x: f64,
+    y: f64,
+    app: AppHandle,
+) -> Result<PageContext, String> {
+    with_view(app, session_id, move |v| v.context_at(x, y)).await
 }
 
 #[tauri::command]

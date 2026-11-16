@@ -26,6 +26,9 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
   const [annotate, setAnnotateState] = React.useState(false);
   const [pendingAny, setPending] = React.useState(null); // the open pick, see `onPick`: { sid, pick, capture, image }
   const [chips, setChips] = React.useState(_UB.EMPTY); // sid → chip[]
+  // The open context menu: { sid, x, y, w, h, at }; `at` is Rust's answer
+  // for the point (undefined while asked, null when there was none).
+  const [menuAny, setMenu] = React.useState(null);
   const canvasRef = React.useRef(null);
   const viewRef = React.useRef(null);
   const sinkRef = React.useRef(null);
@@ -33,6 +36,7 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
   const onMessageRef = React.useRef(null); // the open panel's channel handler (restart reopens with it)
   const open = Boolean(sid && shown);
   const pending = pendingAny && pendingAny.sid === sid ? pendingAny : null;
+  const menu = menuAny && menuAny.sid === sid && open ? menuAny : null;
   const wantUrl = React.useRef(null); // { sid, url } to navigate to once the panel is open
   // The active effect's open token; pending resizes stay local to that run.
   // A stale open completion must not release a newer run's queued work.
@@ -40,7 +44,7 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
   // What handlers that outlive a render must see current: the key handlers
   // (bound once per open) and a save waiting for its capture.
   const latest = React.useRef({});
-  latest.current = { annotate, pending, ids: sessionIds ?? [] };
+  latest.current = { annotate, pending, menu, ids: sessionIds ?? [] };
 
   // A closed tab drops its chips and pick.
   const idsKey = (sessionIds ?? []).join("\0");
@@ -106,8 +110,23 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
       },
       onPage: setPage,
       // Esc while annotating closes the comment popover, else leaves annotate.
-      escape: () => _UB.escapeAction(latest.current.annotate, latest.current.pending),
-      onEscape: (action) => (action === "cancelPick" ? setPending(null) : setAnnotate(false)),
+      escape: () => _UB.escapeAction(latest.current.annotate, latest.current.pending, latest.current.menu),
+      onEscape: (action) => {
+        if (action === "closeMenu") setMenu(null);
+        else if (action === "cancelPick") setPending(null);
+        else setAnnotate(false);
+      },
+      // A right click opens the menu at once with the page's own rows; what
+      // is under the pointer adds the rest when Rust answers. Annotate mode
+      // has no menu: its clicks pick.
+      onMenu: ({ page: point, ...where }) => {
+        if (latest.current.annotate) return;
+        const mine = { sid, ...where };
+        setMenu(mine);
+        bridge.browserContext(sid, point.x, point.y).then((r) => {
+          setMenu((m) => (m === mine ? { ...mine, at: r.ok ? r.value : null } : m));
+        });
+      },
     });
     screenRef.current = screen;
     // A pick opens its popover at once: nothing the user sees waits for the
@@ -162,6 +181,7 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
       screen.destroy();
       screenRef.current = null;
       onMessageRef.current = null;
+      setMenu(null);
       bridge.browserClosePanel(sid);
       showAnnotate(false);
     };
@@ -230,6 +250,31 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
     restoreChips: (list, id = sid) => setChips((s) => _UB.restoreChips(s, id, list)),
   }), [sid]);
 
+  // A context menu row. Copy, cut and select all are Chromium's own editor
+  // commands (a copy comes back through Rust to the system clipboard);
+  // paste reads the system clipboard here, in the click, and types it.
+  const closeMenu = React.useCallback(() => setMenu(null), []);
+  const menuPick = (id) => {
+    const link = menu?.at?.link;
+    const copy = (text) => navigator.clipboard?.writeText(text).catch((err) => console.warn("[browser] copy failed:", err));
+    setMenu(null);
+    sinkRef.current?.focus({ preventScroll: true });
+    if (!bridge || !sid) return;
+    if (id === "linkTab" && link) Promise.resolve(bridge.browserTabNew(sid)).then(() => bridge.browserNavigate(sid, link));
+    else if (id === "linkExternal" && link) openLink.current(link, true);
+    else if (id === "linkCopy" && link) copy(link);
+    else if (id === "urlCopy") copy(state.url);
+    else if (id === "copy" || id === "cut" || id === "selectAll") bridge.browserInput(sid, { kind: "edit", command: id });
+    else if (id === "paste") {
+      navigator.clipboard?.readText().then(
+        (text) => { if (text) bridge.browserInput(sid, { kind: "text", text }); },
+        (err) => console.warn("[browser] paste failed:", err),
+      );
+    } else if (id === "back") bridge.browserHistory(sid, -1);
+    else if (id === "forward") bridge.browserHistory(sid, 1);
+    else if (id === "reload") bridge.browserNavigate(sid, state.url);
+  };
+
   // Page actions on the open tab; a refused navigation shows in the page.
   const act = React.useMemo(() => ({
     navigate: (url) => bridge?.browserNavigate(sid, url),
@@ -252,6 +297,7 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
     setWidth: (px) => setTweak("browserWidth", Math.round(px)),
     state, tabs, page, annotate, setAnnotate,
     pending, savePending, cancelPending,
+    menu, menuPick, closeMenu,
     chips: _UB.chipsOf(chips, sid),
     ...chipActions, canvasRef, viewRef, sinkRef, ...act,
   };

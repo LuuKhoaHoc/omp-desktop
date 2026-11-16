@@ -38,11 +38,22 @@ pub enum InputEvent {
     Text {
         text: String,
     },
+    /// An editing command of the panel's context menu.
+    Edit {
+        command: String,
+    },
 }
 
 const MOUSE_TYPES: [&str; 3] = ["mousePressed", "mouseReleased", "mouseMoved"];
 const MOUSE_BUTTONS: [&str; 6] = ["none", "left", "middle", "right", "back", "forward"];
 const KEY_TYPES: [&str; 4] = ["keyDown", "keyUp", "rawKeyDown", "char"];
+/// Chromium editor commands the context menu may run, with the key of
+/// their chord: name, `key`, `code`, virtual key code.
+const EDIT_COMMANDS: [(&str, &str, &str, u32); 3] = [
+    ("copy", "c", "KeyC", 67),
+    ("cut", "x", "KeyX", 88),
+    ("selectAll", "a", "KeyA", 65),
+];
 
 fn one_of(what: &str, value: &str, allowed: &[&str]) -> Result<(), String> {
     if allowed.contains(&value) {
@@ -56,6 +67,15 @@ impl InputEvent {
     /// A mouse button release.
     pub fn is_release(&self) -> bool {
         matches!(self, Self::Mouse { r#type, .. } if r#type == "mouseReleased")
+    }
+
+    /// A key going down, or the menu command that stands for one.
+    pub fn is_key_press(&self) -> bool {
+        match self {
+            Self::Key { r#type, .. } => r#type == "keyDown" || r#type == "rawKeyDown",
+            Self::Edit { .. } => true,
+            _ => false,
+        }
     }
 
     /// The user acting on the page (not just moving the pointer over it):
@@ -120,6 +140,23 @@ impl InputEvent {
                 Ok(("Input.dispatchKeyEvent", params))
             }
             Self::Text { text } => Ok(("Input.insertText", json!({ "text": text }))),
+            // The platform's chord for it, naming the editor command too:
+            // Chromium runs none for a key press that names no key.
+            Self::Edit { command } => {
+                let (key, code, vk) = EDIT_COMMANDS
+                    .iter()
+                    .find(|(name, ..)| name == command)
+                    .map(|&(_, key, code, vk)| (key, code, vk))
+                    .ok_or_else(|| format!("invalid edit command {command:?}"))?;
+                let modifiers = if cfg!(target_os = "macos") { 4 } else { 2 };
+                Ok((
+                    "Input.dispatchKeyEvent",
+                    json!({
+                        "type": "rawKeyDown", "key": key, "code": code, "modifiers": modifiers,
+                        "windowsVirtualKeyCode": vk, "commands": [command],
+                    }),
+                ))
+            }
         }
     }
 }
@@ -166,6 +203,21 @@ mod tests {
         assert_eq!(
             (method, &params["text"]),
             ("Input.insertText", &json!("abc"))
+        );
+    }
+
+    #[test]
+    fn a_menu_edit_runs_only_a_listed_editor_command() {
+        let edit = parse(r#"{"kind":"edit","command":"copy"}"#);
+        assert!(edit.is_key_press(), "a copy the user asked for");
+        let (method, params) = edit.to_command().unwrap();
+        assert_eq!(method, "Input.dispatchKeyEvent");
+        assert_eq!(params["commands"], json!(["copy"]));
+        assert_eq!(params["windowsVirtualKeyCode"], 67);
+        let paste = parse(r#"{"kind":"edit","command":"paste"}"#);
+        assert!(
+            paste.to_command().is_err(),
+            "the page never reads a clipboard"
         );
     }
 

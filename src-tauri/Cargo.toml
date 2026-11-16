@@ -52,6 +52,11 @@ reqwest = { version = "0.13", default-features = false, features = ["blocking", 
 # ones missing Vietnamese letters (`work.rs` fonts). Pure Rust, no fontconfig.
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap"] }
 ttf-parser = "0.25"
+# The browser panel's copy (`browser/clipboard/`): headless Chromium has a
+# clipboard of its own, so what the page copies is written to the system's
+# here. Text only; `wayland-data-control` writes a Wayland clipboard without
+# going through XWayland.
+arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [

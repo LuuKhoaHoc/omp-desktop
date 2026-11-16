@@ -87,6 +87,7 @@ function screenHarness({ bypass = () => false, escape = () => null, cursorAt, sl
   const resized = [];
   const pages = [];
   const escapes = [];
+  const menus = [];
   const canvas = { width: 0, height: 0, getContext: () => ({ drawImage: (...args) => painted.push(args) }) };
   const panel = node();
   const size = { width: 400, height: 300 };
@@ -106,11 +107,12 @@ function screenHarness({ bypass = () => false, escape = () => null, cursorAt, sl
     onPage: (page) => pages.push(page),
     escape,
     onEscape: (action) => escapes.push(action),
+    onMenu: (where) => menus.push(where),
   });
   const paintAll = () => { for (const [id, paint] of [...frames]) { frames.delete(id); paint(); } };
   const runTimers = () => { for (const fn of timers.splice(0)) fn(); };
   return {
-    window, screen, canvas, view, sink, panel, size, bitmaps, decode, painted, sent, acks, resized, pages, escapes, cursors,
+    window, screen, canvas, view, sink, panel, size, bitmaps, decode, painted, sent, acks, resized, pages, escapes, menus, cursors,
     queries, frames, paintAll, runTimers, observe: () => observe(),
   };
 }
@@ -320,6 +322,22 @@ test("screen wheel: docks in the stage's slot share its one listener, which stay
   next.destroy();
   assert.equal(tickAt(canvas, 5).defaultPrevented, false, "no screen alive: the event passes untouched");
   assert.equal(slot.listeners("wheel"), 1, "kept for the next dock");
+});
+
+test("screen right click asks for the panel's menu at the view point and its page point", async () => {
+  const h = screenHarness();
+  h.observe();
+  const early = h.view.fire("contextmenu", { target: h.canvas, clientX: 100, clientY: 60 });
+  assert.equal(early.defaultPrevented, true, "never the webview's own menu");
+  assert.deepEqual(h.menus, [], "no page shown yet: nothing to ask about");
+  h.screen.frame(wire(800, 600, 1)); // the page is 800x600 CSS px in a 400x300 view
+  await flush();
+  h.paintAll();
+  h.view.fire("contextmenu", { target: h.canvas, clientX: 100, clientY: 60 });
+  assert.deepEqual(JSON.parse(JSON.stringify(h.menus)), [{ x: 100, y: 60, w: 400, h: 300, page: { x: 200, y: 120 } }]);
+  const off = h.view.fire("contextmenu", { target: h.view, clientX: 100, clientY: 60 });
+  assert.equal(off.defaultPrevented, false, "the popover's fields keep the native menu");
+  assert.equal(h.menus.length, 1);
 });
 
 test("screen Esc while annotating is the panel's: not the page's, not the keymap's interrupt", () => {

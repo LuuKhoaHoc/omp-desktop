@@ -1620,4 +1620,13 @@ window.OMP_I18N.add("zh", {
   "Session totals follow omp's native ledger. Task deltas are available only for requests observed during this app run.": "会话总量来自 omp 原生账本。仅能显示本次应用运行期间观察到的请求增量。",
   "Profile": "配置",
   "Accounts & quota": "账户与配额",
+  "open link in new tab": "在新标签页中打开链接",
+  "open link in system browser": "在系统浏览器中打开链接",
+  "copy link address": "复制链接地址",
+  "cut": "剪切",
+  "copy": "复制",
+  "paste": "粘贴",
+  "select all": "全选",
+  "copy page address": "复制页面地址",
+  "page menu": "页面菜单",
 });

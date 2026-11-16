@@ -1,7 +1,7 @@
 // app/browser-screen.js — DOM side of the browser panel (docs/architecture/browser.md):
 // paints the latest screencast frame on a canvas and
 // forwards the user's pointer, wheel, key, text and paste input to the page.
-//   createScreen({ view, canvas, sink, send, ack, cursorAt, onResize, onPage, escape, onEscape })
+//   createScreen({ view, canvas, sink, send, ack, cursorAt, onResize, onPage, escape, onEscape, onMenu })
 //     -> { frame(buffer), size(), destroy() }
 // `cursorAt(x, y)` resolves to the CSS cursor keyword the page wants at that
 // page point (or null): the view shows it through `--page-cursor`.
@@ -16,7 +16,8 @@
 // settled on a new value; `onPage({cssW, cssH})` when the painted frame's
 // CSS size changes. `escape()` is what Esc on the panel does now
 // (OMP_BROWSER.escapeAction, null = the page's key), `onEscape(action)`
-// does it. Chords the app keymap takes leave the page the way they leave
+// does it. `onMenu({ x, y, w, h, page })` is a right click on the page: the
+// point in view px, the view's size and the page point. Chords the app keymap takes leave the page the way they leave
 // the terminal (OMP_KEYMAP.guestShouldBypass). Pure mappings live in app/browser.js;
 // DOM scheduling and painting have a minimal-stub regression in
 // tests/test-browser-runtime.mjs.
@@ -44,7 +45,7 @@
     return slot;
   }
 
-  function createScreen({ view, canvas, sink, send, ack, cursorAt, onResize, onPage, escape, onEscape }) {
+  function createScreen({ view, canvas, sink, send, ack, cursorAt, onResize, onPage, escape, onEscape, onMenu }) {
     const B = window.OMP_BROWSER;
     const ctx = canvas.getContext("2d");
     let dead = false;
@@ -249,7 +250,16 @@
       wheel = { e, dx: (wheel?.dx ?? 0) + e.deltaX * unit, dy: (wheel?.dy ?? 0) + e.deltaY * unit };
       scheduleInput();
     };
-    const onContext = (e) => { if (e.target === canvas) e.preventDefault(); };
+    // The right press and release went to the page already; the menu is the
+    // panel's own (`onMenu`), at the click in view px with its page point.
+    const onContext = (e) => {
+      if (e.target !== canvas) return;
+      e.preventDefault();
+      const p = at(e);
+      if (!p || !onMenu) return;
+      const r = view.getBoundingClientRect();
+      onMenu({ x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height, page: p });
+    };
 
     // Only keys typed into the sink (not in the popover or toolbar). A key
     // the IME or a dead key is working on stays in the sink: its result

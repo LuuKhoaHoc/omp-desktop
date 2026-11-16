@@ -42,6 +42,9 @@ pub(in crate::browser) struct Core {
     closed: AtomicBool,
     /// When the panel last released a mouse button on the page.
     released: Mutex<Option<Instant>>,
+    /// When the panel last sent the page a key press or a mouse release:
+    /// what a page may answer by copying.
+    acted: Mutex<Option<Instant>>,
     /// Annotate mode, see `annotate/`.
     pub(in crate::browser) annotate: Mutex<Annotate>,
     /// Serialises overlay installs (taken before `annotate`, never by the
@@ -68,6 +71,7 @@ impl Core {
             client: OnceLock::new(),
             closed: AtomicBool::new(false),
             released: Mutex::new(None),
+            acted: Mutex::new(None),
             annotate: Mutex::new(Annotate::default()),
             overlay_install: Mutex::new(()),
             #[cfg(test)]
@@ -149,6 +153,13 @@ impl Core {
     pub(super) fn publish_tabs(&self, inner: &mut Inner) {
         if let Some(tabs) = inner.tabs_if_changed() {
             self.emit.tabs(&self.sid, tabs);
+        }
+    }
+
+    /// Hand text the user copied in the page on, unless the view is closed.
+    pub(in crate::browser) fn emit_copied(&self, text: &str) {
+        if !self.is_closed() {
+            self.emit.copied(&self.sid, text);
         }
     }
 
@@ -299,6 +310,9 @@ impl Core {
         if item.release {
             self.note_panel_release(); // before the page can react to it
         }
+        if item.release || item.press {
+            *lock(&self.acted) = Some(Instant::now());
+        }
         self.client.get().ok_or("cdp not connected")?.post(
             Some(&item.session),
             item.method,
@@ -322,6 +336,12 @@ impl Core {
     /// `within`. Cheap: the reader thread asks.
     pub(in crate::browser) fn panel_released_within(&self, within: Duration) -> bool {
         lock(&self.released).is_some_and(|at| at.elapsed() <= within)
+    }
+
+    /// Whether the panel sent the page a key press or a mouse release in
+    /// the last `within`.
+    pub(in crate::browser) fn panel_acted_within(&self, within: Duration) -> bool {
+        lock(&self.acted).is_some_and(|at| at.elapsed() <= within)
     }
 }
 
@@ -417,6 +437,7 @@ mod tests {
             method: "Input.insertText",
             params: json!({ "text": "x" }),
             release,
+            press: false,
         }
     }
 

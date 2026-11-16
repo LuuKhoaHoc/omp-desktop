@@ -263,9 +263,49 @@
   // is open, else leaves annotate mode; outside annotate mode it is the
   // page's (null). Either way the panel consumes it, so the app keymap's
   // Esc (interrupt the agent's turn) never fires from here.
-  function escapeAction(annotate, pending) {
+  // An open context menu goes first.
+  function escapeAction(annotate, pending, menu) {
+    if (menu) return "closeMenu";
     if (!annotate && !pending) return null;
     return pending ? "cancelPick" : "leaveAnnotate";
+  }
+
+  // ---- Context menu --------------------------------------------------------
+
+  // The rows of the page's context menu for what Rust found under the
+  // pointer (`at`: { link, selection, editable }, null while it is asked or
+  // when the page gave no answer) on a page in `state`. Groups are divided
+  // by a `{ divider: true }` row; `label` is an OMP_TR source string.
+  function contextMenu(at, state) {
+    const groups = [];
+    if (at?.link) {
+      groups.push([
+        { id: "linkTab", label: "open link in new tab" },
+        { id: "linkExternal", label: "open link in system browser" },
+        { id: "linkCopy", label: "copy link address" },
+      ]);
+    }
+    const edit = [];
+    if (at?.selection && at.editable) edit.push({ id: "cut", label: "cut" });
+    if (at?.selection) edit.push({ id: "copy", label: "copy" });
+    if (at?.editable) edit.push({ id: "paste", label: "paste" }, { id: "selectAll", label: "select all" });
+    if (edit.length) groups.push(edit);
+    groups.push([
+      { id: "back", label: "back", disabled: !state?.canBack },
+      { id: "forward", label: "forward", disabled: !state?.canForward },
+      { id: "reload", label: "reload", disabled: !state?.url },
+      { id: "urlCopy", label: "copy page address", disabled: !state?.url },
+    ]);
+    return groups.flatMap((rows, i) => (i ? [{ divider: true }, ...rows] : rows));
+  }
+
+  // Where the menu opens in a `w` x `h` view for a click at (x, y): a
+  // corner at the pointer, growing toward the larger side, as CSS offsets.
+  function contextMenuPlace({ x, y, w, h }) {
+    const place = {};
+    if (x > w / 2) place.right = `${Math.max(0, w - x)}px`; else place.left = `${Math.max(0, x)}px`;
+    if (y > h / 2) place.bottom = `${Math.max(0, h - y)}px`; else place.top = `${Math.max(0, y)}px`;
+    return place;
   }
 
   // ---- Chips ---------------------------------------------------------------
@@ -376,6 +416,8 @@
     mouseButton,
     keyEventToCdp,
     escapeAction,
+    contextMenu,
+    contextMenuPlace,
     EMPTY,
     chipsOf,
     addChip,

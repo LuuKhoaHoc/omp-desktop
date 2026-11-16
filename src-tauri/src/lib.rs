@@ -2086,6 +2086,7 @@ pub fn run() {
             browser::commands::browser_input,
             browser::commands::browser_frame_ack,
             browser::commands::browser_cursor,
+            browser::commands::browser_context,
             browser::commands::browser_annotate,
             browser::commands::browser_capture,
             browser::commands::browser_scroll_to,

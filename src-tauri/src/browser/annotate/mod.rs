@@ -30,7 +30,7 @@ use super::view::Core;
 pub use capture::CapturedImage;
 
 const OVERLAY: &str = include_str!("overlay.js");
-const WORLD: &str = "omp-annotate";
+pub(in crate::browser) const WORLD: &str = "omp-annotate";
 const BINDING: &str = "__ompAnnotate";
 
 /// The events [`Core::on_overlay_event`] takes, on the reader thread.
@@ -143,10 +143,12 @@ impl Core {
             "Page.addScriptToEvaluateOnNewDocument",
             json!({ "source": OVERLAY, "worldName": WORLD, "runImmediately": true }),
         );
-        installed.map(drop).map_err(|e| {
+        installed.map_err(|e| {
             lock(&self.annotate).forget(session);
             format!("annotate overlay: {e}")
-        })
+        })?;
+        self.install_copy_bridge(session); // its world and `Runtime.enable` are the overlay's
+        Ok(())
     }
 
     /// Annotate on or off for the shown page, and for every page shown

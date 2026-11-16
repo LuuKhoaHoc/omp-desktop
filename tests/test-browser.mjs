@@ -536,6 +536,38 @@ check("escapeAction: Esc closes the popover, then leaves annotate, else is the p
   assert.equal(B.escapeAction(false, null), null);
 });
 
+check("escapeAction: an open context menu takes Esc first", () => {
+  assert.equal(B.escapeAction(true, { pick: {} }, { x: 0 }), "closeMenu");
+  assert.equal(B.escapeAction(false, null, { x: 0 }), "closeMenu");
+});
+
+// ---- Context menu -----------------------------------------------------------
+
+const menuIds = (at, state) => B.contextMenu(at, state).map((r) => (r.divider ? "|" : r.disabled ? `(${r.id})` : r.id)).join(" ");
+
+check("contextMenu: the page's own rows show before and without an answer", () => {
+  const state = { url: "https://a.test/", canBack: true, canForward: false };
+  assert.equal(menuIds(undefined, state), "back (forward) reload urlCopy");
+  assert.equal(menuIds(null, state), "back (forward) reload urlCopy");
+  assert.equal(menuIds(null, { url: "" }), "(back) (forward) (reload) (urlCopy)");
+});
+
+check("contextMenu: a link, a selection and a field each add their rows", () => {
+  const state = { url: "https://a.test/", canBack: false, canForward: false };
+  const page = "(back) (forward) reload urlCopy";
+  assert.equal(menuIds({ link: "https://b.test/", selection: false, editable: false }, state), `linkTab linkExternal linkCopy | ${page}`);
+  assert.equal(menuIds({ link: null, selection: true, editable: false }, state), `copy | ${page}`, "page text is never cut");
+  assert.equal(menuIds({ link: null, selection: false, editable: true }, state), `paste selectAll | ${page}`);
+  assert.equal(menuIds({ link: "https://b.test/", selection: true, editable: true }, state), `linkTab linkExternal linkCopy | cut copy paste selectAll | ${page}`);
+});
+
+check("contextMenuPlace: the menu grows away from the nearer edges", () => {
+  const view = { w: 400, h: 300 };
+  assert.deepEqual(B.contextMenuPlace({ x: 10, y: 20, ...view }), { left: "10px", top: "20px" });
+  assert.deepEqual(B.contextMenuPlace({ x: 390, y: 280, ...view }), { right: "10px", bottom: "20px" });
+  assert.deepEqual(B.contextMenuPlace({ x: 390, y: 20, ...view }), { right: "10px", top: "20px" });
+});
+
 // ---- Chromium setting menu --------------------------------------------------
 
 const CHROME = "/opt/google/chrome/chrome";

@@ -1,13 +1,14 @@
 /* browser-panel.jsx — the browser panel (docs/architecture/browser.md):
    toolbar, the streamed page on a canvas, status overlay, the
-   annotate popover and numbered markers. `ui` is app/use-browser.jsx's result;
+   annotate popover, numbered markers and the page's context menu
+   (browser-menu.jsx). `ui` is app/use-browser.jsx's result;
    the canvas is painted and fed input by app/browser-screen.js through
    `ui.viewRef` / `ui.canvasRef`, and the hidden `ui.sinkRef` textarea holds
    the page's keyboard focus (paste, IME and dead keys need an editable
    target). Page coordinates here are CSS px of the shown page (`ui.page`),
    placed as percentages of the view. */
 
-const { BrowserToolbar: _BP_Toolbar, OMP_BROWSER: _BP } = window;
+const { BrowserToolbar: _BP_Toolbar, BrowserMenu: _BP_Menu, OMP_BROWSER: _BP } = window;
 
 const _BP_STATUS = {
   starting: "starting browser…",
@@ -112,6 +113,7 @@ function BrowserPanel({ ui }) {
           {pending && page && (
             <BrowserPopover key={pending.pick.rect.x + ":" + pending.pick.rect.y} pick={pending.pick} page={page} failed={pending.image === null} onSave={ui.savePending} onCancel={ui.cancelPending} />
           )}
+          {ui.menu && <_BP_Menu menu={ui.menu} state={state} onPick={ui.menuPick} onClose={ui.closeMenu} />}
           {message && (
             <div className={`browser-status ${state.status}${state.error ? " failed" : ""}${strip ? " strip" : ""}`}
               role={state.error ? "alert" : "status"}>

@@ -13,8 +13,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Turning the browser panel off stops that tab's Chromium; the next panel open or agent browser call starts a new one, which takes longer.
 - Streaming replies refresh the UI at most once per 16 ms window instead of once per delta frame.
 
+### Added
+
+- Browser panel: a context menu on right click with open link in new tab or the system browser, copy link address, cut, copy, paste, select all, back, forward, reload and copy page address.
+
 ### Fixed
 
+- Browser panel: copying in the page (Ctrl+C, Ctrl+X, the menu's copy, a site's Copy button) now reaches the system clipboard. Before, the text stayed in the headless browser's own clipboard, and Copy buttons using `navigator.clipboard` were refused.
+- Browser panel on Linux: pages render on the GPU instead of the CPU. A page with blur, shadows or WebGL went from about 14 to 60 frames a second in the panel; without a usable GPU it renders as before.
 - Streaming replies no longer throw `Illegal invocation` on every delta frame, so the 16 ms refresh window actually takes effect in a browser-based webview.
 - Work panel: Gantt's timeline scrolls vertically without trapping scrolling in a nested view container; other issue types keep their normal list scrolling.
 - Running tab indicators stay visible between assistant turns in the same agent run.

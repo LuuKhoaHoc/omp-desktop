@@ -11,6 +11,7 @@ use serde_json::Value;
 
 use super::super::annotate;
 use super::super::cdp::{EventHandler, DISCONNECTED};
+use super::super::clipboard;
 use super::super::lock;
 use super::core::Core;
 use super::emit::Frame;
@@ -36,13 +37,14 @@ pub(super) enum Event {
 
 /// A gesture queued for the page that was shown when it was made: it is
 /// dropped, not redirected, when another page is shown by the time it is
-/// sent. `release` marks a mouse button release.
+/// sent. `release` marks a mouse button release, `press` a key going down.
 pub(super) struct InputItem {
     pub session: String,
     pub generation: u64,
     pub method: &'static str,
     pub params: Value,
     pub release: bool,
+    pub press: bool,
 }
 
 /// Events the worker acts on; the handler drops all others.
@@ -97,6 +99,8 @@ pub(super) fn handler(core: Weak<Core>, worker: Sender<Event>) -> EventHandler {
             if on_frame(&core, session, params) {
                 let _ = worker.send(Event::Restart);
             }
+        } else if method == "Runtime.bindingCalled" && params["name"] == clipboard::BINDING {
+            core.on_copy(session, &params);
         } else if annotate::EVENTS.contains(&method) {
             core.on_overlay_event(session, method, &params);
         } else if method == DISCONNECTED || FORWARDED.contains(&method) {

@@ -12,6 +12,7 @@
 mod annotate;
 mod broker;
 mod cdp;
+mod clipboard;
 pub mod commands;
 mod process;
 pub mod proxy;

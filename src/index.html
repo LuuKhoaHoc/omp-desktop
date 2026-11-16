@@ -446,10 +446,12 @@
   <script type="text/babel" src="design/pr-automation-menu.jsx"></script>
   <script type="text/babel" src="design/pr-automation-card.jsx"></script>
   <!-- Browser panel: browser-panel.jsx destructures window.BrowserToolbar
-       (browser-toolbar.jsx) at top level; the toolbar destructures
-       window.Icon and window.OMP_BROWSER. browser-dock.jsx (the panel's stage
+       (browser-toolbar.jsx) and window.BrowserMenu (browser-menu.jsx) at top
+       level; the toolbar and the menu destructure window.OMP_BROWSER, the
+       toolbar window.Icon too. browser-dock.jsx (the panel's stage
        slot and resize handle) destructures window.BrowserPanel. -->
   <script type="text/babel" src="design/browser-toolbar.jsx"></script>
+  <script type="text/babel" src="design/browser-menu.jsx"></script>
   <script type="text/babel" src="design/browser-panel.jsx"></script>
   <script type="text/babel" src="design/browser-dock.jsx"></script>
   <script type="text/babel" src="design/mention-menu.jsx"></script>

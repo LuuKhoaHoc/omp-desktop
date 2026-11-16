@@ -166,6 +166,25 @@
 .browser-popover textarea:focus { border-color: var(--accent); }
 .browser-popover textarea::placeholder { color: var(--fg-4); }
 
+/* ── Context menu (browser-menu.jsx) ───────────────────────────────── */
+/* The pop-up box comes from chrome.css; the corner at the pointer is set
+   inline (OMP_BROWSER.contextMenuPlace). */
+.browser-menu {
+  z-index: 4;
+  min-width: 180px; max-width: min(280px, calc(100% - 16px));
+  max-height: calc(100% - 16px); overflow: auto;
+}
+.browser-menu-item {
+  appearance: none; border: 0; background: transparent;
+  padding: 5px 10px; border-radius: var(--r-1);
+  font-size: var(--d-text-sm); color: var(--fg-2);
+  text-align: left; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none;
+}
+.browser-menu-item:hover:not(:disabled) { background: var(--bg-hover); color: var(--fg); }
+.browser-menu-item:disabled { color: var(--fg-4); cursor: default; }
+.browser-menu-divider { height: 1px; margin: 3px 4px; background: var(--line); flex: none; }
+
 /* ── Stage slot: panel + resize handle ─────────────────────────────── */
 .stage.with-browser { grid-template-columns: minmax(0, 1fr) auto; }
 .window.is-split .stage.with-browser { grid-template-columns: minmax(0, 1fr) var(--w-split, 320px) auto; }

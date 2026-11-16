@@ -10,6 +10,7 @@
 //! Locks: `Core::inner` is never held across a CDP call or a frame emit;
 //! `Core::switch` serialises target switches and viewport changes.
 
+mod context;
 mod core;
 mod cursor;
 mod emit;
@@ -36,6 +37,7 @@ use super::cdp::CdpClient;
 use super::lock;
 
 pub(in crate::browser) use self::core::Core;
+pub use context::PageContext;
 pub(in crate::browser) use emit::{
     BrowserEmit, Frame, Pick, Rect, Status, TabInfo, TauriBrowserEmit, ViewState,
 };
@@ -298,6 +300,7 @@ impl View {
             method,
             params,
             release: event.is_release(),
+            press: event.is_key_press(),
         };
         self.input.try_send(item).map_err(|e| match e {
             TrySendError::Full(_) => "browser is busy".to_owned(),

@@ -1,10 +1,14 @@
 //! Payloads and sink of the browser panel's messages (one ordered channel
 //! per open panel), and the frame's pixel size read from its JPEG header.
 
+use std::thread;
+
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::ipc::{Channel, InvokeResponseBody};
+
+use super::super::clipboard;
 
 /// One screencast frame. `b64` is Chromium's JPEG, as Chromium sent it
 /// (decoded only when it goes out). `w`/`h` are image pixels; `css_w`/`css_h`
@@ -100,6 +104,9 @@ pub trait BrowserEmit: Send + Sync {
     fn tabs(&self, sid: &str, tabs: &[TabInfo]);
     fn state(&self, sid: &str, s: &ViewState);
     fn pick(&self, sid: &str, p: &Pick);
+    /// Text the user copied in the page. Called on the connection's reader
+    /// thread: must not block.
+    fn copied(&self, _sid: &str, _text: &str) {}
 }
 
 /// A JSON message of the panel's channel: `{ type, value }`.
@@ -142,6 +149,24 @@ impl BrowserEmit for TauriBrowserEmit {
 
     fn pick(&self, _: &str, p: &Pick) {
         self.json(&Message::Pick(p));
+    }
+
+    /// Straight to the system clipboard, off the reader thread (a display
+    /// server round trip): the webview may only write it in a gesture of
+    /// its own.
+    fn copied(&self, _: &str, text: &str) {
+        let text = text.to_owned(); // outlives the event it came in
+        let write = move || {
+            if let Err(e) = clipboard::write_system(&text) {
+                eprintln!("[omp-desktop] browser copy: {e}");
+            }
+        };
+        if let Err(e) = thread::Builder::new()
+            .name("browser-copy".into())
+            .spawn(write)
+        {
+            eprintln!("[omp-desktop] browser copy: {e}");
+        }
     }
 }
 

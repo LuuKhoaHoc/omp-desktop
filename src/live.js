@@ -5134,6 +5134,11 @@
     browserCursor(sid, x, y) {
       return _invokeResult("browser_cursor", { sessionId: sid, x, y });
     },
+    /** What the shown page has at `(x, y)` (page CSS px), for the context
+     *  menu: `{ok, value: {link, selection, editable}}` | `{ok: false}`. */
+    browserContext(sid, x, y) {
+      return _invokeResult("browser_context", { sessionId: sid, x, y });
+    },
     browserAnnotate(sid, on) {
       return _invokeSafe("browser_annotate", { sessionId: sid, on });
     },
