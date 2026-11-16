@@ -230,6 +230,13 @@ impl Drop for Chromium {
     }
 }
 
+#[cfg(target_os = "linux")]
+const GPU_FLAGS: [&str; 3] = [
+    "--use-gl=angle",
+    "--use-angle=gl-egl",
+    "--enable-unsafe-swiftshader",
+];
+
 /// The command starting `binary` with the panel's flags and environment.
 fn command(binary: &Path, profile: &Path, width: u32, height: u32) -> Command {
     let mut user_data_dir = OsString::from("--user-data-dir=");
@@ -257,6 +264,13 @@ fn command(binary: &Path, profile: &Path, width: u32, height: u32) -> Command {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+    // Headless Chromium on Linux renders with SwiftShader, on the CPU: a
+    // page with blur, shadows or WebGL then paints a quarter of its frames.
+    // ANGLE on the system's EGL uses the GPU the desktop does (not a
+    // laptop's second one, as its Vulkan backend picks). Without a usable
+    // EGL the last flag keeps SwiftShader as the fallback, WebGL included.
+    #[cfg(target_os = "linux")]
+    cmd.args(GPU_FLAGS);
     if is_script(binary) {
         // Distro launchers (scripts, the last-resort candidates) add the
         // user's own flags from `$XDG_CONFIG_HOME/*-flags.conf` and these
@@ -560,6 +574,11 @@ mod tests {
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
         assert!(args.iter().any(|a| a == "--disable-extensions"), "{args:?}");
+        #[cfg(target_os = "linux")]
+        assert!(
+            GPU_FLAGS.iter().all(|f| args.iter().any(|a| a == f)),
+            "{args:?}"
+        );
         let features: Vec<&String> = args
             .iter()
             .filter(|a| a.starts_with("--disable-features="))
