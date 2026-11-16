@@ -8,6 +8,7 @@
 
 const { UserBubble: _CV_UserBubble, ToolCard: _CV_ToolCard, AssistantBubble: _CV_AssistantBubble, AskBubble: _CV_AskBubble, RetryRow: _CV_RetryRow, GoalRow: _CV_GoalRow, ApprovalRow: _CV_ApprovalRow, Icon: _CV_Icon, TOOL_META: _CV_TOOL_META } = window;
 const { nextPinned: _CV_nextPinned, shouldRepin: _CV_shouldRepin, afterOutput: _CV_afterOutput } = window.OMP_SCROLL_PIN;
+const { TAIL_START: _CV_TAIL_START, NEAR_TOP_PX: _CV_NEAR_TOP_PX, startIndex: _CV_startIndex, grow: _CV_growTail, revealing: _CV_revealing } = window.OMP_CHAT_WINDOW;
 const { collapseStates: _CV_collapseStates, PREVIEW_LINES: _CV_PREVIEW_LINES } = window.OMP_COLLAPSE;
 // Lines a collapsed block keeps in view, for chat.css; one object, so a
 // streaming frame does not diff a fresh style.
@@ -140,6 +141,21 @@ function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, 
   // bottom. Newer blocks don't auto-collapse older ones meanwhile, so the
   // text being read doesn't fold away under the reader.
   const [collapseHorizon, setCollapseHorizon] = React.useState(null);
+  // Newest rows mounted (app/chat-window.js). Grows when the reader nears the
+  // top; `growAnchorRef` holds the scroll height from before a growth so the
+  // rows added above do not move what is on screen.
+  const [tail, setTail] = React.useState(_CV_TAIL_START);
+  const growAnchorRef = React.useRef(null);
+  const tailRef = React.useRef(tail);
+  tailRef.current = tail;
+  const lenRef = React.useRef(messages.length);
+  lenRef.current = messages.length;
+  const growTail = (next) => {
+    const el = scrollRef.current;
+    if (!el || next <= tailRef.current) return;
+    growAnchorRef.current = el.scrollHeight - el.scrollTop;
+    setTail(next);
+  };
 
   const setPinned = (val) => {
     pinnedRef.current = val;
@@ -162,6 +178,7 @@ function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, 
     const pinned = _CV_nextPinned(pinnedRef.current, prevTopRef.current, el);
     prevTopRef.current = el.scrollTop;
     if (pinned !== pinnedRef.current) setPinned(pinned);
+    if (el.scrollTop < _CV_NEAR_TOP_PX) growTail(_CV_growTail(tailRef.current, lenRef.current));
   };
 
   const jumpToLatest = () => {
@@ -195,6 +212,15 @@ function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, 
     }
   }, [messages]);
 
+  // Keeps the rows on screen where they were after the window grew upward;
+  // a reveal request (a jump to a row that is not mounted) widens it too.
+  React.useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || growAnchorRef.current === null) return;
+    el.scrollTop = el.scrollHeight - growAnchorRef.current;
+    prevTopRef.current = el.scrollTop;
+    growAnchorRef.current = null;
+  }, [tail]);
   React.useEffect(() => {
     const el = scrollRef.current;
     if (!el || repinnedRef.current === messages) return;
@@ -236,6 +262,12 @@ function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, 
     return () => { ro.disconnect(); clearTimeout(timer); };
   }, []);
 
+  React.useEffect(() => {
+    const onReveal = (e) => growTail(_CV_revealing(tailRef.current, lenRef.current, e.detail.idx));
+    window.addEventListener("omp:reveal-msg", onReveal);
+    return () => window.removeEventListener("omp:reveal-msg", onReveal);
+  }, []);
+
   // Only the last completed assistant message is annotatable in plan mode
   let lastAsstIdx = -1;
   if (planMode) {
@@ -263,7 +295,8 @@ function ChatView({ messages, planMode, annotations, onAnnotate, hoveredMsgIdx, 
              MINIMAP_COLS = 156). Streaming re-renders are unaffected. Driving annotable
              and scroll-targeting off _id instead of idx would make trim zero-cost for
              history, but requires a larger refactor. */}
-          {messages.map((m, i) => {
+          {messages.slice(_CV_startIndex(messages.length, tail)).map((m, j) => {
+            const i = j + _CV_startIndex(messages.length, tail);
             const hl = hoveredMsgIdx === i;
             if (window.OMP_TURN_STATUS.isHidden(m)) return null;
             if (m.kind === "user")    return <_CV_UserBubble_M    key={m._id ?? i} idx={i} highlighted={hl} msg={m} onEdit={onEdit} />;

@@ -47,7 +47,7 @@ check("sending repins before paint while streamed output follows passively", () 
       return { type, props, children };
     },
   };
-  const window = { OMP_SCROLL_PIN: P, OMP_COLLAPSE: { collapseStates: () => ({}), PREVIEW_LINES: 3 }, OMP_TURN_STATUS: { isHidden: () => false } };
+  const window = { OMP_SCROLL_PIN: P, OMP_CHAT_WINDOW: { TAIL_START: 60, NEAR_TOP_PX: 600, startIndex: () => 0, grow: t => t, revealing: t => t }, OMP_COLLAPSE: { collapseStates: () => ({}), PREVIEW_LINES: 3 }, OMP_TURN_STATUS: { isHidden: () => false } };
   const ChatView = runInNewContext(`${code}\nChatView`, { window, React, OMP_TR: x => x });
   const render = messages => { index = 0; layouts.length = 0; effects.length = 0; ChatView({ messages, foldModes: {} }); };
   render([]); layouts[0](); effects[0]();

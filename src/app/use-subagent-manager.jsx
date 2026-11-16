@@ -54,7 +54,9 @@ function useSubagentManager({ bridge, defaultOpen, layout, setTweak, activeSessi
   const jumpToCall = callId => {
     const idx = messages.findIndex(m => m.kind === "tool" && m._toolCallId === callId);
     if (idx < 0) return;
-    document.querySelector(`[data-msg-idx="${idx}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    // Widen the chat view's window to the row first (app/chat-window.js).
+    window.dispatchEvent(new CustomEvent("omp:reveal-msg", { detail: { idx } }));
+    requestAnimationFrame(() => document.querySelector(`[data-msg-idx="${idx}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
     setHoveredMsgIdx(idx);
     clearTimeout(flashRef.current);
     flashRef.current = setTimeout(() => setHoveredMsgIdx(h => (h === idx ? null : h)), 1600);
