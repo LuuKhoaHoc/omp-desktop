@@ -41,16 +41,21 @@ struct Entry {
     locked: bool,
 }
 
-/// Every worktree of `repo`, the primary checkout first, read through gix.
-/// A linked worktree whose folder has gone (or whose HEAD is unreadable) is
-/// listed with no branch and no head, so the user can still remove it.
+/// Every worktree of the repository `repo` belongs to, the primary checkout
+/// first, read through gix. `repo` may itself be a linked worktree: gix lists
+/// only the linked ones from the main repository, so the list is read from
+/// there. A linked worktree whose folder has gone (or whose HEAD is unreadable)
+/// is listed with no branch and no head, so the user can still remove it.
 fn entries(repo: &gix::Repository) -> Result<Vec<Entry>, String> {
-    let main_path = repo
+    let main = repo
+        .main_repo()
+        .map_err(|e| format!("could not open the main repository: {e}"))?;
+    let main_path = main
         .workdir()
         .map(Path::to_path_buf)
         .ok_or_else(|| "repository has no working tree".to_string())?;
-    let mut out = vec![head_of(repo, main_path, true, false)];
-    let proxies = repo
+    let mut out = vec![head_of(&main, main_path, true, false)];
+    let proxies = main
         .worktrees()
         .map_err(|e| format!("could not list worktrees: {e}"))?;
     for proxy in proxies {
@@ -227,5 +232,25 @@ mod tests {
         let err = super::add(repo.path(), "v1", target.to_str().unwrap()).unwrap_err();
         assert!(err.contains("not a local branch"), "{err}");
         assert!(!target.exists());
+    }
+
+    #[test]
+    fn lists_the_primary_checkout_when_opened_from_a_linked_worktree() {
+        let Some(repo) = fixture::init("worktree-from-linked") else {
+            return;
+        };
+        repo.commit("first", 1_700_000_000);
+        repo.git(&["branch", "feat/y"]);
+        let temp = crate::test_support::TempDir::new("worktree-manage", "from-linked");
+        let linked = temp.path().join("linked-y");
+        repo.git(&["worktree", "add", linked.to_str().unwrap(), "feat/y"]);
+
+        let entries = list(&linked).expect("list from the linked worktree");
+
+        assert_eq!(entries.len(), 2);
+        assert!(entries[0].main);
+        assert_eq!(entries[0].branch.as_deref(), Some("main"));
+        assert!(!entries[1].main);
+        assert_eq!(entries[1].branch.as_deref(), Some("feat/y"));
     }
 }
