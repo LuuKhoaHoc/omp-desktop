@@ -264,6 +264,24 @@ impl Core {
         self.restart_screencast(session, size)
     }
 
+    /// The panel's dark tone (`--bg-window` of the default theme) as the
+    /// page's own default background, for a blank page only: Chromium paints
+    /// `about:blank` white, and the override is the canvas behind content, so
+    /// a page that sets its own background is untouched. Any other URL clears
+    /// an override left by an earlier blank page in the same session.
+    pub(super) fn apply_blank_background(&self, session: &str, url: &str) {
+        let params = if url.eq_ignore_ascii_case("about:blank") {
+            json!({ "color": { "r": 11, "g": 13, "b": 20, "a": 1 } })
+        } else {
+            json!({})
+        };
+        self.notify(
+            Some(session),
+            "Emulation.setDefaultBackgroundColorOverride",
+            params,
+        );
+    }
+
     /// Restart `session`'s screencast without touching its viewport: the
     /// start sends a fresh frame.
     pub(super) fn restart_screencast(&self, session: &str, size: Size) -> Result<(), String> {
