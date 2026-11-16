@@ -3,9 +3,9 @@
 
   TabCluster: a project (folder + profile) with several conversations in
   the tab strip: an IDE-style folder head (click anywhere on the head
-  to fold/unfold horizontally), then when unfolded one tab per
-  conversation and a "+" for another in that project, or when folded a
-  compact chip with run dot, tab-number range and conversation count.
+  to fold/unfold horizontally), then when unfolded one tab per conversation
+  and a quick "new chat in the current checkout" shortcut, or when folded
+  a compact chip with run dot, tab-number range and conversation count.
   Grouping itself is `OMP_PROJECT_NAV.groupTabs` (app/project-nav.js);
   this file only renders.
    Also TabRunDot, TabLabel, TabNumber, tabClickProps and the strip's "+"
@@ -140,7 +140,7 @@ function TabCluster({ group, activeId, digits, profileLabel, folded = false, onT
         );
       })}
       {!folded && (
-        <button type="button" className="tab-cluster-new" title={OMP_TR("new conversation in this project")}
+        <button type="button" className="tab-cluster-new" title={OMP_TR("new chat in the current checkout")}
           onClick={() => onNewInProject?.(group.path, group.profile)}>
           <Icon name="plus" size={10} />
         </button>
@@ -149,12 +149,11 @@ function TabCluster({ group, activeId, digits, profileLabel, folded = false, onT
   );
 }
 
-/** The "+" menu (fork): a new omp chat or a terminal tab in the project
- *  that is open. Without an open project the chat entry picks a folder and
- *  the terminal entry is off (it opens in a project's folder). `header`
- *  renders the trigger as the header's tool button (toolbar.jsx), the way
- *  in while the tab strip is hidden; otherwise it is the strip's own "+". */
-function NewTabMenu({ project, onChat, onTerminal, header = false, chatChord = "" }) {
+/** The " + " menu (fork): a regular omp chat in the current project, an
+ *  isolated-worktree chat, or a terminal tab. Without a project, chat
+ *  choices pick a folder; the terminal entry is off. `header` renders the
+ *  same menu from the window header while the tab strip is hidden. */
+function NewTabMenu({ project, onChat, onChatInWorktree, onTerminal, header = false, chatChord = "" }) {
   const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef(null);
   const triggerRef = React.useRef(null);
@@ -172,12 +171,18 @@ function NewTabMenu({ project, onChat, onTerminal, header = false, chatChord = "
         <div className="tab-group-pop" role="menu">
           <button className="tab-group-item" role="menuitem" onClick={() => { close(); onChat(); }}>
             <span className="tab-group-dot"><Icon name="sparkle" size={11} /></span>
-            <span className="tab-name">{project ? "omp chat" : "omp chat in a folder…"}</span>
+            <span className="tab-name">{OMP_TR(project ? "new chat in this project" : "new chat in a folder…")}</span>
+          </button>
+          <button className="tab-group-item" role="menuitem"
+            title={OMP_TR("Starts from the current commit; uncommitted source changes stay in the original folder.")}
+            onClick={() => { close(); onChatInWorktree(); }}>
+            <span className="tab-group-dot"><Icon name="branch" size={11} /></span>
+            <span className="tab-name">{OMP_TR(project ? "new chat in isolated worktree" : "new chat in isolated worktree…")}</span>
           </button>
           <button className="tab-group-item" role="menuitem" disabled={!project}
-            title={project ? undefined : "open a project first"} onClick={() => { close(); onTerminal(); }}>
+            title={project ? undefined : OMP_TR("open a project first")} onClick={() => { close(); onTerminal(); }}>
             <span className="tab-group-dot"><Icon name="terminal" size={11} /></span>
-            <span className="tab-name">Terminal</span>
+            <span className="tab-name">{OMP_TR("Terminal")}</span>
             <span className="tab-new-hint">hermes, agy…</span>
           </button>
         </div>

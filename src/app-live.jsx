@@ -921,13 +921,12 @@ function App() {
       console.error("[app] failed to open project:", err);
     }
   };
-
-  const handleNewWorktree = async () => {
+  const handleNewWorktree = async (sourcePath = null, profile = _activeProfileId()) => {
     if (!bridge) return;
-    const sourcePath = await bridge.pickFolder();
-    if (!sourcePath) return;
+    const path = sourcePath || await bridge.pickFolder();
+    if (!path) return;
     try {
-      await bridge.openSessionInWorktree(sourcePath);
+      await bridge.openSessionInWorktree(path, profile);
     } catch (err) {
       console.error("[app] failed to open isolated worktree:", err);
     }
@@ -1188,8 +1187,9 @@ function App() {
     () => (stab.open ? window.OMP_SETTINGS.modifiedCount("all", t, settingsKeyOpts) : 0),
     [stab.open, t, settingsKeyOpts]);
 
-  // A new conversation: in the active tab's project, else pick a folder.
+  // New-tab menu choices keep normal opens on the current checkout; isolated opens always create a fresh worktree.
   const newChat = () => (activeProject.id ? handleNewInProject(activeProject.path, activeProject.profile) : handleNewProject());
+  const newChatInWorktree = () => handleNewWorktree(activeProject.id ? activeProject.path : null, activeProject.id ? activeProject.profile : undefined);
 
   // Chat links: project files to the preview, localhost to the browser panel.
   return (
@@ -1197,13 +1197,13 @@ function App() {
     <_AL_PageCtx.Provider value={pageActions}>
       <div className="app-backdrop" />
       <div className="app">
+        <div className={`window scanlines ${showSplit ? "is-split" : ""}${streaming ? " is-running" : ""}`}>
         {/* `is-running`: the active tab streams; the always-visible loops
             (status/model dots, activity radar) run only then (styles.css). */}
-        <div className={`window scanlines ${showSplit ? "is-split" : ""}${streaming ? " is-running" : ""}`}>
           <WindowChrome project={activeProject}
             start={<HeaderStart nav={{
               sidebarOpen: showSidebar, onToggleSidebar: toggleSidebar, tabStrip: showTabStrip,
-              newTab: { project: activeProject.id ? activeProject : null, onChat: newChat, onTerminal: openTerminalTab },
+              newTab: { project: activeProject.id ? activeProject : null, onChat: newChat, onChatInWorktree: newChatInWorktree, onTerminal: openTerminalTab },
               onHistory: () => setHistoryOpen(true),
             }} />}
             end={<HeaderEnd onCommands={() => openBridge("commands")} />} />
@@ -1228,6 +1228,7 @@ function App() {
             newTab={{
               project: activeProject.id ? activeProject : null,
               onChat: newChat,
+              onChatInWorktree: newChatInWorktree,
               onTerminal: openTerminalTab,
             }}
           />}
@@ -1247,7 +1248,6 @@ function App() {
                 onOpenRecent={handleOpenRecent}
                 onForgetRecent={handleForgetRecent}
                 onOpenFolder={handleNewProject}
-                onOpenWorktree={handleNewWorktree}
                 onReorder={handleReorder}
                 footer={<SidebarFooter settings={{ active: stab.active, onOpen: () => openSettings() }}
                   onHistory={() => setHistoryOpen(true)} onStats={() => { setAccountsOpen(false); setStatsOpen(true); }} onAccounts={() => { setStatsOpen(false); setAccountsOpen(true); }} />}

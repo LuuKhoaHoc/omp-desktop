@@ -15,7 +15,7 @@ const { groupTabs, groupRunState, groupDigits, tabDigits, membersNewestFirst, ba
 function ProjectSidebar({
   tabs, activeId, recents, profileLabel,
   onSelectTab, onCloseTab, onRenameTab, onNewInProject, onOpenRecent, onForgetRecent,
-  onOpenFolder, onOpenWorktree, onReorder, footer = null, style,
+  onOpenFolder, onReorder, footer = null, style,
 }) {
   // Group keys the user folded. Not persisted: tab ids (and so pathless
   // groups' keys) don't survive a restart anyway.
@@ -53,9 +53,6 @@ function ProjectSidebar({
         <button className="psb-act psb-head-act" title={OMP_TR("open folder…")} aria-label={OMP_TR("open folder…")} onClick={onOpenFolder}>
           <Icon name="plus" size={11} />
         </button>
-        <button className="psb-act psb-head-act" title={OMP_TR("open isolated worktree…")} aria-label={OMP_TR("open isolated worktree…")} onClick={onOpenWorktree}>
-          <Icon name="branch" size={11} />
-        </button>
       </div>
 
       <div className="psb-scroll" onPointerDown={reorder.onPointerDown}>
@@ -69,7 +66,7 @@ function ProjectSidebar({
           const editing = !multi && renaming === group.tabs[0].id;
           const folderIcon = <Icon name="folder" size={11} color={containsActive ? "var(--accent)" : "var(--fg-4)"} />;
           // Single-tab cards show `folder · title` (#46), which ellipsizes.
-          // The tooltip keeps the full title plus the folder path; multi-tab
+          // The tooltip keeps the full title plus folder path; multi-tab
           // project rows still tip the path (member rows tip each tab name).
           const cardTip = multi
             ? (group.path || group.name)
@@ -121,7 +118,7 @@ function ProjectSidebar({
                   </>
                 )}
                 <span className="psb-actions">
-                  {group.path && actButton(OMP_TR("new conversation here"), "plus", 10, () => onNewInProject(group.path, group.profile))}
+                  {group.path && actButton(OMP_TR("new chat in the current checkout"), "plus", 10, () => onNewInProject(group.path, group.profile))}
                   {!multi && !editing && renameButton(group.tabs[0])}
                   {!multi && closeButton(group.tabs[0].id)}
                 </span>
