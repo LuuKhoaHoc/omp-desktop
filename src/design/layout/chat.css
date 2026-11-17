@@ -228,7 +228,10 @@
   background: linear-gradient(180deg, color-mix(in oklab, var(--bg-elevated) 60%, transparent), transparent);
 }
 .tool-tag {
-  display: inline-flex; align-items: center; gap: 4px;
+  /* A long tool name (MCP tools: `hindsight_search_pages`) is cut with an
+     ellipsis instead of spilling under the title. */
+  display: block; flex: 0 1 auto; max-width: 40%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   padding: 1px 7px;
   border: 1px solid var(--line);
   border-radius: var(--r-pill);

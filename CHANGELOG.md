@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Browser panel on Linux: pages render on the GPU instead of the CPU. A page with blur, shadows or WebGL went from about 14 to 60 frames a second in the panel; without a usable GPU it renders as before.
 - Streaming replies no longer throw `Illegal invocation` on every delta frame, so the 16 ms refresh window actually takes effect in a browser-based webview.
 - Work panel: Gantt's timeline scrolls vertically without trapping scrolling in a nested view container; other issue types keep their normal list scrolling.
+- Tool cards with a long tool name (MCP tools such as `hindsight_search_pages`) cut the name with an ellipsis instead of drawing it over the card's title.
 - Running tab indicators stay visible between assistant turns in the same agent run.
 - Sending a prompt positions the transcript before paint rather than scrolling after it appears.
 - Switching chat sessions no longer animates the tab strip's colours and marker; shortcut groups no longer repeat, and shortcut search filters by action or chord.

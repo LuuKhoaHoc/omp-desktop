@@ -208,7 +208,7 @@ function ToolCard({ msg, idx, highlighted, onInspectSubagent, onOpenFile, onPrev
       </div>
       <div className={`tool-card ${running ? "running" : "ok"}`}>
         <div className="tool-card-head">
-          <span className="tool-tag" style={{ color: meta.color, background: `color-mix(in oklab, ${meta.color} 14%, transparent)`, borderColor: `color-mix(in oklab, ${meta.color} 30%, var(--line))` }}>
+          <span className="tool-tag" title={meta.label} style={{ color: meta.color, background: `color-mix(in oklab, ${meta.color} 14%, transparent)`, borderColor: `color-mix(in oklab, ${meta.color} 30%, var(--line))` }}>
             {meta.label}
           </span>
           <span className="tool-title selectable">{msg.title}</span>
