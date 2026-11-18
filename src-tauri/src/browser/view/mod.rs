@@ -15,6 +15,7 @@ mod core;
 mod cursor;
 mod emit;
 mod events;
+mod favicon;
 mod frames;
 mod input;
 mod model;

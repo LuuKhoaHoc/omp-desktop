@@ -32,6 +32,7 @@ pub struct TabInfo {
     pub title: String,
     pub url: String,
     pub active: bool,
+    pub favicon: Option<String>,
 }
 
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]

@@ -226,6 +226,36 @@ impl Core {
         Ok(())
     }
 
+    /// Refresh the favicon for the active page session.
+    pub(super) fn refresh_favicon(&self) -> Result<(), String> {
+        let (target_id, session) = {
+            let inner = lock(&self.inner);
+            let active = inner.active.as_ref().ok_or("no active page")?;
+            (active.target_id.clone(), active.session.clone())
+        };
+        let favicon = super::favicon::fetch_favicon(self, &session, &target_id);
+        let mut inner = lock(&self.inner);
+        if let Some(page) = inner.pages.iter_mut().find(|p| p.target_id == target_id) {
+            if page.favicon != favicon {
+                page.favicon = favicon;
+                self.publish_tabs(&mut inner);
+            }
+        }
+        Ok(())
+    }
+
+    /// The main frame navigated: notify the model so cross-origin navigations
+    /// clear any stale favicon.
+    pub(super) fn on_main_frame_navigated(&self, url: &str) {
+        let mut inner = lock(&self.inner);
+        let active_id = inner.active.as_ref().map(|a| a.target_id.clone());
+        if let Some(target_id) = active_id {
+            if inner.on_frame_navigated(&target_id, url) {
+                self.publish_tabs(&mut inner);
+            }
+        }
+    }
+
     /// The shown page's session and the panel size, read together.
     pub(super) fn shown_page(&self) -> Option<(String, Size)> {
         let inner = lock(&self.inner);

@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
+use base64::Engine;
 use serde_json::{json, Value};
 use tungstenite::{Message, WebSocket};
 
@@ -1030,4 +1031,218 @@ fn a_tab_that_is_not_listed_is_refused_and_the_shown_one_stays() {
     });
     assert!(framed.is_some(), "its screencast keeps running");
     m.release("s1");
+}
+
+#[test]
+fn favicon_happy_path_emits_png_data_url() {
+    const PNG_BYTES: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00];
+    let fake = fake_cdp(|request| {
+        let method = request["method"].as_str().unwrap_or_default();
+        let answer = match method {
+            "Target.attachToTarget" => cdp_result(request, json!({ "sessionId": "s-page" })),
+            "Runtime.evaluate" => cdp_result(
+                request,
+                json!({ "result": { "type": "string", "value": "https://example.com/favicon.png" } }),
+            ),
+            "Network.loadNetworkResource" => cdp_result(
+                request,
+                json!({ "resource": { "success": true, "stream": "stream-1" } }),
+            ),
+            "IO.read" => cdp_result(
+                request,
+                json!({
+                    "data": base64::engine::general_purpose::STANDARD.encode(PNG_BYTES),
+                    "base64Encoded": true,
+                    "eof": true
+                }),
+            ),
+            _ => cdp_result(request, json!({})),
+        };
+        Some(vec![answer])
+    });
+    let seen = Arc::new(Collect::default());
+    let core = Core::new("s1", Arc::clone(&seen) as Arc<dyn BrowserEmit>);
+    let client = CdpClient::connect(fake, Box::new(|_, _, _| {})).unwrap();
+    assert!(core.client.set(client).is_ok());
+    lock(&core.inner).upsert_page(&json!({ "targetId": "a", "url": "https://example.com" }));
+    let attached = core
+        .call(
+            None,
+            "Target.attachToTarget",
+            json!({ "targetId": "a", "flatten": true }),
+        )
+        .unwrap();
+    let session = attached["sessionId"].as_str().unwrap().to_owned();
+    lock(&core.inner).set_active("a", &session);
+    core.refresh_favicon().unwrap();
+    let tabs = seen.last_tabs();
+    assert_eq!(tabs.len(), 1);
+    assert_eq!(
+        tabs[0].favicon.as_deref(),
+        Some("data:image/png;base64,iVBORw0KGgoA")
+    );
+}
+
+#[test]
+fn favicon_hostile_url_sends_no_network_request() {
+    let sent = Arc::new(Mutex::new(Vec::new()));
+    let log = Arc::clone(&sent);
+    let fake = fake_cdp(move |request| {
+        let method = request["method"].as_str().unwrap_or_default();
+        lock(&log).push(method.to_owned());
+        let answer = match method {
+            "Target.attachToTarget" => cdp_result(request, json!({ "sessionId": "s-page" })),
+            "Runtime.evaluate" => cdp_result(
+                request,
+                json!({ "result": { "type": "string", "value": "javascript:alert(1)" } }),
+            ),
+            _ => cdp_result(request, json!({})),
+        };
+        Some(vec![answer])
+    });
+    let seen = Arc::new(Collect::default());
+    let core = Core::new("s1", Arc::clone(&seen) as Arc<dyn BrowserEmit>);
+    let client = CdpClient::connect(fake, Box::new(|_, _, _| {})).unwrap();
+    assert!(core.client.set(client).is_ok());
+    lock(&core.inner).upsert_page(&json!({ "targetId": "a", "url": "https://example.com" }));
+    let attached = core
+        .call(
+            None,
+            "Target.attachToTarget",
+            json!({ "targetId": "a", "flatten": true }),
+        )
+        .unwrap();
+    let session = attached["sessionId"].as_str().unwrap().to_owned();
+    lock(&core.inner).set_active("a", &session);
+    core.refresh_favicon().unwrap();
+    assert_eq!(sent_count(&sent, "Network.loadNetworkResource"), 0);
+    assert_eq!(seen.last_tabs().len(), 0);
+}
+
+#[test]
+fn favicon_oversized_body_returns_none_and_closes_stream() {
+    let sent = Arc::new(Mutex::new(Vec::new()));
+    let log = Arc::clone(&sent);
+    let big_data = vec![0u8; 33 * 1024];
+    let fake = fake_cdp(move |request| {
+        let method = request["method"].as_str().unwrap_or_default();
+        lock(&log).push(method.to_owned());
+        let answer = match method {
+            "Target.attachToTarget" => cdp_result(request, json!({ "sessionId": "s-page" })),
+            "Runtime.evaluate" => cdp_result(
+                request,
+                json!({ "result": { "type": "string", "value": "https://example.com/big.ico" } }),
+            ),
+            "Network.loadNetworkResource" => cdp_result(
+                request,
+                json!({ "resource": { "success": true, "stream": "big-stream" } }),
+            ),
+            "IO.read" => cdp_result(
+                request,
+                json!({
+                    "data": base64::engine::general_purpose::STANDARD.encode(&big_data),
+                    "base64Encoded": true,
+                    "eof": false
+                }),
+            ),
+            _ => cdp_result(request, json!({})),
+        };
+        Some(vec![answer])
+    });
+    let seen = Arc::new(Collect::default());
+    let core = Core::new("s1", Arc::clone(&seen) as Arc<dyn BrowserEmit>);
+    let client = CdpClient::connect(fake, Box::new(|_, _, _| {})).unwrap();
+    assert!(core.client.set(client).is_ok());
+    lock(&core.inner).upsert_page(&json!({ "targetId": "a", "url": "https://example.com" }));
+    let attached = core
+        .call(
+            None,
+            "Target.attachToTarget",
+            json!({ "targetId": "a", "flatten": true }),
+        )
+        .unwrap();
+    let session = attached["sessionId"].as_str().unwrap().to_owned();
+    lock(&core.inner).set_active("a", &session);
+    core.refresh_favicon().unwrap();
+    assert_eq!(sent_count(&sent, "IO.close"), 1);
+    assert_eq!(seen.last_tabs().len(), 0);
+}
+
+#[test]
+fn favicon_svg_or_html_body_is_rejected() {
+    let fake = fake_cdp(|request| {
+        let method = request["method"].as_str().unwrap_or_default();
+        let answer = match method {
+            "Target.attachToTarget" => cdp_result(request, json!({ "sessionId": "s-page" })),
+            "Runtime.evaluate" => cdp_result(
+                request,
+                json!({ "result": { "type": "string", "value": "https://example.com/icon.svg" } }),
+            ),
+            "Network.loadNetworkResource" => cdp_result(
+                request,
+                json!({ "resource": { "success": true, "stream": "svg-stream" } }),
+            ),
+            "IO.read" => cdp_result(
+                request,
+                json!({
+                    "data": "<svg xmlns=\"http://www.w3.org/2000/svg\"><circle/></svg>",
+                    "base64Encoded": false,
+                    "eof": true
+                }),
+            ),
+            _ => cdp_result(request, json!({})),
+        };
+        Some(vec![answer])
+    });
+    let seen = Arc::new(Collect::default());
+    let core = Core::new("s1", Arc::clone(&seen) as Arc<dyn BrowserEmit>);
+    let client = CdpClient::connect(fake, Box::new(|_, _, _| {})).unwrap();
+    assert!(core.client.set(client).is_ok());
+    lock(&core.inner).upsert_page(&json!({ "targetId": "a", "url": "https://example.com" }));
+    let attached = core
+        .call(
+            None,
+            "Target.attachToTarget",
+            json!({ "targetId": "a", "flatten": true }),
+        )
+        .unwrap();
+    let session = attached["sessionId"].as_str().unwrap().to_owned();
+    lock(&core.inner).set_active("a", &session);
+    core.refresh_favicon().unwrap();
+    assert_eq!(seen.last_tabs().len(), 0);
+}
+
+#[test]
+fn cross_origin_navigation_clears_stored_favicon() {
+    let seen = Arc::new(Collect::default());
+    let core = Core::new("s1", Arc::clone(&seen) as Arc<dyn BrowserEmit>);
+    {
+        let mut inner = lock(&core.inner);
+        inner.upsert_page(&json!({ "targetId": "a", "url": "https://site-a.com" }));
+        inner.set_active("a", "s1");
+        inner.pages[0].favicon = Some("data:image/png;base64,abc".to_owned());
+        core.publish_tabs(&mut inner);
+    }
+    assert_eq!(
+        seen.last_tabs()[0].favicon.as_deref(),
+        Some("data:image/png;base64,abc")
+    );
+
+    // Same origin navigation does not clear favicon
+    core.on_main_frame_navigated("https://site-a.com/subpage");
+    {
+        let inner = lock(&core.inner);
+        assert_eq!(
+            inner.pages[0].favicon.as_deref(),
+            Some("data:image/png;base64,abc")
+        );
+    }
+
+    // Cross origin navigation clears favicon
+    core.on_main_frame_navigated("https://site-b.com/other");
+    {
+        let inner = lock(&core.inner);
+        assert_eq!(inner.pages[0].favicon, None);
+    }
+    assert_eq!(seen.last_tabs()[0].favicon, None);
 }

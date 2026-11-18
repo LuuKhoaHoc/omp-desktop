@@ -104,6 +104,7 @@ fn on_page_event(core: &Core, session: &str, method: &str, params: &Value) {
                 });
                 if let Some(url) = url {
                     core.apply_blank_background(session, url);
+                    core.on_main_frame_navigated(url);
                 }
                 let _ = core.refresh_history();
             }
@@ -125,6 +126,7 @@ fn on_page_event(core: &Core, session: &str, method: &str, params: &Value) {
         "Page.loadEventFired" => {
             core.update_state(|s| s.loading = false);
             let _ = core.refresh_title();
+            let _ = core.refresh_favicon();
         }
         "Page.navigatedWithinDocument" => {
             let _ = core.refresh_history();

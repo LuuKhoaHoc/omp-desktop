@@ -4,6 +4,7 @@
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
+use tauri::Url;
 
 use super::emit::{Status, TabInfo, ViewState};
 
@@ -51,6 +52,7 @@ pub(in crate::browser) struct Page {
     pub target_id: String,
     pub title: String,
     pub url: String,
+    pub favicon: Option<String>,
 }
 
 pub(in crate::browser) struct Active {
@@ -170,6 +172,7 @@ impl Inner {
             target_id: target_id.to_owned(),
             title: text("title").to_owned(),
             url: text("url").to_owned(),
+            favicon: None,
         });
         true
     }
@@ -297,6 +300,23 @@ impl Inner {
         self.request_follow(id).then(|| id.to_owned()) // owned: used after the lock
     }
 
+    /// A main frame navigation: updates the page's URL and clears its favicon
+    /// if the new URL has a different origin. Returns true if the favicon was cleared.
+    pub fn on_frame_navigated(&mut self, target_id: &str, new_url: &str) -> bool {
+        let Some(page) = self.pages.iter_mut().find(|p| p.target_id == target_id) else {
+            return false;
+        };
+        let changed = if origins_match(&page.url, new_url) {
+            false
+        } else {
+            let cleared = page.favicon.is_some();
+            page.favicon = None;
+            cleared
+        };
+        new_url.clone_into(&mut page.url);
+        changed
+    }
+
     /// The tab list when it differs from the last one handed out; compared
     /// in place, so an unchanged list (most target events) copies nothing.
     pub fn tabs_if_changed(&mut self) -> Option<&[TabInfo]> {
@@ -307,6 +327,7 @@ impl Inner {
                 p.target_id == t.target_id
                     && p.title == t.title
                     && p.url == t.url
+                    && p.favicon == t.favicon
                     && is_active(p) == t.active
             });
         if unchanged {
@@ -320,10 +341,23 @@ impl Inner {
                 title: p.title.clone(),         // same
                 url: p.url.clone(),             // same
                 active: is_active(p),
+                favicon: p.favicon.clone(),
             })
             .collect();
         Some(&self.published_tabs)
     }
+}
+
+pub(in crate::browser) fn origins_match(a: &str, b: &str) -> bool {
+    let Ok(u1) = Url::parse(a) else {
+        return false;
+    };
+    let Ok(u2) = Url::parse(b) else {
+        return false;
+    };
+    let o1 = u1.origin();
+    let o2 = u2.origin();
+    o1.ascii_serialization() != "null" && o1 == o2
 }
 
 #[cfg(test)]
