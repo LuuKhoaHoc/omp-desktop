@@ -25,7 +25,7 @@ const {
   TWEAK_DEFAULTS, NULL_MODEL, EMPTY_PROJECT, DEFAULT_PROFILE_ID,
   INTENT_FRAMING, APPROVAL_PROMPT,
   useBridgeSnapshot, useThemeEffect, useSubagentManager, useUpdater, useConversationTree, useGoalMode, useTerminal, TerminalPanels, TerminalTabViews, timeNow,
-  useKeymap, useKeymapDispatch, useTabNumberHint, useBrowser, BrowserDock, FilesPanel, useFileComments, MarkdownLinkContext: _AL_MdLinkCtx, ChatPageContext: _AL_PageCtx,
+  useKeymap, useKeymapDispatch, useTabNumberHint, useBrowser, useDock, BrowserDock, FilesPanel, useFileComments, MarkdownLinkContext: _AL_MdLinkCtx, ChatPageContext: _AL_PageCtx,
   usePaneWidths, ResizeHandle, useRemote, usePrAutomation, PrAutomationCard,
 } = window;
 const { routeSubmit: _routeSubmit } = window.OMP_SLASH;
@@ -543,6 +543,15 @@ function App() {
     bridge, tabId: activeProject.id, sessionIds, open: side === "files", setOpen: setFilesOpen,
     project: activeProject, edits: filesEdits,
   });
+  const dock = useDock({ browser, openSide: setSide, activeSessionId: activeProject.id });
+  browser.dock = dock;
+  browser.terminal = terminal;
+  browser.files = files;
+  browser.project = activeProject.path ?? null;
+  browser.submitKey = t.submitKey;
+  browser.canSendNow = !goalUi.mode;
+  browser.onSendNow = () => handleSend("", []);
+  browser.onOpenGit = handleOpenFile;
   // A comment added as a chip (a chat quote, a file mark, a browser
   // annotation) closed the form the focus was in: the composer takes it, so
   // the send chord sends the chips. Only a count that grew within one tab:
