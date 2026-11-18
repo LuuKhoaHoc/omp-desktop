@@ -433,7 +433,7 @@ test("hook: a stale open completion cannot release the newer tab's queued resize
   };
   loadHelpers(window);
   window.OMP_IMAGES.normalizeImage = async (img) => img; // DOM canvas work, covered by the app
-  const useBrowser = runInNewContext(source("src/app/use-browser.jsx") + "\nuseBrowser", { window, React });
+  const useBrowser = runInNewContext(source("src/app/use-browser.jsx") + "\nuseBrowser", { window, React, setTimeout, clearTimeout });
   const bridge = {
     browserOpenPanel(sid, _w, _h, _dpr, onMessage) {
       channels.set(sid, onMessage);
@@ -596,7 +596,7 @@ test("hook: a localhost chat link opens in the panel; a modifier click goes to t
   const { React, render } = fakeReact();
   const window = { OMP_BROWSER_SCREEN: { createScreen: () => ({ frame() {}, destroy() {}, size: () => ({ width: 1, height: 1, dpr: 1 }) }) } };
   loadHelpers(window);
-  const useBrowser = runInNewContext(source("src/app/use-browser.jsx") + "\nuseBrowser", { window, React });
+  const useBrowser = runInNewContext(source("src/app/use-browser.jsx") + "\nuseBrowser", { window, React, setTimeout, clearTimeout });
   const external = [];
   const bridge = { openExternalUrl: (url) => { external.push(url); return Promise.resolve({ ok: true }); } };
   const openBy = {};
@@ -623,4 +623,48 @@ test("hook: a localhost chat link opens in the panel; a modifier click goes to t
   ui.onChatClick(mod);
   assert.deepEqual(external, ["http://localhost:3000/b"]);
   assert.equal(show({ browserLocalhostInPanel: false }).onChatClick, null, "tweak off: no routing");
+});
+
+test("hook: agent cursor channel message updates agentCursor state", async () => {
+  let channelHandler;
+  const { React, render, unmount } = fakeReact();
+  const window = {
+    OMP_BROWSER_SCREEN: {
+      createScreen: () => ({ frame() {}, destroy() {}, size: () => ({ width: 400, height: 300, dpr: 1 }) }),
+    },
+  };
+  loadHelpers(window);
+  const useBrowser = runInNewContext(source("src/app/use-browser.jsx") + "\nuseBrowser", { window, React, setTimeout, clearTimeout });
+  const bridge = {
+    browserOpenPanel(sid, _w, _h, _dpr, onMessage) {
+      channelHandler = onMessage;
+      return Promise.resolve();
+    },
+    browserClosePanel() {},
+  };
+  const openBy = { s1: false };
+  const show = () => render(() => useBrowser({
+    bridge, activeSessionId: "s1", sessionIds: ["s1"], tweaks: {},
+    open: openBy.s1, setOpen(on) { openBy.s1 = on; },
+  }));
+  let ui = show();
+  ui.canvasRef.current = {};
+  ui.viewRef.current = {};
+  ui.sinkRef.current = {};
+  openBy.s1 = true;
+  ui = show();
+  await flush();
+
+  assert.equal(typeof channelHandler, "function");
+  assert.equal(ui.agentCursor, null);
+  channelHandler({ type: "cursor", value: { target: "t1", x: 120, y: 240, kind: "mousePressed", button: "left" } });
+  ui = show();
+  assert.deepEqual(own(ui.agentCursor), {
+    target: "t1",
+    x: 120,
+    y: 240,
+    kind: "mousePressed",
+    button: "left",
+  });
+  unmount();
 });

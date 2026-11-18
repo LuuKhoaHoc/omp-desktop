@@ -251,3 +251,37 @@
 }
 .browser-chip .browser-chip-remove:hover { color: var(--rose); }
 .browser-chips-note { flex-basis: 100%; font-size: var(--d-text-xs); color: var(--amber); }
+
+/* ── Agent cursor overlay ─────────────────────────────────────────── */
+.agent-cursor-layer {
+  position: absolute; pointer-events: none; z-index: 12;
+  transform: translate(0, 0);
+  transition: left 0.08s linear, top 0.08s linear;
+  will-change: left, top;
+}
+.agent-cursor-pointer {
+  position: absolute; top: 0; left: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+}
+.agent-cursor-badge {
+  position: absolute; top: 16px; left: 14px;
+  padding: 1px 5px; font-size: 10px; font-weight: 500; line-height: 14px;
+  color: #fff; background: var(--accent, #6366f1);
+  border-radius: 4px; white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+.agent-cursor-ripple {
+  position: absolute; top: 0; left: 0;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid var(--accent, #6366f1);
+  background: color-mix(in oklab, var(--accent) 25%, transparent);
+  transform: translate(-50%, -50%);
+  animation: agentCursorPulse 0.5s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes agentCursorPulse {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+}

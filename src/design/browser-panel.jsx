@@ -15,6 +15,7 @@ const {
   TerminalTabViews: _BP_Terminal,
   FilesPanel: _BP_Files,
   GitBrowser: _BP_Git,
+  AgentCursor: _BP_Cursor,
   OMP_BROWSER: _BP,
   OMP_BROWSER_START: _BP_START,
 } = window;
@@ -127,6 +128,7 @@ function BrowserPanel({ ui }) {
             autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
           <canvas className="browser-canvas" ref={ui.canvasRef} />
           {showStart && _BP_Start && <_BP_Start ui={ui} />}
+          {ui.agentCursor && _BP_Cursor && <_BP_Cursor cursor={ui.agentCursor} page={page} />}
           {marked.map((c) => (
             <span
               key={c.id}

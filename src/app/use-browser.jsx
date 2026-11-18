@@ -23,6 +23,8 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
   const [state, setState] = React.useState(_UB_IDLE);
   const [tabs, setTabs] = React.useState(_UB_NO_TABS);
   const [page, setPage] = React.useState(null); // { cssW, cssH } of the shown page
+  const [agentCursor, setAgentCursor] = React.useState(null);
+  const cursorTimerRef = React.useRef(null);
   const [annotate, setAnnotateState] = React.useState(false);
   const [pendingAny, setPending] = React.useState(null); // the open pick, see `onPick`: { sid, pick, capture, image }
   const [chips, setChips] = React.useState(_UB.EMPTY); // sid → chip[]
@@ -155,6 +157,13 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
       if (m?.type === "state") return onState(m.value);
       if (m?.type === "tabs") return setTabs(m.value ?? _UB_NO_TABS);
       if (m?.type === "pick") return onPick(m.value);
+      if (m?.type === "cursor") {
+        if (!m.value) return undefined;
+        setAgentCursor(m.value);
+        if (cursorTimerRef.current) clearTimeout(cursorTimerRef.current);
+        cursorTimerRef.current = setTimeout(() => setAgentCursor(null), 2000);
+        return undefined;
+      }
       return undefined;
     };
     onMessageRef.current = onMessage;
@@ -184,6 +193,8 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
       setMenu(null);
       bridge.browserClosePanel(sid);
       showAnnotate(false);
+      if (cursorTimerRef.current) clearTimeout(cursorTimerRef.current);
+      setAgentCursor(null);
     };
   }, [bridge, sid, open, setAnnotate, showAnnotate]);
 
@@ -297,7 +308,7 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
     open, openUrl, onChatClick, fullView, setFullView, close,
     width: tweaks?.browserWidth ?? 0, // px; 0 = default (half the stage) — see OMP_BROWSER.clampWidth
     setWidth: (px) => setTweak("browserWidth", Math.round(px)),
-    state, tabs, page, annotate, setAnnotate,
+    state, tabs, page, annotate, setAnnotate, agentCursor,
     pending, savePending, cancelPending,
     menu, menuPick, closeMenu,
     chips: _UB.chipsOf(chips, sid),
