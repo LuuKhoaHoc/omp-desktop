@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Codex-style toolbar with Stop loading button, pill address bar with centered idle text, Annotate capsule, and a `...` menu (open in system browser, copy address, reload, stop browser).
   - Blank start page (`about:blank`) with centered omnibox classifying URLs, file queries (`@<query>`) with autocomplete, and web searches, plus starter tiles for Terminal, Changes, and Files.
   - Unified dock tabs: dock hosts both web pages and first-party tools (Terminal, Changes, Files) with seamless tab switching.
+  - Agent mouse cursor overlay: simulated mouse positions and click actions (`Input.dispatchMouseEvent`) dispatched by the agent are captured in the CDP proxy and visualized in real time on the browser panel with an accent pointer, an "Agent" badge, and click pulse ripples.
 - Browser panel: a context menu on right click with open link in new tab or the system browser, copy link address, cut, copy, paste, select all, back, forward, reload and copy page address.
 - The empty workspace can start a chat in a selected project or create a new isolated worktree from a base branch; choosing the base branch is required.
 
