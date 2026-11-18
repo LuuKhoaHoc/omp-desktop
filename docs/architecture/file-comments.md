@@ -9,7 +9,7 @@ A panel in the side column (beside the chat, where the rail, the conversation tr
 - Alt-click on a project file link in an agent reply (`OMP_FILE_PREVIEW.linkClick` → `files`; Ctrl/⌘ still wins for the git browser).
 - A composer chip click opens the panel on that mark's file and lines.
 
-The panel is `side === "files"` in `app-live.jsx`'s per-tab side map, a resizable pane (`OMP_LAYOUT_WIDTHS.PANES.files`, tweak `filesWidth`, Settings → Layout → Column widths) like the conversation tree. Left: the git browser's files pane (`GitFileTree`, unchanged apart from four optional props), hideable per tab from the file bar. Right: the file bar (tree toggle, path, line count, truncated chip, reload, open in the git browser, copy path), the code, and a footer with the tab's counts, "clear all" and "send now".
+The panel is `side === "files"` in `app-live.jsx`'s per-tab side map, a resizable pane (`OMP_LAYOUT_WIDTHS.PANES.files`, tweak `filesWidth`, Settings → Layout → Column widths) like the conversation tree, and can also render embedded inside the unified dock as a `tool:files` tab (`app/use-dock.jsx`). Left: the git browser's files pane (`GitFileTree`, unchanged apart from four optional props), hideable per tab from the file bar. Right: the file bar (tree toggle, path, line count, truncated chip, reload, open in the git browser, copy path), the code, and a footer with the tab's counts, "clear all" and "send now".
 
 ## Files and the tree (`app/use-file-comments.jsx`)
 

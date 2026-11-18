@@ -15,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Codex-style browser panel and unified dock tabs:
+  - Tab strip features page favicons (sniffed and bounded in Rust from Chromium up to 32 KiB), loading spinners, full-view and close controls.
+  - Codex-style toolbar with Stop loading button, pill address bar with centered idle text, Annotate capsule, and a `...` menu (open in system browser, copy address, reload, stop browser).
+  - Blank start page (`about:blank`) with centered omnibox classifying URLs, file queries (`@<query>`) with autocomplete, and web searches, plus starter tiles for Terminal, Changes, and Files.
+  - Unified dock tabs: dock hosts both web pages and first-party tools (Terminal, Changes, Files) with seamless tab switching.
 - Browser panel: a context menu on right click with open link in new tab or the system browser, copy link address, cut, copy, paste, select all, back, forward, reload and copy page address.
 - The empty workspace can start a chat in a selected project or create a new isolated worktree from a base branch; choosing the base branch is required.
 

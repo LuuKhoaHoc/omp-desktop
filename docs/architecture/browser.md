@@ -12,13 +12,17 @@ One desktop tab owns one headless Chromium, shared by its omp agent and the brow
 | `browser/proxy/` | Agent-facing CDP endpoint: `mod.rs` (accept loop, connection caps, routing), `peer.rs` (same-OS-user check of every connection), `http.rs` (request admission, responses), `discovery.rs` (`/json*` answered from the broker), `ws.rs` (agent WebSocket ended here and pumped through a broker client), `feed.rs` (bounded queue, observer thread), `tap.rs` (intent tracking); suite in `tests.rs` |
 | `browser/cdp.rs` | Browser-level CDP client on a broker client, flattened page sessions, request/reply matching, fire-and-forget `post`, disconnect notification |
 | `browser/wire.rs`, `browser/waiters.rs` | Shared by the above: the borrowing CDP envelope the broker routes on and the tap reads; the reply-by-id waiter table behind the broker's root calls and `cdp.rs` calls |
-| `browser/view/` | `View` (`mod.rs`: open, navigate with URL allowlist, history, page tabs, input), `core.rs` (shared state, screencast, title refresh), `switching.rs` (tab switch, agent-follow), `frames.rs` (frame flow control), `worker.rs` / `events.rs` (CDP events, follow and hold), `input.rs` (`InputEvent`), `model.rs` (pages, sizes, hold), `emit.rs` (panel channel messages and frame wire format) |
+| `browser/view/` | `View` (`mod.rs`: open, navigate with URL allowlist, history, page tabs, input), `core.rs` (shared state, screencast, title refresh, stop loading, favicon refresh), `favicon.rs` (favicon discovery, network fetch, 32 KiB cap, magic byte sniff), `switching.rs` (tab switch, agent-follow), `frames.rs` (frame flow control), `worker.rs` / `events.rs` (CDP events, follow and hold), `input.rs` (`InputEvent`), `model.rs` (pages, sizes, hold, origins match), `emit.rs` (panel channel messages and frame wire format) |
 | `browser/annotate/` | `mod.rs` (overlay install, `set_annotate`, release), `pick.rs` (binding calls, pick validation), `capture.rs` (clipped PNG capture, scroll-to), `overlay.js` |
-| `browser/commands.rs`, `src-tauri/src/lib.rs` | Panel commands; settings commands, session allocation, startup pruning thread and app shutdown integration |
-| `src/live.js` | Browser command bridge and panel channel (`browserOpenPanel`), settings bridge (`browserSettings`, `browserSetPath`, `browserPickPath`), release on desktop-tab close |
+| `browser/commands.rs`, `src-tauri/src/lib.rs` | Panel commands (`browser_load_stop`); settings commands, session allocation, startup pruning thread and app shutdown integration |
+| `src/live.js` | Browser command bridge (`browserLoadStop`, `browserOpenExternal`) and panel channel (`browserOpenPanel`), settings bridge (`browserSettings`, `browserSetPath`, `browserPickPath`), release on desktop-tab close |
 | `src/app/browser.js` | Pure URL, input, Esc, coordinate, chip, message-merge, width and Chromium-menu helpers |
+| `src/app/browser-bar.js`, `tests/test-browser-bar.mjs` | Pure model for toolbar controls: load/stop button states and `...` more-menu rows |
+| `src/app/browser-start.js`, `tests/test-browser-start.mjs` | Pure start-page classification (`isStart`, `classify`, `tiles`, `pickResult`) |
+| `src/app/dock-tabs.js`, `tests/test-dock-tabs.mjs` | Pure unified dock tabs model merging web page tabs and first-party tool tabs |
+| `src/app/use-dock.jsx` | React hook managing per-session dock tabs state and tool transitions |
 | `src/app/browser-screen.js`, `src/app/use-browser.jsx` | Canvas decoding/painting, frame acks, DOM input through a focus sink; view lifecycle, events, per-tab chips and chat localhost-link routing (`onChatClick`) |
-| `src/design/browser-{dock,panel,toolbar,chips}.jsx`, `src/design/layout/browser.css` | Resizable/full-view dock (`ui/use-edge-drag.js`, shared with the terminal; its edge is `ui/resize-handle.jsx`, shared with the other columns beside the chat, whose widths and the chat's minimum are `app/layout-widths.js`), page tabs, controls, annotation popover and chips; the Settings → Browser `chromium` row is `design/settings/rows-programs.jsx` (`design/path-setting.jsx` + `app/path-setting.js`, shared with the terminal's shell) |
+| `src/design/browser-{dock,panel,toolbar,chips,start,more-menu}.jsx`, `src/design/layout/browser*.css`, `src/design/layout/dock-tabs.css` | Resizable/full-view dock (`ui/use-edge-drag.js`), Codex-style tabs with favicons, stop button, pill address bar, start page with omnibox and shortcut tiles, and embedded tool views (terminal, files, changes); the Settings → Browser `chromium` row is `design/settings/rows-programs.jsx` |
 
 ```text
 start_session -> BrowserManager.allocate -> private settings overlay
@@ -195,6 +199,7 @@ Every command identifies the desktop tab with `sessionId` (not the Chromium page
 | `browser_close_panel` | Stop/detach view; leave Chromium alive |
 | `browser_resize` | `width`, `height`, `dpr` |
 | `browser_navigate` | `url` (allowlisted; toolbar reload navigates to the current URL) |
+| `browser_load_stop` | Stop loading the active page |
 | `browser_history` | Signed `delta` |
 | `browser_tab_new` | No additional arguments; opens `about:blank` |
 | `browser_tab_close`, `browser_tab_activate` | `targetId` (must be listed) |
@@ -209,7 +214,7 @@ Every command identifies the desktop tab with `sessionId` (not the Chromium page
 | Channel message | Payload |
 |---|---|
 | frame (raw bytes) | `seq` u64, `cssW` u32, `cssH` u32 (little-endian), then the JPEG |
-| `{ type: "tabs", value }` | `[{ targetId, title, url, active }]` |
+| `{ type: "tabs", value }` | `[{ targetId, title, url, active, favicon }]` |
 | `{ type: "state", value }` | `{ status, error, url, loading, canBack, canForward, annotate }`; status `idle`, `starting`, `running`, `stopped`, or `error` |
 | `{ type: "pick", value }` | Pick payload above |
 
