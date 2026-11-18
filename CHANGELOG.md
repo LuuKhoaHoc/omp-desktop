@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Tab titles no longer change around a tab switch. The window title, sidebar and tab bar name a tab the same way (`OMP · folder · title`, `OMP · folder · new conversation` until it has one); a tab whose first turn ends in the background gets its title right then instead of after you open it; and replaying a tab's missed events on a switch renders once.
 - Browser panel: copying in the page (Ctrl+C, Ctrl+X, the menu's copy, a site's Copy button) now reaches the system clipboard. Before, the text stayed in the headless browser's own clipboard, and Copy buttons using `navigator.clipboard` were refused.
 - Browser panel on Linux: pages render on the GPU instead of the CPU. A page with blur, shadows or WebGL went from about 14 to 60 frames a second in the panel; without a usable GPU it renders as before.
 - Streaming replies no longer throw `Illegal invocation` on every delta frame, so the 16 ms refresh window actually takes effect in a browser-based webview.

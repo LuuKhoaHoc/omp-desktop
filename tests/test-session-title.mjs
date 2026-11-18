@@ -339,4 +339,38 @@ check("a note nobody is waiting for is not swallowed", () => {
   assert.equal(T.dropPendingNote(undefined, "Session renamed to A."), null);
 });
 
+// ── background rename (shouldAutoRenameOnYield / mayCarryTitleFrame) ─────
+
+{
+  const armed = { autoRenameArmed: true, autoRenameInFlight: false, autoRenameRefine: true };
+  const answered = { role: "assistant", stopReason: "stop" };
+  const end = (messages, extra = {}) => ({ type: "agent_end", messages, ...extra });
+
+  check("background yield with a clean reply fires the first /rename", () => {
+    assert.equal(T.shouldAutoRenameOnYield(end([{ role: "user" }, answered]), armed, true), true);
+    assert.equal(T.shouldAutoRenameOnYield(end([answered], { yielded: true }), armed, true), true);
+  });
+
+  check("background yield does not fire when the setting, arming or reply rule it out", () => {
+    assert.equal(T.shouldAutoRenameOnYield(end([answered]), armed, false), false, "autoName off");
+    assert.equal(T.shouldAutoRenameOnYield(end([answered]), { ...armed, autoRenameArmed: false }, true), false, "disarmed");
+    assert.equal(T.shouldAutoRenameOnYield(end([answered]), { ...armed, autoRenameInFlight: true }, true), false, "in flight");
+    assert.equal(T.shouldAutoRenameOnYield(end([answered]), { ...armed, autoRenameRefine: false }, true), false, "resumed tab");
+    assert.equal(T.shouldAutoRenameOnYield(end([{ role: "assistant", stopReason: "error" }]), armed, true), false, "error");
+    assert.equal(T.shouldAutoRenameOnYield(end([{ role: "assistant", stopReason: "aborted" }]), armed, true), false, "aborted");
+    assert.equal(T.shouldAutoRenameOnYield(end([{ role: "user" }]), armed, true), false, "no reply");
+    assert.equal(T.shouldAutoRenameOnYield(end([answered], { isTerminal: false }), armed, true), false, "not terminal");
+    assert.equal(T.shouldAutoRenameOnYield(end([answered], { yielded: false }), armed, true), false, "not yielded");
+    assert.equal(T.shouldAutoRenameOnYield({ type: "agent_start" }, armed, true), false, "other frame");
+    assert.equal(T.shouldAutoRenameOnYield(end([answered]), null, true), false, "no entry");
+  });
+
+  check("mayCarryTitleFrame passes only frames that can rename a tab", () => {
+    assert.equal(T.mayCarryTitleFrame('{"type":"agent_end","messages":[]}'), true);
+    assert.equal(T.mayCarryTitleFrame('{"type":"session_info_update","title":"x"}'), true);
+    assert.equal(T.mayCarryTitleFrame('{"type":"message_update","delta":"hi"}'), false);
+    assert.equal(T.mayCarryTitleFrame(undefined), false);
+  });
+}
+
 console.log(`ok — test-session-title.mjs (${passed} checks)`);

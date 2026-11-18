@@ -24,6 +24,29 @@ const WINDOW_CONTROLS = window.OMP_PLATFORM?.windowControlsKind?.() ?? "none";
 // The app's one header row: window controls, `start` (toolbar.jsx
 // HeaderStart), the title, `end` (HeaderEnd). The whole row drags the
 // window except its buttons (live.js _setupWindowChrome).
+/** Active tab as `OMP · folder · title`, an untitled tab as `OMP · folder ·
+ *  new conversation`: the same rule as the sidebar and tab bar
+ *  (`OMP_PROJECT_NAV.tabTitle`), so the header never shows a folder where
+ *  the tab list shows a conversation. No tab: the app's own name, no
+ *  "OMP ·" prefix. */
+function ChromeTitle({ tab }) {
+  if (!tab.id) return <span style={{ color: "var(--fg-2)" }}>{tab.name}</span>;
+  const { basename, tabTitle } = window.OMP_PROJECT_NAV;
+  const folder = tab.path ? basename(tab.path) : "";
+  const title = tabTitle(tab) ?? OMP_TR("new conversation");
+  return (
+    <>
+      <span className="mono" style={{ color: "var(--fg-3)" }}>OMP</span>
+      <span className="mono" style={{ color: "var(--fg-5)" }}>·</span>
+      {folder && <>
+        <span style={{ color: "var(--fg-3)" }}>{folder}</span>
+        <span className="mono" style={{ color: "var(--fg-5)" }}>·</span>
+      </>}
+      <span className="chrome-tab-title" style={{ color: "var(--fg-2)" }} title={title}>{title}</span>
+    </>
+  );
+}
+
 function WindowChrome({ project, start, end, controls = WINDOW_CONTROLS }) {
   return (
     <div className="chrome" data-tauri-drag-region>
@@ -38,12 +61,7 @@ function WindowChrome({ project, start, end, controls = WINDOW_CONTROLS }) {
       {start}
 
       <div className="chrome-title">
-        {/* No tab: EMPTY_PROJECT's name is the app's own, so no "OMP ·" prefix. */}
-        {project.id && <>
-          <span className="mono" style={{ color: "var(--fg-3)" }}>OMP</span>
-          <span className="mono" style={{ color: "var(--fg-5)" }}>·</span>
-        </>}
-        <span style={{ color: "var(--fg-2)" }}>{project.name}</span>
+        <ChromeTitle tab={project} />
       </div>
 
       <div className="chrome-right">

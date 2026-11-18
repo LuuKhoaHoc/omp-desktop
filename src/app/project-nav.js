@@ -179,6 +179,17 @@
     return { prefix: folder && folder !== tab.name ? folder : null, title: tab.name };
   }
 
+  /** The tab's own title, or null while it has none yet: a fresh tab is
+   *  named after its folder (live.js `_tabNameFor`) until omp titles it.
+   *  Every surface that names a tab (window title, sidebar row, tab bar)
+   *  shows an untitled one the same way, so switching tabs never reads as
+   *  a rename. */
+  function tabTitle(tab) {
+    if (!tab) return null;
+    const folder = tab.path ? basename(tab.path) : "";
+    return folder && tab.name === folder ? null : (tab.name || null);
+  }
+
   /** Id of an open tab on `path` under `profile` — the active one if it
    *  qualifies, else the last — or `null`. */
   function findProjectTab(tabs, path, profile, activeId) {
@@ -377,6 +388,7 @@
     shiftGroup,
     isReorderOf,
     tabLabel,
+    tabTitle,
     findProjectTab,
     findConversationTab,
     rememberClosed,

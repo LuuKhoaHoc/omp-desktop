@@ -13,7 +13,7 @@
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon, RenameField } = window;
-const { groupRunState, groupDigits, membersNewestFirst, tabLabel } = window.OMP_PROJECT_NAV;
+const { groupRunState, groupDigits, membersNewestFirst, tabLabel, tabTitle } = window.OMP_PROJECT_NAV;
 
 // A tab's click props: select on click, close on middle-click, as in
 // browsers (#24). WebKit before Safari 18.2 / WebKitGTK 2.46 has no
@@ -115,7 +115,7 @@ function TabCluster({ group, activeId, digits, profileLabel, folded = false, onT
         const on = t.id === activeId;
         // A conversation not named yet still carries its folder's name,
         // which the head already shows.
-        const name = tabLabel(t).prefix ? t.name : OMP_TR("new conversation");
+        const name = tabTitle(t) ?? OMP_TR("new conversation");
         return (
           <div key={t.id}
             {...reorder.itemProps(members, t.id, "x")}
