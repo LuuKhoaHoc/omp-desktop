@@ -8,44 +8,36 @@
 const { Icon: _BT_Icon, OMP_BROWSER: _BT, OMP_BROWSER_BAR: _BT_BAR, BrowserMoreMenu: _BT_More } = window;
 
 function BrowserTabs({ ui }) {
+  const tabs = ui.dock?.strip || ui.tabs;
   return (
     <div className="browser-tabs">
       <div className="browser-tabs-scroll">
-        {ui.tabs.map((t) => {
+        {tabs.map((t) => {
+          if (t.kind === "tool") {
+            return (
+              <div key={t.id} className={`tab${t.active ? " active" : ""}`} title={OMP_TR(t.title)} onClick={() => ui.dock?.activate(t.id)}>
+                <span className="tab-icon-wrap" aria-hidden="true"><_BT_Icon name={t.icon} size={12} /></span>
+                <button type="button" className="tab-name" aria-current={t.active ? "page" : undefined}>{OMP_TR(t.title)}</button>
+                <button type="button" className="tab-close" aria-label={OMP_TR("close {name}", { name: t.title })}
+                  onClick={(e) => { e.stopPropagation(); ui.dock?.closeTool(t.toolId); }}>
+                  <_BT_Icon name="close" size={9} />
+                </button>
+              </div>
+            );
+          }
+
           const name = t.title || t.url || "new tab";
           const loading = t.active && ui.state?.loading;
+          const targetId = t.targetId || (t.id ? t.id.replace(/^page:/, "") : "");
           return (
-            <div
-              key={t.targetId}
-              className={`tab${t.active ? " active" : ""}`}
-              title={t.url || name}
-              onClick={() => ui.activateTab(t.targetId)}
-            >
+            <div key={t.id || targetId} className={`tab${t.active ? " active" : ""}`} title={t.url || name}
+              onClick={() => { if (ui.dock) ui.dock.activate(t.id || `page:${targetId}`); else ui.activateTab(targetId); }}>
               <span className="tab-icon-wrap" aria-hidden="true">
-                {loading ? (
-                  <span className="tab-spinner" />
-                ) : t.favicon ? (
-                  <img className="tab-favicon" src={t.favicon} alt="" width="14" height="14" />
-                ) : (
-                  <_BT_Icon name="web" size={12} />
-                )}
+                {loading ? <span className="tab-spinner" /> : t.favicon ? <img className="tab-favicon" src={t.favicon} alt="" width="14" height="14" /> : <_BT_Icon name="web" size={12} />}
               </span>
-              <button
-                type="button"
-                className="tab-name"
-                aria-current={t.active ? "page" : undefined}
-              >
-                {name}
-              </button>
-              <button
-                type="button"
-                className="tab-close"
-                aria-label={OMP_TR("close {name}", { name })}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  ui.closeTab(t.targetId);
-                }}
-              >
+              <button type="button" className="tab-name" aria-current={t.active ? "page" : undefined}>{name}</button>
+              <button type="button" className="tab-close" aria-label={OMP_TR("close {name}", { name })}
+                onClick={(e) => { e.stopPropagation(); ui.closeTab(targetId); }}>
                 <_BT_Icon name="close" size={9} />
               </button>
             </div>
@@ -57,7 +49,7 @@ function BrowserTabs({ ui }) {
         className="tab-add"
         title={OMP_TR("new tab")}
         aria-label={OMP_TR("new tab")}
-        onClick={() => ui.newTab()}
+        onClick={() => (ui.dock ? ui.dock.newTab() : ui.newTab())}
       >
         <_BT_Icon name="plus" size={11} />
       </button>
@@ -114,6 +106,12 @@ function BrowserToolbar({ ui }) {
     setDraft(null);
     e.currentTarget.blur();
   };
+
+  const isTool = ui.dock?.activeKind === "tool";
+
+  if (isTool) {
+    return <BrowserTabs ui={ui} />;
+  }
 
   return (
     <>

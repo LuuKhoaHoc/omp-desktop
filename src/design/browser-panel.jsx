@@ -12,6 +12,9 @@ const {
   BrowserToolbar: _BP_Toolbar,
   BrowserMenu: _BP_Menu,
   BrowserStart: _BP_Start,
+  TerminalTabViews: _BP_Terminal,
+  FilesPanel: _BP_Files,
+  GitBrowser: _BP_Git,
   OMP_BROWSER: _BP,
   OMP_BROWSER_START: _BP_START,
 } = window;
@@ -97,14 +100,29 @@ function BrowserPanel({ ui }) {
   const message = state.error || _BP_STATUS[state.status];
   const strip = state.status === "running";
   const retry = state.status === "stopped" || state.status === "error";
-  const showStart = _BP_START?.isStart(state.url) && !state.loading && state.status !== "stopped" && state.status !== "error";
-  const marked = page && !showStart ? chips.filter((c) => c.pick.url === state.url) : [];
+  const isTool = ui.dock?.activeKind === "tool";
+  const toolId = ui.dock?.activeTarget;
+  const showStart = !isTool && _BP_START?.isStart(state.url) && !state.loading && state.status !== "stopped" && state.status !== "error";
+  const marked = page && !showStart && !isTool ? chips.filter((c) => c.pick.url === state.url) : [];
   return (
     <section className="browser-panel" aria-label={OMP_TR("browser")}>
       <_BP_Toolbar ui={ui} />
       <div className="browser-body">
-        {state.loading && <div className="browser-loading" />}
-        <div className={`browser-view${ui.annotate ? " annotating" : ""}`} ref={ui.viewRef}>
+        {state.loading && !isTool && <div className="browser-loading" />}
+        {isTool && (
+          <div className="dock-tool-body">
+            {toolId === "terminal" && ui.terminal && _BP_Terminal && (
+              <_BP_Terminal tabs={[{ id: ui.activeSessionId }]} active={ui.activeSessionId} terminal={ui.terminal} />
+            )}
+            {toolId === "files" && ui.files && _BP_Files && (
+              <_BP_Files ui={ui.files} canSendNow={ui.canSendNow} onSendNow={ui.onSendNow} onOpenGit={ui.onOpenGit} submitKey={ui.submitKey} />
+            )}
+            {toolId === "changes" && _BP_Git && (
+              <_BP_Git bridge={ui.bridge} embedded={true} onClose={() => ui.dock?.closeTool("changes")} project={ui.project} />
+            )}
+          </div>
+        )}
+        <div className={`browser-view${ui.annotate ? " annotating" : ""}`} ref={ui.viewRef} style={{ display: isTool ? "none" : undefined }}>
           <textarea className="browser-sink" ref={ui.sinkRef} aria-label={OMP_TR("page keyboard input")} tabIndex={0}
             autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
           <canvas className="browser-canvas" ref={ui.canvasRef} />

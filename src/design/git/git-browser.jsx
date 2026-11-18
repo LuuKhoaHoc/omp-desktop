@@ -14,7 +14,7 @@ const { listRows: _GB_listRows, stepFile: _GB_stepFile } = window.OMP_GIT_BROWSE
 
 // Memoised: App re-renders on every streamed frame, and none of them touch
 // these props (`edits` is a count, not the transcript).
-const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath, branch, edits, project }) {
+const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath, branch, edits, project, embedded }) {
   window.OMP_I18N.useLocale();
   const g = window.useGitBrowser({ bridge, initialPath, branch, edits });
   const rootRef = React.useRef(null);
@@ -89,43 +89,56 @@ const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath
   else if (repo?.head) headChip = <span className="gitb-ref remote" title={OMP_TR("detached HEAD")}>{repo.head.slice(0, 7)}</span>;
   const unbornChip = repo && !repo.head ? <span className="gitb-ref none" title={OMP_TR("unborn branch")}>{OMP_TR("no commits")}</span> : null;
 
+  const content = (
+    <div className={`gitb${embedded ? " embedded" : ""}`} ref={rootRef} role="dialog" aria-modal="true" aria-label={OMP_TR("git browser")} tabIndex={-1} onKeyDown={onKeyDown}>
+      <div className="gitb-head">
+        <_GB_Icon name="branch" size={13} color="var(--accent)" />
+        <span className="gitb-title">git</span>
+        {repo && <span className="gitb-project">{repo.name}</span>}
+        {headChip}{unbornChip}
+        {repo && (repo.ahead || repo.behind) ? (
+          <span className="gitb-chip mono" title={OMP_TR("ahead / behind upstream")}>↑{repo.ahead ?? 0} ↓{repo.behind ?? 0}</span>
+        ) : null}
+        <span className="gitb-head-stats mono">
+          {g.status && <span>{changed} {OMP_TR("changed")}</span>}
+        </span>
+        <button type="button" className="btn ghost" onClick={() => setWorktreesOpen(true)} title={OMP_TR("worktrees")} aria-label={OMP_TR("worktrees")}><_GB_Icon name="branch" size={12} /></button>
+        <button type="button" className="btn ghost" onClick={g.refresh} title={OMP_TR("refresh")} aria-label={OMP_TR("refresh")}><_GB_Icon name="refresh" size={12} /></button>
+        <button type="button" className="btn ghost" onClick={onClose} title={OMP_TR("close (Esc)")} aria-label={OMP_TR("close")}><_GB_Icon name="close" size={12} /></button>
+      </div>
+      {g.error ? (
+        <div className="gitb-empty tall gitb-error">{g.error}</div>
+      ) : (
+        <div className="gitb-body">
+          <_GB_Tree root={g.tree} error={g.commitError}
+            expanded={g.expanded} onToggle={g.toggleDir} selected={g.selected} onSelect={g.select}
+            changedOnly={inCommit || g.changedOnly} onChangedOnly={inCommit ? null : g.setChangedOnly}
+            filter={g.filter} onFilter={g.setFilter} changedCount={changed}
+            commit={g.commit} truncated={g.truncated} />
+          <_GB_View path={g.selected} file={g.file} error={g.fileError} commit={g.commit} onBrowse={g.browse} jumpRef={viewRef}
+            onStage={inCommit ? null : () => g.stage(g.selected)}
+            onDiscard={inCommit ? null : () => g.discard(g.selected, g.file?.status ?? null)} />
+          <_GB_History log={g.log} changedCount={changed}
+            selected={g.commitSha ?? "@"} onSelect={g.browse} />
+        </div>
+      )}
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {content}
+        {worktreesOpen && <window.WorktreePanel bridge={bridge} repoPath={project} onClose={() => setWorktreesOpen(false)} onOpened={onClose} />}
+      </>
+    );
+  }
+
   return (
     <div className="gitb-scrim"
       onMouseDown={e => { downOnScrim.current = e.target === e.currentTarget; }}
       onClick={e => { if (downOnScrim.current && e.target === e.currentTarget) onClose(); downOnScrim.current = false; }}>
-      <div className="gitb" ref={rootRef} role="dialog" aria-modal="true" aria-label={OMP_TR("git browser")} tabIndex={-1} onKeyDown={onKeyDown}>
-        <div className="gitb-head">
-          <_GB_Icon name="branch" size={13} color="var(--accent)" />
-          <span className="gitb-title">git</span>
-          {repo && <span className="gitb-project">{repo.name}</span>}
-          {headChip}{unbornChip}
-          {repo && (repo.ahead || repo.behind) ? (
-            <span className="gitb-chip mono" title={OMP_TR("ahead / behind upstream")}>↑{repo.ahead ?? 0} ↓{repo.behind ?? 0}</span>
-          ) : null}
-          <span className="gitb-head-stats mono">
-            {g.status && <span>{changed} {OMP_TR("changed")}</span>}
-          </span>
-          <button type="button" className="btn ghost" onClick={() => setWorktreesOpen(true)} title={OMP_TR("worktrees")} aria-label={OMP_TR("worktrees")}><_GB_Icon name="branch" size={12} /></button>
-          <button type="button" className="btn ghost" onClick={g.refresh} title={OMP_TR("refresh")} aria-label={OMP_TR("refresh")}><_GB_Icon name="refresh" size={12} /></button>
-          <button type="button" className="btn ghost" onClick={onClose} title={OMP_TR("close (Esc)")} aria-label={OMP_TR("close")}><_GB_Icon name="close" size={12} /></button>
-        </div>
-        {g.error ? (
-          <div className="gitb-empty tall gitb-error">{g.error}</div>
-        ) : (
-          <div className="gitb-body">
-            <_GB_Tree root={g.tree} error={g.commitError}
-              expanded={g.expanded} onToggle={g.toggleDir} selected={g.selected} onSelect={g.select}
-              changedOnly={inCommit || g.changedOnly} onChangedOnly={inCommit ? null : g.setChangedOnly}
-              filter={g.filter} onFilter={g.setFilter} changedCount={changed}
-              commit={g.commit} truncated={g.truncated} />
-            <_GB_View path={g.selected} file={g.file} error={g.fileError} commit={g.commit} onBrowse={g.browse} jumpRef={viewRef}
-              onStage={inCommit ? null : () => g.stage(g.selected)}
-              onDiscard={inCommit ? null : () => g.discard(g.selected, g.file?.status ?? null)} />
-            <_GB_History log={g.log} changedCount={changed}
-              selected={g.commitSha ?? "@"} onSelect={g.browse} />
-          </div>
-        )}
-      </div>
+      {content}
       {worktreesOpen && <window.WorktreePanel bridge={bridge} repoPath={project} onClose={() => setWorktreesOpen(false)} onOpened={onClose} />}
     </div>
   );
