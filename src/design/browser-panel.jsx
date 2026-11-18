@@ -8,7 +8,13 @@
    target). Page coordinates here are CSS px of the shown page (`ui.page`),
    placed as percentages of the view. */
 
-const { BrowserToolbar: _BP_Toolbar, BrowserMenu: _BP_Menu, OMP_BROWSER: _BP } = window;
+const {
+  BrowserToolbar: _BP_Toolbar,
+  BrowserMenu: _BP_Menu,
+  BrowserStart: _BP_Start,
+  OMP_BROWSER: _BP,
+  OMP_BROWSER_START: _BP_START,
+} = window;
 
 const _BP_STATUS = {
   starting: "starting browser…",
@@ -91,7 +97,8 @@ function BrowserPanel({ ui }) {
   const message = state.error || _BP_STATUS[state.status];
   const strip = state.status === "running";
   const retry = state.status === "stopped" || state.status === "error";
-  const marked = page ? chips.filter((c) => c.pick.url === state.url) : [];
+  const showStart = _BP_START?.isStart(state.url) && !state.loading && state.status !== "stopped" && state.status !== "error";
+  const marked = page && !showStart ? chips.filter((c) => c.pick.url === state.url) : [];
   return (
     <section className="browser-panel" aria-label={OMP_TR("browser")}>
       <_BP_Toolbar ui={ui} />
@@ -101,6 +108,7 @@ function BrowserPanel({ ui }) {
           <textarea className="browser-sink" ref={ui.sinkRef} aria-label={OMP_TR("page keyboard input")} tabIndex={0}
             autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
           <canvas className="browser-canvas" ref={ui.canvasRef} />
+          {showStart && _BP_Start && <_BP_Start ui={ui} />}
           {marked.map((c) => (
             <span
               key={c.id}

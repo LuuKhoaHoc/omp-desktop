@@ -634,6 +634,14 @@ window.OMP_I18N.add("zh", {
   "Annotate": "标注",
   "more options": "更多选项",
   "close panel": "关闭面板",
+  "Search or enter address": "搜索或输入地址",
+  "Type @ to mention files, enter a URL or search the web": "输入 @ 引用文件、输入 URL 或在网络上搜索",
+  "Open Terminal": "打开终端",
+  "Per-tab shell": "每个标签页的 Shell",
+  "Inspect Changes": "检查更改",
+  "Diffs & review": "差异与审查",
+  "Browse Files": "浏览文件",
+  "Project tree & marks": "项目目录与标注",
 
   // ── Git browser ──
   "git browser": "Git 浏览器",
