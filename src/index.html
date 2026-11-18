@@ -325,6 +325,9 @@
   <!-- Browser start page pure model (isStart, classify, tiles, pickResult).
        Dependency-free IIFE; reads OMP_BROWSER_START in browser-panel.jsx and browser-start.jsx. -->
   <script src="app/browser-start.js"></script>
+  <!-- Unified dock tabs pure model (pages + tools strip, active resolution).
+       Dependency-free IIFE; reads OMP_DOCK_TABS in use-dock.jsx and dock-tabs.jsx. -->
+  <script src="app/dock-tabs.js"></script>
   <!-- Files panel pure helpers (marks, chip label, the text merged into the
        outgoing message, stale check, the tree cut to the tab folder). IIFE;
        reads OMP_BROWSER (above), OMP_SESSION_UI and OMP_PROJECT_NAV at call
