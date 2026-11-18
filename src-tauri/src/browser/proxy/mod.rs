@@ -47,6 +47,14 @@ pub type Ensure = Arc<dyn Fn() -> Result<Arc<Broker>, String> + Send + Sync>;
 /// it must be quick and must not block.
 pub type AgentTarget = Arc<dyn Fn(&str) + Send + Sync>;
 
+/// Told when the agent dispatched a mouse event to Chromium.
+pub type AgentCursorCallback = Arc<dyn Fn(&super::view::AgentCursor) + Send + Sync>;
+
+#[cfg(test)]
+pub fn no_cursor() -> AgentCursorCallback {
+    Arc::new(|_| {})
+}
+
 const HEAD_TIMEOUT: Duration = Duration::from_secs(10);
 const WAKE_TIMEOUT: Duration = Duration::from_secs(1);
 /// Admitted connections served at once; one more gets a 503 once its head
@@ -70,6 +78,7 @@ const MAX_UNVETTED: usize = 32;
 struct Shared {
     ensure: Ensure,
     on_target: AgentTarget,
+    on_cursor: AgentCursorCallback,
     port: u16,
     /// Total time a client gets to deliver its request head.
     head_timeout: Duration,
@@ -170,19 +179,40 @@ pub struct Proxy {
 impl Proxy {
     /// Binds `127.0.0.1:0` and starts accepting. `on_target` is told the page
     /// the agent worked in.
+    #[cfg(test)]
     pub fn bind(ensure: Ensure, on_target: AgentTarget) -> io::Result<Self> {
-        Self::bind_with(ensure, on_target, HEAD_TIMEOUT)
+        Self::bind_full(ensure, on_target, no_cursor(), HEAD_TIMEOUT)
     }
 
+    /// Binds `127.0.0.1:0` and starts accepting with an agent cursor callback.
+    pub fn bind_with_cursor(
+        ensure: Ensure,
+        on_target: AgentTarget,
+        on_cursor: AgentCursorCallback,
+    ) -> io::Result<Self> {
+        Self::bind_full(ensure, on_target, on_cursor, HEAD_TIMEOUT)
+    }
+
+    #[cfg(test)]
     fn bind_with(
         ensure: Ensure,
         on_target: AgentTarget,
+        head_timeout: Duration,
+    ) -> io::Result<Self> {
+        Self::bind_full(ensure, on_target, no_cursor(), head_timeout)
+    }
+
+    pub fn bind_full(
+        ensure: Ensure,
+        on_target: AgentTarget,
+        on_cursor: AgentCursorCallback,
         head_timeout: Duration,
     ) -> io::Result<Self> {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
         let shared = Arc::new(Shared {
             ensure,
             on_target,
+            on_cursor,
             port: listener.local_addr()?.port(),
             head_timeout,
             stopped: AtomicBool::new(false),
@@ -380,7 +410,11 @@ fn serve(shared: &Shared, id: u64, mut client: TcpStream) -> io::Result<()> {
         Ok(broker_client) => broker_client,
         Err(e) => return http::respond(&mut client, broker_failure(&broker), &e),
     };
-    let tap = Tap::new(page, Arc::clone(&shared.on_target));
+    let tap = Tap::new(
+        page,
+        Arc::clone(&shared.on_target),
+        Arc::clone(&shared.on_cursor),
+    );
     let (up_feed, down_feed) = feed::spawn(tap);
     #[cfg(test)]
     let up_feed = up_feed.with_delay_ms(shared.client_push_delay_ms.load(Ordering::Relaxed));

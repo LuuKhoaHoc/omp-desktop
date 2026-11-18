@@ -299,9 +299,10 @@ impl BrowserManager {
         let launcher = Arc::clone(&slot);
         let view = Arc::new(commands::ViewSlot::default());
         let reporter = Arc::clone(&view);
+        let cursor_reporter = Arc::clone(&view);
         let listener = Arc::clone(&self.agent_listener);
         let session = session_id.to_owned();
-        let proxy = Proxy::bind(
+        let proxy = Proxy::bind_with_cursor(
             Arc::new(move || launcher.ensure()),
             Arc::new(move |target| {
                 if lock(&reporter).agent_worked_in(target) {
@@ -309,6 +310,9 @@ impl BrowserManager {
                         listener(&session);
                     }
                 }
+            }),
+            Arc::new(move |cursor| {
+                lock(&cursor_reporter).agent_cursor(cursor);
             }),
         )
         .map_err(|e| format!("browser proxy: {e}"))?;

@@ -264,7 +264,7 @@ mod tests {
             drop(lock(&stuck));
             report(target);
         });
-        (Tap::new(None, callback), calls)
+        (Tap::new(None, callback, super::super::no_cursor()), calls)
     }
 
     /// Waits until the gated callback was entered `n` times.
@@ -354,7 +354,11 @@ mod tests {
     #[test]
     fn a_page_whose_attach_event_is_over_the_reply_cap_is_followed() {
         let reported = Reported::default();
-        let (up, down) = spawn(Tap::new(None, reported.callback()));
+        let (up, down) = spawn(Tap::new(
+            None,
+            reported.callback(),
+            super::super::no_cursor(),
+        ));
         // Chromium's layout: `method` first, the URL in full.
         let attached = format!(
             r#"{{"method":"Target.attachedToTarget","params":{{"sessionId":"S1","targetInfo":{{"targetId":"T1","type":"page","title":"","url":"data:text/plain,{}"}},"waitingForDebugger":false}}}}"#,

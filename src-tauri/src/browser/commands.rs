@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager, State};
 
 use super::annotate::CapturedImage;
 use super::view::{
-    BrowserEmit, Frame, InputEvent, PageContext, Pick, Rect, Size, Status, TabInfo,
+    AgentCursor, BrowserEmit, Frame, InputEvent, PageContext, Pick, Rect, Size, Status, TabInfo,
     TauriBrowserEmit, View, ViewState,
 };
 use super::{lock, BrowserManager, Entry, NO_BROWSER};
@@ -101,6 +101,13 @@ impl PanelSlot {
         };
         view.follow_agent(target);
         false
+    }
+
+    /// An agent mouse event was dispatched to Chromium.
+    pub fn agent_cursor(&mut self, cursor: &AgentCursor) {
+        if let Some(view) = &self.view {
+            view.agent_cursor(cursor);
+        }
     }
 }
 

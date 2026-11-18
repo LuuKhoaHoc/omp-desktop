@@ -13,8 +13,19 @@ use std::collections::{BTreeMap, HashMap};
 use serde::Deserialize;
 
 use super::feed::Direction;
-use super::AgentTarget;
+use super::{AgentCursorCallback, AgentTarget};
+use crate::browser::view::AgentCursor;
 use crate::browser::wire::{parse, Envelope, SessionId, Str};
+
+#[derive(Deserialize)]
+struct MouseParams<'a> {
+    #[serde(borrow, rename = "type")]
+    kind: Option<Str<'a>>,
+    x: Option<f64>,
+    y: Option<f64>,
+    #[serde(borrow)]
+    button: Option<Str<'a>>,
+}
 
 /// Requests awaiting their reply, and live sessions, kept at most.
 const MAX_PENDING: usize = 1024;
@@ -50,6 +61,7 @@ impl Pending {
 
 pub(super) struct Tap {
     on_target: AgentTarget,
+    on_cursor: AgentCursorCallback,
     /// The page of a page-level connection (`/devtools/page/<targetId>`),
     /// the target of its commands that name no session.
     page: Option<String>,
@@ -62,9 +74,14 @@ pub(super) struct Tap {
 impl Tap {
     /// For a connection to `page` (`None`: a browser-level one);
     /// `on_target` is told the page the agent worked in.
-    pub(super) fn new(page: Option<&str>, on_target: AgentTarget) -> Self {
+    pub(super) fn new(
+        page: Option<&str>,
+        on_target: AgentTarget,
+        on_cursor: AgentCursorCallback,
+    ) -> Self {
         Self {
             on_target,
+            on_cursor,
             page: page.map(str::to_owned),
             sessions: HashMap::new(),
             pending: Pending::default(),
@@ -104,6 +121,23 @@ impl Tap {
                 }
             }
             _ => {}
+        }
+        if method == "Input.dispatchMouseEvent" {
+            if let (Some(target), Some(params)) = (
+                self.target_of(command),
+                parse::<MouseParams>(command.params),
+            ) {
+                if let (Some(x), Some(y)) = (params.x, params.y) {
+                    let cursor = AgentCursor {
+                        target: target.to_owned(),
+                        x,
+                        y,
+                        kind: params.kind.map(|k| k.as_str().to_owned()),
+                        button: params.button.map(|b| b.as_str().to_owned()),
+                    };
+                    (self.on_cursor)(&cursor);
+                }
+            }
         }
         let target = match method {
             "Target.activateTarget" => {
@@ -221,6 +255,7 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::super::feed::Direction;
+    use super::super::no_cursor;
     use super::super::tests::Reported;
     use super::{Str, Tap, TargetInfo};
 
@@ -230,7 +265,7 @@ mod tests {
     /// A tap on a connection to `page`.
     fn tap_on(page: Option<&str>) -> (Tap, Reported) {
         let reported = Reported::default();
-        (Tap::new(page, reported.callback()), reported)
+        (Tap::new(page, reported.callback(), no_cursor()), reported)
     }
 
     fn command(tap: &mut Tap, message: &Value) {
@@ -499,5 +534,42 @@ mod tests {
         let one_more = json!({ "method": "Target.attachedToTarget", "params": {
             "sessionId": "last", "targetInfo": { "targetId": "T", "type": "page" } } });
         assert_eq!(server(&mut tap, &one_more), Err("too many sessions"));
+    }
+
+    #[test]
+    fn agent_mouse_events_report_cursor() {
+        use std::sync::{Arc, Mutex};
+
+        let cursors = Arc::new(Mutex::new(Vec::new()));
+        let cb_cursors = Arc::clone(&cursors);
+        let reported = Reported::default();
+        let mut tap = Tap::new(
+            Some("page-1"),
+            reported.callback(),
+            Arc::new(move |c| cb_cursors.lock().unwrap().push(c.clone())),
+        );
+
+        command(
+            &mut tap,
+            &json!({
+                "id": 1,
+                "method": "Input.dispatchMouseEvent",
+                "params": {
+                    "type": "mousePressed",
+                    "x": 150.5,
+                    "y": 250.0,
+                    "button": "left"
+                }
+            }),
+        );
+
+        let recorded = cursors.lock().unwrap().clone();
+        assert_eq!(recorded.len(), 1);
+        assert_eq!(recorded[0].target, "page-1");
+        assert_eq!(recorded[0].x, 150.5);
+        assert_eq!(recorded[0].y, 250.0);
+        assert_eq!(recorded[0].kind.as_deref(), Some("mousePressed"));
+        assert_eq!(recorded[0].button.as_deref(), Some("left"));
+        assert_eq!(reported.all(), vec!["page-1"]);
     }
 }

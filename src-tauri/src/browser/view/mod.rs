@@ -40,7 +40,7 @@ use super::lock;
 pub(in crate::browser) use self::core::Core;
 pub use context::PageContext;
 pub(in crate::browser) use emit::{
-    BrowserEmit, Frame, Pick, Rect, Status, TabInfo, TauriBrowserEmit, ViewState,
+    AgentCursor, BrowserEmit, Frame, Pick, Rect, Status, TabInfo, TauriBrowserEmit, ViewState,
 };
 pub use input::InputEvent;
 pub(in crate::browser) use model::Size;
@@ -153,6 +153,18 @@ impl View {
     pub fn follow_agent(&self, target: &str) {
         if self.core.follow.put(target) {
             let _ = self.events.send(Event::Follow);
+        }
+    }
+
+    /// Dispatches an agent mouse interaction to the panel if the target matches
+    /// the currently active tab.
+    pub fn agent_cursor(&self, cursor: &AgentCursor) {
+        let is_active = lock(&self.core.inner)
+            .active
+            .as_ref()
+            .is_some_and(|a| a.target_id == cursor.target);
+        if is_active {
+            self.core.emit.cursor(&self.core.sid, cursor);
         }
     }
 

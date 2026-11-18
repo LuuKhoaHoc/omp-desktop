@@ -99,12 +99,26 @@ pub struct Pick {
     pub url: String,
 }
 
+/// Agent-dispatched mouse interaction on a target page.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCursor {
+    pub target: String,
+    pub x: f64,
+    pub y: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub button: Option<String>,
+}
+
 /// Where the view reports to; `session` is the omp tab's session id.
 pub trait BrowserEmit: Send + Sync {
     fn frame(&self, sid: &str, f: &Frame);
     fn tabs(&self, sid: &str, tabs: &[TabInfo]);
     fn state(&self, sid: &str, s: &ViewState);
     fn pick(&self, sid: &str, p: &Pick);
+    fn cursor(&self, _sid: &str, _c: &AgentCursor) {}
     /// Text the user copied in the page. Called on the connection's reader
     /// thread: must not block.
     fn copied(&self, _sid: &str, _text: &str) {}
@@ -117,6 +131,7 @@ enum Message<'a> {
     State(&'a ViewState),
     Tabs(&'a [TabInfo]),
     Pick(&'a Pick),
+    Cursor(&'a AgentCursor),
 }
 
 /// Sends the panel's messages over the channel the webview handed to
@@ -150,6 +165,10 @@ impl BrowserEmit for TauriBrowserEmit {
 
     fn pick(&self, _: &str, p: &Pick) {
         self.json(&Message::Pick(p));
+    }
+
+    fn cursor(&self, _: &str, c: &AgentCursor) {
+        self.json(&Message::Cursor(c));
     }
 
     /// Straight to the system clipboard, off the reader thread (a display
