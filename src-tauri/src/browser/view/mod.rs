@@ -257,6 +257,11 @@ impl View {
             .map(drop)
     }
 
+    /// Stop loading the active page.
+    pub fn load_stop(&self) -> Result<(), String> {
+        self.core.stop_loading()
+    }
+
     /// Open a blank tab and show it.
     pub fn tab_new(&self) -> Result<(), String> {
         self.core.stamp_user_activation(); // the new page is the user's choice, not the agent's

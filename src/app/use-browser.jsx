@@ -16,7 +16,7 @@ const _UB_NO_TABS = Object.freeze([]);
 const _UB_LOG_EVERY_MS = 60_000;
 let _ubChipSeq = 0;
 
-function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen, tweaks, setTweak }) {
+function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen, tweaks, setTweak, close }) {
   const sid = activeSessionId || null;
   // precedent:ignore — hook state declarations, alike in every component
   const [fullView, setFullView] = React.useState(false);
@@ -278,6 +278,8 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
   // Page actions on the open tab; a refused navigation shows in the page.
   const act = React.useMemo(() => ({
     navigate: (url) => bridge?.browserNavigate(sid, url),
+    stopLoading: () => bridge?.browserLoadStop(sid),
+    openExternal: (url) => openLink.current(url ?? state.url, true),
     history: (delta) => bridge?.browserHistory(sid, delta),
     newTab: () => bridge?.browserTabNew(sid),
     closeTab: (id) => bridge?.browserTabClose(sid, id),
@@ -289,10 +291,10 @@ function useBrowser({ bridge, activeSessionId, sessionIds, open: shown, setOpen,
       const s = screenRef.current?.size();
       if (s) bridge?.browserOpenPanel(sid, s.width, s.height, s.dpr, onMessageRef.current);
     },
-  }), [bridge, sid, showAnnotate]);
+  }), [bridge, sid, showAnnotate, state.url]);
 
   return {
-    open, openUrl, onChatClick, fullView, setFullView,
+    open, openUrl, onChatClick, fullView, setFullView, close,
     width: tweaks?.browserWidth ?? 0, // px; 0 = default (half the stage) — see OMP_BROWSER.clampWidth
     setWidth: (px) => setTweak("browserWidth", Math.round(px)),
     state, tabs, page, annotate, setAnnotate,

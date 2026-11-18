@@ -627,6 +627,13 @@ window.OMP_I18N.add("zh", {
   "Maximize / Restore": "最大化 / 还原",
   "Minimize": "最小化",
   "Copy link": "复制链接",
+  "Open in system browser": "在系统浏览器中打开",
+  "Copy page address": "复制页面地址",
+  "Stop browser": "停止浏览器",
+  "stop loading": "停止加载",
+  "Annotate": "标注",
+  "more options": "更多选项",
+  "close panel": "关闭面板",
 
   // ── Git browser ──
   "git browser": "Git 浏览器",

@@ -319,6 +319,9 @@
        OMP_PATH_SETTING at call time; precedes
        app/use-browser.jsx, design/settings/rows-programs.jsx and app-live.jsx. -->
   <script src="app/browser.js"></script>
+  <!-- Browser toolbar and more-menu pure model. Dependency-free IIFE;
+       reads OMP_BROWSER_BAR in browser-toolbar.jsx and browser-more-menu.jsx. -->
+  <script src="app/browser-bar.js"></script>
   <!-- Files panel pure helpers (marks, chip label, the text merged into the
        outgoing message, stale check, the tree cut to the tab folder). IIFE;
        reads OMP_BROWSER (above), OMP_SESSION_UI and OMP_PROJECT_NAV at call
@@ -453,6 +456,7 @@
        level; the toolbar and the menu destructure window.OMP_BROWSER, the
        toolbar window.Icon too. browser-dock.jsx (the panel's stage
        slot and resize handle) destructures window.BrowserPanel. -->
+  <script type="text/babel" src="design/browser-more-menu.jsx"></script>
   <script type="text/babel" src="design/browser-toolbar.jsx"></script>
   <script type="text/babel" src="design/browser-menu.jsx"></script>
   <script type="text/babel" src="design/browser-panel.jsx"></script>

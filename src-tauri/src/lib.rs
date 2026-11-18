@@ -2214,6 +2214,7 @@ pub fn run() {
             browser::commands::browser_resize,
             browser::commands::browser_navigate,
             browser::commands::browser_history,
+            browser::commands::browser_load_stop,
             browser::commands::browser_tab_new,
             browser::commands::browser_tab_close,
             browser::commands::browser_tab_activate,

@@ -321,6 +321,11 @@ pub async fn browser_history(session_id: String, delta: i32, app: AppHandle) -> 
 }
 
 #[tauri::command]
+pub async fn browser_load_stop(session_id: String, app: AppHandle) -> Result<(), String> {
+    with_view(app, session_id, View::load_stop).await
+}
+
+#[tauri::command]
 pub async fn browser_tab_new(session_id: String, app: AppHandle) -> Result<(), String> {
     with_view(app, session_id, View::tab_new).await
 }

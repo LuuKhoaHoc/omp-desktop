@@ -21,12 +21,21 @@
   overflow-x: auto; scrollbar-width: none;
 }
 .browser-tabs-scroll::-webkit-scrollbar { display: none; }
-.browser-tabs .tab { flex: none; min-width: 0; max-width: 180px; padding: 0 8px 0 12px; gap: 6px; }
+.browser-tabs .tab { flex: none; min-width: 0; max-width: 180px; padding: 0 8px 0 10px; gap: 6px; }
+.browser-tabs .tab-icon-wrap { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex: none; }
+.browser-tabs .tab-favicon { width: 14px; height: 14px; border-radius: 2px; object-fit: contain; flex: none; }
+.browser-tabs .tab-spinner {
+  width: 11px; height: 11px;
+  border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%;
+  animation: tabSpin 0.7s linear infinite; flex: none;
+}
+@keyframes tabSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .browser-tabs .tab-spinner { animation: none; opacity: 0.7; } }
 /* A reset button, so it is reachable by keyboard but not a native button. */
 .browser-tabs .tab-name {
   appearance: none; border: 0; background: transparent; padding: 0;
   color: inherit; cursor: inherit; text-align: left;
-  font-size: var(--d-text-xs); max-width: 150px;
+  font-size: var(--d-text-xs); max-width: 130px;
 }
 .browser-tabs .tab-name:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 2px; }
 .browser-tabs .tab:focus-within > .tab-close { opacity: 1; }
@@ -38,30 +47,51 @@
 }
 .browser-tabs .tab-add:hover { color: var(--accent); background: var(--bg-hover); }
 .browser-tabs .tab-add:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.browser-tabs-actions { display: inline-flex; align-items: center; margin-left: auto; padding-right: 4px; gap: 2px; }
+.browser-tabs-actions .tab-action-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: var(--r-1); border: 0; background: transparent;
+  color: var(--fg-3); cursor: pointer;
+}
+.browser-tabs-actions .tab-action-btn:hover { background: var(--bg-hover); color: var(--fg); }
+.browser-tabs-actions .tab-action-btn.active { color: var(--accent); }
+.browser-tabs-actions .tab-action-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 /* ── Control bar ───────────────────────────────────────────────────── */
 .browser-bar {
-  display: flex; align-items: center; gap: 2px; flex: none;
+  display: flex; align-items: center; gap: 4px; flex: none;
   height: 34px; padding: 0 6px;
   border-bottom: 1px solid var(--line);
 }
 /* `.btn` has no disabled look of its own (cf. `.queue-btn:disabled`). */
 .browser-bar .btn:disabled { opacity: 0.4; cursor: default; }
 .browser-bar .btn:disabled:hover { background: transparent; color: var(--fg-3); }
+.browser-pill-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 24px; padding: 0 8px; border-radius: var(--r-full, 9999px);
+  border: 1px solid var(--line); background: var(--bg-input);
+  color: var(--fg-2); font-size: var(--d-text-xs); cursor: pointer;
+  transition: all 120ms; flex: none;
+}
+.browser-pill-btn:hover:not(:disabled) { border-color: var(--line-bright); color: var(--fg); }
+.browser-pill-btn.active { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 12%, transparent); color: var(--accent); }
+.browser-pill-btn:disabled { opacity: 0.4; cursor: default; }
+.browser-pill-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .browser-address {
-  flex: 1; min-width: 0; margin: 0 4px;
+  flex: 1; min-width: 0; margin: 0 2px;
   height: 24px;
   background: var(--bg-input);
   border: 1px solid var(--line);
-  border-radius: var(--r-1);
+  border-radius: var(--r-full, 9999px);
   transition: border-color 120ms;
 }
 /* The field's border shows focus, as `.composer-row` does: no inner ring. */
 .browser-address:focus-within { border-color: var(--accent); }
 .browser-address input {
-  width: 100%; height: 100%; padding: 0 8px;
-  font-size: var(--d-text-xs);
+  width: 100%; height: 100%; padding: 0 10px;
+  font-size: var(--d-text-xs); text-align: center;
 }
+.browser-address:focus-within input { text-align: left; }
 .browser-address input:focus-visible { outline: none; }
 .browser-address input::placeholder { color: var(--fg-4); }
 .browser-address.shake { animation: browserShake 280ms var(--ease-out); border-color: var(--rose); }
@@ -69,6 +99,11 @@
   20% { transform: translateX(-4px); }
   45% { transform: translateX(4px); }
   70% { transform: translateX(-2px); }
+}
+.browser-more-wrap { position: relative; display: inline-flex; align-items: center; }
+.browser-more-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 10;
+  min-width: 170px;
 }
 
 /* ── Page ──────────────────────────────────────────────────────────── */

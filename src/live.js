@@ -5247,6 +5247,9 @@
     browserHistory(sid, delta) {
       return _invokeSafe("browser_history", { sessionId: sid, delta });
     },
+    browserLoadStop(sid) {
+      return _invokeSafe("browser_load_stop", { sessionId: sid });
+    },
     browserTabNew(sid) {
       return _invokeSafe("browser_tab_new", { sessionId: sid });
     },

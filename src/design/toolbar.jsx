@@ -77,7 +77,7 @@ function HeaderEnd({ onCommands }) {
  * rail, subagents, terminal: { open, onToggle }
  * tree:     { open, onToggle, onRefresh, canRefresh }
  * work, insights: { open, onToggle, fullView, onFullView(on) } (fork panels; optional)
- * browser:  { open, onToggle, annotate, canAnnotate, onAnnotate(on), fullView, onFullView(on) }
+ * browser:  { open, onToggle }
  * files:    { open, onToggle, fullView, onFullView(on) }
  * onGit
  */
@@ -93,14 +93,6 @@ function PanelRail({ rail, subagents, tree, browser, files, terminal, work, insi
       )}
       <ToolButton icon="agent" title={_tbTip("swarm", "desktop.subagents.toggle")} pressed={subagents.open} onClick={subagents.onToggle} />
       <ToolButton icon="web" title={_tbTip("browser panel", "desktop.browser.toggle")} pressed={browser.open} onClick={browser.onToggle} />
-      {browser.open && (
-        <span className="tb-sub" role="group" aria-label={OMP_TR("browser panel")}>
-          <ToolButton icon="edit" size={14} title={_tbTip("annotate the page", "desktop.browser.annotate")} pressed={browser.annotate}
-            disabled={!browser.canAnnotate} onClick={() => browser.onAnnotate(!browser.annotate)} />
-          <ToolButton icon="focus" size={14} title={_tbTip("browser full view", "desktop.browser.fullView")} pressed={browser.fullView}
-            onClick={() => browser.onFullView(!browser.fullView)} />
-        </span>
-      )}
       <ToolButton icon="file" title={_tbTip("files panel", "desktop.files.toggle")} pressed={files.open} onClick={files.onToggle} />
       {files.open && (
         <span className="tb-sub" role="group" aria-label={OMP_TR("files panel")}>

@@ -256,6 +256,16 @@ impl Core {
         }
     }
 
+    /// Stop loading the active page.
+    pub(super) fn stop_loading(&self) -> Result<(), String> {
+        let session = self.active_session()?;
+        self.client.get().ok_or("cdp not connected")?.post(
+            Some(&session),
+            "Page.stopLoading",
+            json!({}),
+        )
+    }
+
     /// The shown page's session and the panel size, read together.
     pub(super) fn shown_page(&self) -> Option<(String, Size)> {
         let inner = lock(&self.inner);

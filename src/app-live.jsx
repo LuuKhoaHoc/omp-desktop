@@ -525,6 +525,7 @@ function App() {
   // widgets below, not `activeSessionId`, which keeps a closed tab's id.
   const browser = useBrowser({
     bridge, activeSessionId: activeProject.id, sessionIds, open: side === "browser", setOpen: setBrowserOpen, tweaks: t, setTweak,
+    close: () => toggleSide("browser"),
   });
   // The agent browsing in the shown tab opens its panel (fork), so the user
   // watches smoke tests and flows live instead of them running unseen.
@@ -1466,11 +1467,7 @@ function App() {
                 open: side === "tree", onToggle: () => toggleSide("tree"),
                 onRefresh: convTree.refresh, canRefresh: !convTree.loading && !!convTree.key,
               }}
-              browser={{
-                open: side === "browser", onToggle: () => toggleSide("browser"),
-                annotate: browser.annotate, canAnnotate: browser.state.status === "running", onAnnotate: browser.setAnnotate,
-                fullView: browser.fullView, onFullView: browser.setFullView,
-              }}
+              browser={{ open: side === "browser", onToggle: () => toggleSide("browser") }}
               files={{
                 open: side === "files", onToggle: () => toggleSide("files"),
                 fullView: files.fullView, onFullView: files.setFullView,

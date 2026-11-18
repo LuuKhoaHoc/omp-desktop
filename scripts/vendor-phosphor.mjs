@@ -34,7 +34,7 @@ const NAMES = {
   clock: "clock-counter-clockwise", live: "broadcast", goal: "target",
   branch: "git-branch", merge: "git-merge", commit: "git-commit", tag: "tag", diff2: "git-diff",
   command: "command", image: "image", link: "link", send: "paper-plane-tilt",
-  cog: "gear-six", terminal: "terminal-window",
+  cog: "gear-six", terminal: "terminal-window", more: "dots-three",
 };
 
 const version = process.argv[2];

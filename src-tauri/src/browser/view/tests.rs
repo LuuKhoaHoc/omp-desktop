@@ -1246,3 +1246,41 @@ fn cross_origin_navigation_clears_stored_favicon() {
     }
     assert_eq!(seen.last_tabs()[0].favicon, None);
 }
+
+#[test]
+fn load_stop_sends_page_stop_loading_on_active_session() {
+    let sent = Arc::new(Mutex::new(Vec::new()));
+    let log = Arc::clone(&sent);
+    let fake = fake_cdp(move |request| {
+        let method = request["method"].as_str().unwrap_or_default();
+        lock(&log).push(method.to_owned());
+        let answer = match method {
+            "Target.attachToTarget" => cdp_result(request, json!({ "sessionId": "s-page" })),
+            _ => cdp_result(request, json!({})),
+        };
+        Some(vec![answer])
+    });
+    let seen = Arc::new(Collect::default());
+    let core = Core::new("s1", Arc::clone(&seen) as Arc<dyn BrowserEmit>);
+    // Without active page: errors
+    assert!(core.stop_loading().is_err());
+
+    let client = CdpClient::connect(fake, Box::new(|_, _, _| {})).unwrap();
+    assert!(core.client.set(client).is_ok());
+    lock(&core.inner).upsert_page(&json!({ "targetId": "a", "url": "https://example.com" }));
+    let attached = core
+        .call(
+            None,
+            "Target.attachToTarget",
+            json!({ "targetId": "a", "flatten": true }),
+        )
+        .unwrap();
+    let session = attached["sessionId"].as_str().unwrap().to_owned();
+    lock(&core.inner).set_active("a", &session);
+
+    assert!(core.stop_loading().is_ok());
+    let stopped = eventually(SECS_3, || {
+        (sent_count(&sent, "Page.stopLoading") == 1).then_some(())
+    });
+    assert!(stopped.is_some(), "Page.stopLoading was sent");
+}
