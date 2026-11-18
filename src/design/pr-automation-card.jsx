@@ -1,5 +1,9 @@
 // Shows the checked-out branch's PR; Auto-fix is explicitly opt-in.
-function PrAutomationCard({ automation, available = true, bridge }) {
+// `worktree`: the tab works in an app worktree, whose detached HEAD gets a
+// "Create branch" step (it opens the worktree pill's branch form).
+// `onDraft(text)`: puts a prompt in the composer for the user to review and
+// send; the card never pushes or messages the agent on its own.
+function PrAutomationCard({ automation, available = true, bridge, worktree = false, onDraft = null }) {
   const [collapsed, setCollapsed] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [actionError, setActionError] = React.useState(null);
@@ -43,13 +47,20 @@ function PrAutomationCard({ automation, available = true, bridge }) {
     else setActionError(OMP_TR("Could not copy the PR link."));
   };
   const error = automation.error || automation.discoveryError;
+  const branchState = available ? automation.branchState : null;
+  const branchNote =
+    branchState === "detached"
+      ? worktree
+        ? OMP_TR("Detached worktree · no pull request yet.")
+        : OMP_TR("Detached HEAD · check out a branch to see its pull request.")
+      : branchState === "noUpstream"
+        ? OMP_TR("Branch not pushed yet · push it to see its pull request.")
+        : null;
   const summary = !available
     ? OMP_TR("Open a connected project tab to see its pull request.")
     : automation.loading
       ? OMP_TR("Updating the current branch's pull request…")
-      : error
-        ? OMP_TR("Could not update pull request.")
-        : OMP_TR("No open pull request for the current branch.");
+      : OMP_TR("No open pull request for the current branch.");
 
   return (
     <section className="rail-card glass pr-changes" aria-label={OMP_TR("Changes")}>
@@ -136,12 +147,33 @@ function PrAutomationCard({ automation, available = true, bridge }) {
               </div>
             )}
           </div>
-        ) : (
-          <p
-            className="pr-changes-empty"
-            role="status"
-            title={error || undefined}
-          >
+        ) : branchNote ? (
+          <div className="pr-changes-state">
+            <p className="pr-changes-empty" role="status">{branchNote}</p>
+            {branchState === "detached" && worktree && (
+              <button
+                className="pr-changes-action"
+                onClick={() => window.dispatchEvent(new CustomEvent("omp:worktree-branch-form"))}
+              >
+                {OMP_TR("Create branch")}
+              </button>
+            )}
+            {branchState === "noUpstream" && onDraft && (
+              <button
+                className="pr-changes-action"
+                title={OMP_TR("Puts the request in the message box; nothing runs until you send it.")}
+                onClick={() =>
+                  onDraft(
+                    "Push the current branch to origin and set it as the upstream (git push -u origin HEAD). Do not commit, rebase or force-push.",
+                  )
+                }
+              >
+                {OMP_TR("Ask agent to push")}
+              </button>
+            )}
+          </div>
+        ) : error ? null : (
+          <p className="pr-changes-empty" role="status">
             {summary}
           </p>
         ))}

@@ -1365,6 +1365,10 @@ function App() {
                     pasteCollapseLines={t.pasteCollapseLines}
                     sessionPills={<SessionPills
                       approvals={{ cell: approvalCell, onOpen: () => setRulesOpen(true) }}
+                      worktree={activeProject.id ? {
+                        tab: activeProject, messageCount: messages.length, bridge,
+                        busy: activeProject.runState !== "idle" && activeProject.runState !== "failed",
+                      } : null}
                       profile={{
                         profiles, activeId: activeProfileId, startupId: startupProfileId,
                         onSelect: handleSelectProfile, onCreate: handleCreateProfile, onRename: handleRenameProfile,
@@ -1425,6 +1429,7 @@ function App() {
                   {/* Hidden without the GitHub CLI; the hook keeps checking on
                       focus, so installing gh brings it back. */}
                   {(t.showChanges ?? true) && !prAutomation.ghMissing && !prAutomation.notGitHub && <PrAutomationCard key={planKey} automation={prAutomation} bridge={bridge}
+                    worktree={!!activeProject.sourceRepo} onDraft={handleInsertDraft}
                     available={!!activeProject.path && !!bridge?.isConnected} />}
                   {widgets.fatal && <WidgetErrorCard title="widgets.json" error={widgets.fatal} />}
                   {widgets.configErrors.map((e, i) => <WidgetErrorCard key={i} title="widgets.json" error={e} />)}

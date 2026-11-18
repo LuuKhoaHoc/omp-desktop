@@ -724,10 +724,13 @@
   // body lands in `blocks` with no `text` field, note is completed).
   // A note carries no `ts` (no omp message stands behind it), so the
   // get_messages merge keeps it in place (app/transcript-merge.js).
-  function _pushAssistantNote(text) {
+  // `ts` (optional): pin the note after every omp message older than it,
+  // for a note pushed before a respawned tab's history has loaded.
+  function _pushAssistantNote(text, ts = null) {
     state.messages = [...state.messages, _assistantBubble({
       blocks: [{ type: "text", text }],
       completed: true,
+      ...(ts == null ? {} : { ts }),
     })];
   }
 
@@ -1365,6 +1368,17 @@
    *  Side-effectful (Tauri IPC invoke, event listeners), so not unit-tested
    *  directly. */
   async function _spawnSession(id, cwd, { resume = null, profile }) {
+    // A cleaned-up app worktree comes back from its snapshot before omp
+    // starts in it; a managed one is tagged with its repository (a saved
+    // conversation reopened from the sidebar has no tab metadata).
+    if (cwd) {
+      const prepared = await _invokeResult("worktree_prepare", { path: cwd });
+      if (!prepared.ok) throw new Error(prepared.error);
+      const entry = sessionRegistry.get(id);
+      if (entry && prepared.value?.sourceRepo && !entry.sourceRepo) {
+        sessionRegistry.set(id, { ...entry, sourceRepo: prepared.value.sourceRepo });
+      }
+    }
     const approvalMode = await window.__TAURI__.core.invoke("start_session", {
       args: { sessionId: id, cwd: cwd ?? "", resume, profile },
     });
@@ -1742,7 +1756,7 @@
       }
       // The folder is now open under `profile`, so it belongs in that
       // profile's recents (a mode restart keeps the profile: nothing new).
-      if (fresh && !spawnError && entry.path) void _touchRecent(entry.path, profile);
+      if (fresh && !spawnError && entry.path && !entry.sourceRepo) void _touchRecent(entry.path, profile);
 
       if (wasActive && activeSessionId === null) {
         // Reclaim focus only if nothing else took the active slot while the
@@ -1983,7 +1997,7 @@
       throw e;
     }
     // Only a folder that actually spawned is remembered.
-    if (cwd && remember) void _touchRecent(cwd, profile);
+    if (cwd && remember && !sourceRepo) void _touchRecent(cwd, profile);
     if (activate) await _switchToSession(id);
     else notify(); // tab list changed
     return id;
@@ -2004,6 +2018,85 @@
    *  project, a saved conversation): a refused spawn — an omp below the
    *  version floor, omp missing from PATH, a dangling profile — is reported
    *  before the rejection reaches app-live.jsx, whose handlers only log it. */
+  const WT = window.OMP_WORKTREE_UX; // app/worktree-ux.js
+
+  /** First send of a fresh tab set to "Worktree": create a detached
+   *  worktree at the chosen base and restart the tab's omp in it. */
+  async function _startInWorktree(id) {
+    const entry = sessionRegistry.get(id);
+    if (!entry) return { ok: false, error: "tab closed" };
+    let base = entry.worktreeDraft?.base;
+    if (!base) {
+      const listed = await _invokeResult("list_session_worktree_branches", { sourcePath: entry.path });
+      if (!listed.ok) return listed;
+      base = WT.baseFor(null, listed.value)?.reference;
+      if (!base) return { ok: false, error: "the repository has no branch to start from" };
+    }
+    const created = await _invokeResult("create_session_worktree", {
+      sourcePath: entry.path, baseBranch: base, label: window.OMP_PROJECT_NAV.basename(entry.path),
+    });
+    if (!created.ok) return created;
+    const current = sessionRegistry.get(id);
+    if (!current) return { ok: false, error: "tab closed" };
+    sessionRegistry.set(id, {
+      ...current, path: created.value.path, sourceRepo: created.value.sourceRepo, worktreeDraft: null,
+    });
+    const res = await _respawnSession(id, { profile: current.profile, resume: null, fresh: true });
+    void _pruneWorktrees();
+    return res.ok === false ? res : { ok: true };
+  }
+
+  /** Move the active tab's chat between its local checkout and its
+   *  worktree: Rust moves the uncommitted work, omp `/move`s the
+   *  conversation, then the tab restarts omp in the new folder. */
+  async function _handoff(id, branch) {
+    const entry = sessionRegistry.get(id);
+    if (!entry || id !== activeSessionId) return { ok: false, error: "hand off works on the active tab" };
+    if (state.isStreaming || state.agentRunning) return { ok: false, error: "wait for the agent to finish its turn" };
+    const toWorktree = !entry.sourceRepo;
+    const moved = toWorktree
+      ? await _invokeResult("worktree_handoff_to_worktree", {
+          path: entry.path, home: entry.worktreeHome || null, label: window.OMP_PROJECT_NAV.basename(entry.path),
+        })
+      : await _invokeResult("worktree_handoff_to_local", {
+          path: entry.path, sourceRepo: entry.sourceRepo, branch: branch || null,
+        });
+    if (!moved.ok) {
+      return moved.error === "needs-branch"
+        ? { ok: false, needsBranch: true, error: "the worktree's commits are not on the local branch: name a branch for them" }
+        : moved;
+    }
+    let sessionFile = entry.sessionFile || null;
+    if (sessionFile) {
+      try {
+        await _sendWithResponse({ type: "prompt", message: WT.moveCommand(moved.value.path) }, QUICK_CMD_TIMEOUT_MS);
+        const st = await _sendWithResponse({ type: "get_state" }, QUICK_CMD_TIMEOUT_MS);
+        sessionFile = st?.sessionFile || sessionFile;
+      } catch (e) {
+        console.error("[live] /move after handoff failed:", e);
+      }
+    }
+    const current = sessionRegistry.get(id);
+    if (!current) return { ok: true };
+    sessionRegistry.set(id, { ...WT.afterHandoff(current, moved.value, toWorktree), sessionFile });
+    const res = await _respawnSession(id, { profile: current.profile, resume: sessionFile });
+    if (res.ok === false) return res;
+    _pushAssistantNote(toWorktree
+      ? `**Handed off to a worktree:** \`${moved.value.path}\`${moved.value.movedChanges ? " (uncommitted changes moved)" : ""}`
+      : `**Handed off to local:** \`${moved.value.path}\`${moved.value.branch ? ` on \`${moved.value.branch}\`` : ""}${moved.value.movedChanges ? " (uncommitted changes moved)" : ""}`,
+      Date.now());
+    notify();
+    return { ok: true };
+  }
+
+  /** Cleanup: snapshot + remove app worktrees beyond the configured limit,
+   *  sparing every folder an open tab uses. */
+  async function _pruneWorktrees() {
+    const protect = [...sessionRegistry.values()].flatMap(e => [e.path, e.worktreeHome]).filter(Boolean);
+    const res = await _invokeResult("worktree_prune", { protect });
+    if (!res.ok) console.error("[live] worktree cleanup failed:", res.error);
+  }
+
   async function _openReported(cwd, opts) {
     try {
       return await _startProjectSession(cwd, opts);
@@ -4137,7 +4230,51 @@
     // The bubble shows at once; omp's echo (`message_start`) ties it to the
     // persisted message. A command omp runs locally sends no echo, so its
     // bubble keeps no `ts` and the get_messages merge leaves it in place.
-    send(text, images) { return _sendPrompt(text, images); },
+    /** A prompt for the active tab. A fresh tab set to "Worktree" first
+     *  moves into a new detached worktree (`_startInWorktree`). */
+    async send(text, images) {
+      const entry = sessionRegistry.get(activeSessionId);
+      if (entry && WT.wantsWorktree(entry, state.messages.length)) {
+        const moved = await _startInWorktree(activeSessionId);
+        if (!moved.ok) {
+          _pushAssistantNote(`**Could not create the worktree:** ${moved.error}`);
+          notify();
+          return;
+        }
+      }
+      return _sendPrompt(text, images);
+    },
+
+    /** Composer choice for a fresh tab: `{ mode: "local" | "worktree",
+     *  base }` (`base`: a `BaseBranch.reference`). */
+    setWorktreeDraft(id, draft) {
+      const entry = sessionRegistry.get(id);
+      if (!entry) return;
+      sessionRegistry.set(id, { ...entry, worktreeDraft: { ...entry.worktreeDraft, ...draft } });
+      notify();
+    },
+
+    /** "Create branch here" on a worktree tab → `{ok, value: name}`. */
+    async worktreeCreateBranch(id, name) {
+      const entry = sessionRegistry.get(id);
+      if (!entry?.sourceRepo) return { ok: false, error: "not a worktree tab" };
+      return _invokeResult("worktree_create_branch", { path: entry.path, name });
+    },
+
+    /** Move the active tab's chat and uncommitted work between the local
+     *  checkout and its worktree. `branch`: name for a detached worktree
+     *  whose commits the local branch cannot fast-forward to. Resolves
+     *  `{ok}` | `{ok: false, error, needsBranch?}`. */
+    async worktreeHandoff(id, { branch = null } = {}) {
+      return _handoff(id, branch);
+    },
+
+    worktreeSettings() { return _invokeResult("worktree_settings_get", {}); },
+    setWorktreeSettings(settings) { return _invokeResult("worktree_settings_set", { settings }); },
+    /** Folder picker → `{ok, value: path | null}`. */
+    pickFolder() { return _invokeResult("open_project", {}); },
+    /** Reveal a folder in the system file manager. */
+    revealWorktree(path) { return _invokeResult("worktree_reveal", { path }); },
     // Monitoring is read-only. Only the selected, fully settled tab may
     // receive remediation; recheck here after the asynchronous GitHub read.
     // A read the tab can't take now is `OMP_PR_AUTOMATION.STALE`, never
@@ -5206,9 +5343,9 @@
         throw new Error(result.error);
       }
       const worktree = result.value;
-      return _openReported(worktree.path, {
-        profile, sourceRepo: worktree.sourceRepo, worktreeBranch: worktree.branch,
-      });
+      const id = await _openReported(worktree.path, { profile, sourceRepo: worktree.sourceRepo });
+      void _pruneWorktrees();
+      return id;
     },
 
     /** Open project folder `path` (a recent-projects row) under the active
@@ -5655,6 +5792,7 @@
       // holds now (omp children, shells) belongs to a previous document.
       .then(() => _invokeSafe("close_all_tabs", {}))
       .then(() => _restoreOpenTabs())
+      .then(() => _pruneWorktrees())
       .catch(e => console.error("[live] restoring the open tabs failed:", e))
       .finally(_setupExternalOpens);
 

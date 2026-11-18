@@ -197,6 +197,11 @@
         tweak("confirmBusyClose", "toggle", "Ask before closing a working tab", "Closing a tab whose agent is mid-turn stops it. Ask first, also when quitting.", "confirm quit close"),
         tweak("autoName", "toggle", "Name tabs automatically", "omp titles a new conversation from its first turns (one small model call). `/rename` always wins.", "rename title"),
       ] },
+      { name: "Worktrees", src: "worktrees.json", rows: [
+        custom("worktreeRoot", "Worktree location", "Where new worktrees are created, one folder per repository inside it. Empty: the app's data folder. Existing worktrees stay where they are.", "worktree folder path location root directory"),
+        custom("worktreeKeep", "Worktrees to keep", "Cleanup keeps this many app worktrees (most recently used first). Older ones not open in a tab are snapshotted and removed; reopening their chat restores them. 0: never remove.", "worktree cleanup limit snapshot"),
+        custom("worktreePrefix", "Branch prefix", "What “Create branch here” puts before the suggested branch name.", "worktree branch prefix"),
+      ] },
       { name: "Updates", rows: [
         tweak("updateCheck", "toggle", "Check for updates", "Look for a new release shortly after launch and every 6 hours. You choose when to install; “Check now” works either way.", "version release"),
         custom("version", "Version", "The installed OMP Desktop and the newest release.", "version update check skipped"),

@@ -117,7 +117,8 @@ struct ReviewThread {
 /// an error: there is no GitHub CLI to ask (machine-wide), or this tab's
 /// upstream is not on GitHub.com (fork). `retryable` marks transient lag (GitHub
 /// not yet showing a push, the branch moving mid-read), which the webview
-/// retries with a backoff instead of pausing Auto-fix.
+/// retries with a backoff instead of pausing Auto-fix. `branchState`
+/// (`detached` | `noUpstream`) marks a checkout that has no PR to show yet.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LookupError {
@@ -126,6 +127,8 @@ pub struct LookupError {
     #[serde(rename = "notGitHub")]
     not_github: bool,
     retryable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    branch_state: Option<&'static str>,
 }
 
 impl LookupError {
@@ -136,6 +139,7 @@ impl LookupError {
             gh_missing: false,
             not_github: false,
             retryable: true,
+            branch_state: None,
         }
     }
 }
@@ -144,6 +148,11 @@ impl From<String> for LookupError {
     fn from(message: String) -> Self {
         Self {
             not_github: message == git::NOT_GITHUB,
+            branch_state: match message.as_str() {
+                git::DETACHED => Some("detached"),
+                git::NO_UPSTREAM => Some("noUpstream"),
+                _ => None,
+            },
             message,
             gh_missing: false,
             retryable: false,
@@ -179,6 +188,7 @@ fn snapshot_in(
         gh_missing: true,
         not_github: false,
         retryable: false,
+        branch_state: None,
     })?;
     let local = local_branch(folder)?;
     let result = gh.query(

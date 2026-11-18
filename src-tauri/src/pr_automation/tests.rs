@@ -654,3 +654,24 @@ fn live_read_only_snapshot() {
     eprintln!("local: {:?}", local_branch(path).expect("local branch"));
     eprintln!("snapshot: {:?}", snapshot(path).expect("GitHub snapshot"));
 }
+
+/// A detached checkout or an unpushed branch is a state the card explains
+/// with its next step, not an error; any other failure carries no state.
+#[test]
+fn only_branch_states_are_marked_branch_state() {
+    let err = LookupError::from(git::DETACHED.to_string());
+    assert_eq!(
+        serde_json::to_value(&err).unwrap()["branchState"],
+        "detached"
+    );
+    let err = LookupError::from(git::NO_UPSTREAM.to_string());
+    assert_eq!(
+        serde_json::to_value(&err).unwrap()["branchState"],
+        "noUpstream"
+    );
+    let err = LookupError::from("Could not read Git HEAD: boom".to_string());
+    assert!(serde_json::to_value(&err)
+        .unwrap()
+        .get("branchState")
+        .is_none());
+}

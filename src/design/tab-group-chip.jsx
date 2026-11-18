@@ -46,7 +46,7 @@ function TabRunDot({ state }) {
  *  tab bar and the project sidebar; `className` is the caller's name class. */
 function TabLabel({ tab, className, title }) {
   const { prefix, title: name } = tabLabel(tab);
-  const indicator = tab.worktreeBranch ? <span className="tab-worktree" title={`${OMP_TR("isolated worktree")} · ${tab.worktreeBranch}`}>⑂</span> : null;
+  const indicator = tab.sourceRepo ? <span className="tab-worktree" title={`${OMP_TR("isolated worktree")} · ${tab.branch || OMP_TR("detached")}`}>⑂</span> : null;
   if (!prefix) return <span className={className} title={title}>{indicator}{name}</span>;
   return (
     <span className={`${className} tab-label`} title={title}>

@@ -382,6 +382,41 @@ await checkAsync(
 );
 
 await checkAsync(
+  "a detached or unpushed checkout is a branch state, not an error, and turns Auto-fix off",
+  async () => {
+    const result = snapshot({ failedChecks: [check("ci")] });
+    let state = "detached";
+    const h = harness({
+      getSnapshot: () =>
+        state
+          ? Promise.reject({ message: "Auto-fix requires a checked-out branch, not detached HEAD", branchState: state, notGitHub: false, ghMissing: false })
+          : result,
+    });
+    await h.time.advance(0);
+    let view = h.view();
+    assert.equal(view.branchState, "detached");
+    assert.equal(view.discoveryError, null);
+    assert.equal(view.error, null);
+    assert.equal(view.notGitHub, false, "the card stays");
+    h.toggle();
+    await h.time.advance(0);
+    assert.equal(h.view().enabled, false);
+    assert.deepEqual(h.sends, []);
+    state = "noUpstream";
+    h.refresh();
+    await h.time.advance(0);
+    assert.equal(h.view().branchState, "noUpstream");
+    // Branch created and pushed: the PR shows and the state clears.
+    state = null;
+    h.refresh();
+    await h.time.advance(0);
+    view = h.view();
+    assert.equal(view.branchState, null);
+    assert.deepEqual(view.snapshot, result);
+  },
+);
+
+await checkAsync(
   "any answer but 'not installed' brings the card back, a read error included",
   async () => {
     let answer = () => Promise.reject({ message: "gh was not found", ghMissing: true });

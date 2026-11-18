@@ -278,6 +278,8 @@
         ghMissing,
         // Fork: this tab's upstream is not on GitHub.com; the card hides.
         notGitHub: !!e?.notGitHub,
+        // "detached" | "noUpstream": no PR yet; the card names the next step.
+        branchState: e?.branchState ?? null,
       };
       if (!e?.enabled)
         return {
@@ -477,6 +479,7 @@
         e.retries = 0;
         ghMissing = false;
         e.notGitHub = false;
+        e.branchState = null;
         e.loading = false;
         if (!dispatchEligible) {
           notify();
@@ -554,10 +557,14 @@
           ghMissing = false;
           notify();
         }
-        if (mine()) e.notGitHub = error?.notGitHub === true;
-        if (error?.notGitHub && mine() && (dispatchStarted || current())) {
-          // A state, like a missing gh but for this tab only: nothing here
-          // can run against GitHub, so an opt-in is revoked.
+        if (mine()) {
+          e.notGitHub = error?.notGitHub === true;
+          e.branchState = error?.branchState ?? null;
+        }
+        if ((error?.notGitHub || error?.branchState) && mine() && (dispatchStarted || current())) {
+          // A state, like a missing gh but for this tab only: a fork, or a
+          // checkout with no PR yet (detached HEAD, branch not pushed).
+          // Nothing here can run against GitHub, so an opt-in is revoked.
           if (e.enabled) disable(e);
           e.snapshot = null;
           e.discoveryError = null;

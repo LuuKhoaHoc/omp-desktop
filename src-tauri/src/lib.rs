@@ -60,6 +60,7 @@ mod work;
 mod workspace;
 mod worktree;
 mod worktree_manage;
+mod worktree_ops;
 
 use agent::AgentBridge;
 use approval::RuleBook;
@@ -1699,14 +1700,132 @@ async fn create_session_worktree(
     source_path: String,
     base_branch: String,
     label: String,
-    app: AppHandle,
 ) -> Result<worktree::CreatedWorktree, String> {
-    let app_data = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("no app data dir: {e}"))?;
-    off_ipc(move || worktree::create(&app_data, Path::new(&source_path), &base_branch, &label))
-        .await?
+    off_ipc(move || {
+        worktree::create(
+            &worktree_ops::root()?,
+            Path::new(&source_path),
+            &base_branch,
+            &label,
+            worktree::Checkout::OmpClone,
+        )
+    })
+    .await?
+}
+
+#[tauri::command]
+fn worktree_settings_get() -> worktree_ops::Settings {
+    worktree_ops::settings()
+}
+
+#[tauri::command]
+async fn worktree_settings_set(
+    settings: worktree_ops::Settings,
+) -> Result<worktree_ops::Settings, String> {
+    off_ipc(move || worktree_ops::set_settings(settings)).await?
+}
+
+/// What a session folder is, worktree-wise; restores a cleaned-up managed
+/// worktree from its snapshot first and marks it used.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorktreePrepared {
+    /// Source repository when `path` is an app-managed worktree.
+    source_repo: Option<String>,
+    restored: bool,
+}
+
+#[tauri::command]
+async fn worktree_prepare(path: String) -> Result<WorktreePrepared, String> {
+    off_ipc(move || {
+        let restored = if worktree_ops::is_restorable(&path) {
+            worktree_ops::restore(&path)?;
+            true
+        } else {
+            false
+        };
+        let source_repo = worktree_ops::entry(&path).map(|e| e.source_repo);
+        if source_repo.is_some() {
+            worktree_ops::touch(&path);
+        }
+        Ok(WorktreePrepared {
+            source_repo,
+            restored,
+        })
+    })
+    .await?
+}
+
+#[tauri::command]
+async fn worktree_create_branch(path: String, name: String) -> Result<String, String> {
+    off_ipc(move || worktree_ops::create_branch(Path::new(&path), &name)).await?
+}
+
+#[tauri::command]
+async fn worktree_handoff_to_worktree(
+    path: String,
+    home: Option<String>,
+    label: String,
+) -> Result<worktree_ops::Handoff, String> {
+    off_ipc(move || {
+        worktree_ops::handoff_to_worktree(
+            &worktree_ops::root()?,
+            Path::new(&path),
+            home.as_deref(),
+            &label,
+            worktree::Checkout::OmpClone,
+        )
+    })
+    .await?
+}
+
+#[tauri::command]
+async fn worktree_handoff_to_local(
+    path: String,
+    source_repo: String,
+    branch: Option<String>,
+) -> Result<worktree_ops::Handoff, String> {
+    off_ipc(move || {
+        worktree_ops::handoff_to_local(Path::new(&path), &source_repo, branch.as_deref())
+    })
+    .await?
+}
+
+/// Show an app-managed worktree folder in the system file manager.
+#[tauri::command]
+async fn worktree_reveal(path: String) -> Result<(), String> {
+    off_ipc(move || {
+        if worktree_ops::entry(&path).is_none() || !Path::new(&path).is_dir() {
+            return Err("not an app-managed worktree".to_string());
+        }
+        let opener = if cfg!(target_os = "macos") {
+            "open"
+        } else if cfg!(windows) {
+            "explorer"
+        } else {
+            "xdg-open"
+        };
+        let mut cmd = std::process::Command::new(opener);
+        cmd.arg(&path)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        let mut child = crate::spawn_gate::spawn(&mut cmd)
+            .map_err(|e| format!("could not open the folder: {e}"))?;
+        // Reap the opener (it exits once it handed the folder off).
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+        Ok(())
+    })
+    .await?
+}
+
+/// Snapshot and remove managed worktrees beyond the configured limit;
+/// `protect` lists folders open in a tab.
+#[tauri::command]
+async fn worktree_prune(protect: Vec<String>) -> Result<Vec<String>, String> {
+    off_ipc(move || worktree_ops::prune(&protect)).await?
 }
 
 /// The open-tab layout saved by the previous run (issue #17), minus tabs
@@ -1848,6 +1967,11 @@ fn setup(app: &tauri::App) {
     // Every store below is memory-only without it (see `config_dir`).
     let resolved_config_dir = config_dir(app.path().app_config_dir());
     let config_file = |name: &str| resolved_config_dir.as_deref().map(|dir| dir.join(name));
+    // Worktree settings (<app_config_dir>/worktrees.json) and the registry of
+    // app-managed worktrees (<app_data_dir>/worktree-registry.json).
+    if let Some(data) = config_dir(app.path().app_data_dir()) {
+        worktree_ops::init(resolved_config_dir.as_deref().unwrap_or(&data), &data);
+    }
     // Rail widget plugins: <app_config_dir>/widgets.json and the approvals in
     // <app_config_dir>/widget-approvals.json. No temp-dir fallback: a
     // `widgets.json` in a shared temp dir could be planted by another user,
@@ -2108,6 +2232,14 @@ pub fn run() {
             pick_attachments,
             list_session_worktree_branches,
             create_session_worktree,
+            worktree_settings_get,
+            worktree_settings_set,
+            worktree_prepare,
+            worktree_create_branch,
+            worktree_handoff_to_worktree,
+            worktree_handoff_to_local,
+            worktree_prune,
+            worktree_reveal,
             take_pending_open_projects,
             start_git_watch,
             stop_git_watch,

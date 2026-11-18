@@ -1,4 +1,6 @@
-//! Per-session linked worktrees created under the application's private data directory.
+//! Per-session linked worktrees, created detached (like Codex) under the
+//! configured worktree root (`worktree_ops::Settings::root`, default
+//! `<app data>/worktrees`). Handoff, branches and cleanup: `worktree_ops`.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -21,8 +23,12 @@ static NEXT_NONCE: AtomicU64 = AtomicU64::new(0);
 pub struct CreatedWorktree {
     pub path: String,
     pub source_repo: String,
-    pub branch: String,
+    /// Always `None` at creation: the worktree starts on a detached HEAD.
+    pub branch: Option<String>,
     pub base_commit: String,
+    /// Uncommitted changes of the source checkout were carried over (the
+    /// selected base was the branch the source checkout is on).
+    pub carried: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -34,6 +40,8 @@ pub struct BaseBranch {
     pub name: String,
     pub remote: bool,
     pub tip_commit: String,
+    /// The branch the source checkout is on (the picker's default).
+    pub current: bool,
 }
 
 /// List every local and remote-tracking branch with a commit tip.
@@ -43,6 +51,15 @@ pub fn list_base_branches(source: &Path) -> Result<Vec<BaseBranch>, String> {
         .map_err(|e| format!("could not resolve project folder: {e}"))?;
     let (_gate, repo, _) = crate::workspace::discover(&source)?;
     list_base_branches_in_repo(&repo)
+}
+
+/// The full ref the checkout's HEAD points at (`refs/heads/main`), `None`
+/// when detached.
+fn head_ref(repo: &gix::Repository) -> Option<String> {
+    repo.head_name()
+        .ok()
+        .flatten()
+        .map(|name| name.as_bstr().to_string())
 }
 
 fn list_base_branches_in_repo(repo: &gix::Repository) -> Result<Vec<BaseBranch>, String> {
@@ -65,6 +82,11 @@ fn list_base_branches_in_repo(repo: &gix::Repository) -> Result<Vec<BaseBranch>,
         append_base_branch(&mut branches, reference, "refs/remotes/", true);
     }
     branches.sort_by(|a, b| a.name.cmp(&b.name).then(a.remote.cmp(&b.remote)));
+    if let Some(head) = head_ref(repo) {
+        for branch in &mut branches {
+            branch.current = branch.reference == head;
+        }
+    }
     Ok(branches)
 }
 
@@ -86,36 +108,61 @@ fn append_base_branch(
         name,
         remote,
         tip_commit: commit.id().to_string(),
+        current: false,
     });
 }
 
-/// The app's private folder for one repository's worktrees, made on first use.
-fn container_for(app_data: &Path, repo_key: &str) -> Result<PathBuf, String> {
-    let worktrees_root = app_data.join("worktrees");
-    std::fs::create_dir_all(&worktrees_root)
-        .map_err(|e| format!("could not create app worktree directory: {e}"))?;
-    let container = worktrees_root.join(repo_key);
+/// The folder for one repository's worktrees under `root`, made on first
+/// use: `<repo name>-<8 hex of the root path's hash>`, readable in a file
+/// manager and unique per repository.
+fn container_for(root: &Path, repo_root: &Path) -> Result<PathBuf, String> {
+    crate::private_fs::private_dirs(true)
+        .create(root)
+        .map_err(|e| format!("could not create worktree root {}: {e}", root.display()))?;
+    let hash = crate::json_store::hex_sha256(repo_root.as_os_str().to_string_lossy().as_bytes());
+    let name = repo_root
+        .file_name()
+        .map(|n| slug(&n.to_string_lossy()))
+        .unwrap_or_else(|| "repo".into());
+    let container = root.join(format!("{name}-{}", &hash[..8]));
     match std::fs::symlink_metadata(&container) {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
-            return Err("app worktree path is not a real directory".into());
+            return Err("worktree container is not a real directory".into());
         }
         Ok(_) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             crate::private_fs::private_dirs(false)
                 .create(&container)
-                .map_err(|e| format!("could not create private worktree directory: {e}"))?;
+                .map_err(|e| format!("could not create worktree directory: {e}"))?;
         }
-        Err(error) => return Err(format!("could not inspect app worktree directory: {error}")),
+        Err(error) => return Err(format!("could not inspect worktree directory: {error}")),
     }
     Ok(container)
 }
 
-/// Create a new unique branch/worktree without copying the source worktree's uncommitted changes.
+/// How a new worktree's files are laid down.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Checkout {
+    /// `git worktree add --detach` (tests; the app always tries the clone).
+    #[cfg_attr(not(test), allow(dead_code))]
+    Git,
+    /// `omp worktree add --detach`: a copy-on-write clone of the source
+    /// checkout when the filesystem can reflink, so ignored build output
+    /// (`node_modules`, `target`) comes along; omp falls back to a plain
+    /// checkout itself. A failing omp falls back to [`Checkout::Git`].
+    OmpClone,
+}
+
+/// Create a detached worktree for the session under `root`, at the tip of
+/// `base_branch`. When that branch is the one the source checkout is on, its
+/// uncommitted changes (tracked and untracked) are copied over too; the
+/// source checkout itself is never touched.
 pub fn create(
-    app_data: &Path,
+    root: &Path,
     source: &Path,
     base_branch: &str,
     label: &str,
+    checkout: Checkout,
 ) -> Result<CreatedWorktree, String> {
     if label.is_empty() || label.len() > 120 || label.chars().any(char::is_control) {
         return Err("invalid worktree label".into());
@@ -123,7 +170,7 @@ pub fn create(
     let source = source
         .canonicalize()
         .map_err(|e| format!("could not resolve project folder: {e}"))?;
-    let (base_commit, root) = {
+    let (base_commit, repo_root, carry) = {
         let (_gate, repo, root) = crate::workspace::discover(&source)?;
         let branches = list_base_branches_in_repo(&repo)?;
         let selected = if let Some(branch) = branches
@@ -141,77 +188,132 @@ pub fn create(
             }
             branch
         };
-        let base_commit = selected.tip_commit.clone();
         let root = root
             .canonicalize()
             .map_err(|e| format!("could not resolve repository root: {e}"))?;
-        (base_commit, root)
+        (selected.tip_commit.clone(), root, selected.current)
     };
-    let repo_key = crate::json_store::hex_sha256(root.as_os_str().to_string_lossy().as_bytes());
-    let container = container_for(app_data, &repo_key)?;
+    let path = create_at(root, &repo_root, &base_commit, label, checkout)?;
+    let carried = if carry {
+        match crate::worktree_ops::carry(&source, &path) {
+            Ok(c) => c.any(),
+            Err(e) => {
+                eprintln!(
+                    "[omp-desktop] worktree: created, but carrying local changes failed: {e}"
+                );
+                false
+            }
+        }
+    } else {
+        false
+    };
+    let path = path.to_string_lossy().into_owned();
+    let source_repo = repo_root.to_string_lossy().into_owned();
+    crate::worktree_ops::register(&path, &source_repo);
+    Ok(CreatedWorktree {
+        path,
+        source_repo,
+        branch: None,
+        base_commit,
+        carried,
+    })
+}
 
+/// Add a detached worktree of `repo_root` at `commit` in a fresh folder
+/// under `root`; returns its path.
+pub fn create_at(
+    root: &Path,
+    repo_root: &Path,
+    commit: &str,
+    label: &str,
+    checkout: Checkout,
+) -> Result<PathBuf, String> {
+    let container = container_for(root, repo_root)?;
     let slug = slug(label);
-    let program = locate_program(&child_path_dirs(), "git")
-        .map_err(|_| "git not found on PATH".to_string())?;
     for _ in 0..8 {
-        let nonce = nonce();
-        let branch = format!("omp/{slug}-{nonce}");
-        let path = container.join(format!("{slug}-{nonce}"));
+        let path = container.join(format!("{slug}-{}", nonce()));
         if path.exists() {
             continue;
         }
-        let mut cmd = Command::new(&program.binary);
-        cmd.env("PATH", &program.path)
-            .current_dir(&root)
-            .args([
-                "--literal-pathspecs",
-                "--no-optional-locks",
-                "worktree",
-                "add",
-                "-b",
-            ])
-            .arg(&branch)
-            .arg(&path)
-            .arg(&base_commit)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        ProcessSupervisor::prepare(&mut cmd);
-        let mut child = crate::spawn_gate::spawn(&mut cmd)
-            .map_err(|e| format!("could not start git worktree add: {e}"))?;
-        let supervisor = ProcessSupervisor::attach(&child);
-        let done = collect(
-            &mut child,
-            &supervisor,
-            OUTPUT_LIMIT,
-            ERROR_LIMIT,
-            Instant::now() + GIT_TIMEOUT,
-            |_| Ok(()),
-        )
-        .map_err(|e| match e {
-            WaitError::Overflow => "git worktree add output exceeded its size limit".to_string(),
-            WaitError::TimedOut => "git worktree add timed out".to_string(),
-            WaitError::Failed(error) => format!("git worktree add failed: {error}"),
-        })?;
-        if done.status.success() {
-            return Ok(CreatedWorktree {
-                path: path.to_string_lossy().into_owned(),
-                source_repo: root.to_string_lossy().into_owned(),
-                branch,
-                base_commit,
-            });
+        if checkout == Checkout::OmpClone {
+            let args: Vec<String> = vec![
+                "worktree".into(),
+                "add".into(),
+                "--detach".into(),
+                "--quiet".into(),
+                format!("--cwd={}", repo_root.display()),
+                path.to_string_lossy().into_owned(),
+                commit.to_string(),
+            ];
+            match crate::omp_cli::run(&args, "omp worktree add") {
+                Ok(_) if path.is_dir() => return Ok(path),
+                Ok(_) => {
+                    eprintln!("[omp-desktop] worktree: omp worktree add left no folder; using git")
+                }
+                Err(e) => {
+                    eprintln!("[omp-desktop] worktree: omp worktree add failed ({e}); using git")
+                }
+            }
+            if path.exists() {
+                return Err(format!(
+                    "omp worktree add failed and left {} behind",
+                    path.display()
+                ));
+            }
         }
-        let stderr = String::from_utf8_lossy(&done.stderr);
-        let message = crate::text::prefix_within(stderr.trim(), 1024);
-        // Git can leave administrative state on an interrupted add. Never remove
-        // a target or branch here unless its ownership has been proven.
-        return Err(if message.is_empty() {
-            "git worktree add failed".into()
-        } else {
-            format!("git worktree add failed: {message}")
-        });
+        git_worktree_add(repo_root, &path, commit)?;
+        return Ok(path);
     }
     Err("could not allocate a unique worktree path".into())
+}
+
+fn git_worktree_add(repo_root: &Path, path: &Path, commit: &str) -> Result<(), String> {
+    let program = locate_program(&child_path_dirs(), "git")
+        .map_err(|_| "git not found on PATH".to_string())?;
+    let mut cmd = Command::new(&program.binary);
+    cmd.env("PATH", &program.path)
+        .current_dir(repo_root)
+        .args([
+            "--literal-pathspecs",
+            "--no-optional-locks",
+            "worktree",
+            "add",
+            "--detach",
+        ])
+        .arg(path)
+        .arg(commit)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    ProcessSupervisor::prepare(&mut cmd);
+    let mut child = crate::spawn_gate::spawn(&mut cmd)
+        .map_err(|e| format!("could not start git worktree add: {e}"))?;
+    let supervisor = ProcessSupervisor::attach(&child);
+    let done = collect(
+        &mut child,
+        &supervisor,
+        OUTPUT_LIMIT,
+        ERROR_LIMIT,
+        Instant::now() + GIT_TIMEOUT,
+        |_| Ok(()),
+    )
+    .map_err(|e| match e {
+        WaitError::Overflow => "git worktree add output exceeded its size limit".to_string(),
+        WaitError::TimedOut => "git worktree add timed out".to_string(),
+        WaitError::Failed(error) => format!("git worktree add failed: {error}"),
+    })?;
+    if done.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&done.stderr);
+    let message = crate::text::prefix_within(stderr.trim(), 1024);
+    // Git can leave administrative state on an interrupted add. Never remove
+    // a target here unless its ownership has been proven.
+    Err(if message.is_empty() {
+        "git worktree add failed".into()
+    } else {
+        format!("git worktree add failed: {message}")
+    })
 }
 
 fn slug(label: &str) -> String {
@@ -247,7 +349,10 @@ fn nonce() -> String {
     format!("{time:x}{counter:x}")
 }
 
-pub fn validate_created(path: &str, source_repo: &str, branch: &str) -> Result<(), String> {
+/// A saved worktree tab still points at a linked worktree of its source
+/// repository. The branch is not checked: a worktree starts detached and
+/// may get a branch later ("Create branch here").
+pub fn validate_created(path: &str, source_repo: &str) -> Result<(), String> {
     let path = PathBuf::from(path);
     if !path.is_absolute() || !path.is_dir() {
         return Err("worktree folder is missing".into());
@@ -256,15 +361,8 @@ pub fn validate_created(path: &str, source_repo: &str, branch: &str) -> Result<(
     if !source.is_absolute() || !source.is_dir() {
         return Err("source repository folder is missing".into());
     }
-    if !branch.starts_with("omp/") || branch.len() > 200 {
-        return Err("invalid isolated worktree branch metadata".into());
-    }
-    let (found_branch, worktree_common_dir, is_linked_worktree) = {
+    let (worktree_common_dir, is_linked_worktree) = {
         let (_gate, repo, _) = crate::workspace::discover(&path)?;
-        let found_branch = repo
-            .head_name()
-            .map_err(|e| format!("could not read worktree branch: {e}"))?
-            .map(|name| name.shorten().to_string());
         let common_dir = repo
             .common_dir()
             .canonicalize()
@@ -274,13 +372,10 @@ pub fn validate_created(path: &str, source_repo: &str, branch: &str) -> Result<(
             .canonicalize()
             .map_err(|e| format!("could not resolve worktree Git directory: {e}"))?;
         let is_linked_worktree = git_dir != common_dir;
-        (found_branch, common_dir, is_linked_worktree)
+        (common_dir, is_linked_worktree)
     };
     if !is_linked_worktree {
         return Err("saved worktree path is not a linked worktree".into());
-    }
-    if found_branch.as_deref() != Some(branch) {
-        return Err("worktree branch does not match saved session metadata".into());
     }
     let source_common_dir = {
         let (_gate, repo, _) = crate::workspace::discover(source)?;
@@ -358,17 +453,26 @@ mod tests {
         let source_status = git(&repo, &["status", "--porcelain"]);
         let base_commit = git(&repo, &["rev-parse", "topic"]);
 
-        let created = create(&app_data, &repo, "refs/heads/topic", "Issue 42")
-            .expect("create linked worktree from topic");
+        let created = create(
+            &app_data.join("worktrees"),
+            &repo,
+            "refs/heads/topic",
+            "Issue 42",
+            Checkout::Git,
+        )
+        .expect("create linked worktree from topic");
 
         assert_eq!(created.base_commit, base_commit);
         assert_eq!(
             git(Path::new(&created.path), &["rev-parse", "HEAD"]),
             base_commit
         );
+        assert_eq!(created.branch, None);
+        assert!(!created.carried, "another branch's tip carries nothing");
         assert_eq!(
             git(Path::new(&created.path), &["branch", "--show-current"]),
-            created.branch
+            "",
+            "worktree starts detached"
         );
         assert_eq!(git(&repo, &["branch", "--show-current"]), source_branch);
         assert_eq!(git(&repo, &["status", "--porcelain"]), source_status);
@@ -381,10 +485,16 @@ mod tests {
             "topic base\n"
         );
         assert!(!Path::new(&created.path).join("untracked.txt").exists());
-        validate_created(&created.path, &created.source_repo, &created.branch)
-            .expect("validate metadata");
+        validate_created(&created.path, &created.source_repo).expect("validate metadata");
         assert!(
-            create(&app_data, &repo, "refs/heads/main", "Issue 42").is_ok(),
+            create(
+                &app_data.join("worktrees"),
+                &repo,
+                "refs/heads/main",
+                "Issue 42",
+                Checkout::Git
+            )
+            .is_ok(),
             "every call creates a distinct worktree"
         );
     }
@@ -395,7 +505,14 @@ mod tests {
         let app_data = app_data(&temp);
         let project = temp.path().join("project");
         std::fs::create_dir(&project).expect("create project");
-        assert!(create(&app_data, &project, "main", "Issue 42").is_err());
+        assert!(create(
+            &app_data.join("worktrees"),
+            &project,
+            "main",
+            "Issue 42",
+            Checkout::Git
+        )
+        .is_err());
         assert!(!app_data.join("worktrees").exists());
     }
     #[test]
@@ -406,7 +523,8 @@ mod tests {
                 temp.path(),
                 &temp.path().join("not-a-repo"),
                 "main",
-                "bad\nlabel"
+                "bad\nlabel",
+                Checkout::Git,
             )
             .unwrap_err(),
             "invalid worktree label",
@@ -458,9 +576,23 @@ mod tests {
         git(&repo, &["branch", "origin/main"]);
         git(&repo, &["update-ref", "refs/remotes/origin/main", &tip]);
 
-        let err = create(&app_data, &repo, "origin/main", "Issue 42").unwrap_err();
+        let err = create(
+            &app_data.join("worktrees"),
+            &repo,
+            "origin/main",
+            "Issue 42",
+            Checkout::Git,
+        )
+        .unwrap_err();
         assert_eq!(err, "base branch selector is ambiguous");
-        assert!(create(&app_data, &repo, "refs/heads/missing", "Issue 42").is_err());
+        assert!(create(
+            &app_data.join("worktrees"),
+            &repo,
+            "refs/heads/missing",
+            "Issue 42",
+            Checkout::Git
+        )
+        .is_err());
         assert!(!app_data.join("worktrees").exists());
     }
     #[test]
@@ -481,9 +613,15 @@ mod tests {
         std::fs::write(other.join("other.txt"), "other\n").expect("write other file");
         git(&other, &["add", "other.txt"]);
         git(&other, &["commit", "-qm", "initial"]);
-        let created = create(&app_data, &source, "refs/heads/main", "Issue 42")
-            .expect("create linked worktree");
-        assert!(validate_created(&created.path, other.to_str().unwrap(), &created.branch).is_err());
+        let created = create(
+            &app_data.join("worktrees"),
+            &source,
+            "refs/heads/main",
+            "Issue 42",
+            Checkout::Git,
+        )
+        .expect("create linked worktree");
+        assert!(validate_created(&created.path, other.to_str().unwrap()).is_err());
     }
 
     #[test]
@@ -495,12 +633,40 @@ mod tests {
         let temp = TempDir::new("worktree", "primary-checkout");
         let repo = source_repo(&temp);
         git(&repo, &["branch", "-m", "omp/forged-worktree"]);
-        assert!(validate_created(
-            repo.to_str().unwrap(),
-            repo.to_str().unwrap(),
-            "omp/forged-worktree",
-        )
-        .is_err());
+        assert!(validate_created(repo.to_str().unwrap(), repo.to_str().unwrap()).is_err());
+    }
+
+    #[test]
+    fn current_branch_base_carries_uncommitted_work() {
+        if !git_available() {
+            return;
+        }
+        let temp = TempDir::new("worktree", "carry");
+        let root = temp.path().join("wt-root");
+        let repo = source_repo(&temp);
+        std::fs::write(repo.join("tracked.txt"), "dirty\n").unwrap();
+        std::fs::write(repo.join("new.txt"), "untracked\n").unwrap();
+        let branches = list_base_branches(&repo).unwrap();
+        assert!(branches
+            .iter()
+            .any(|b| b.reference == "refs/heads/main" && b.current));
+        let created = create(&root, &repo, "refs/heads/main", "chat", Checkout::Git).unwrap();
+        assert!(created.carried);
+        let wt = Path::new(&created.path);
+        assert!(wt.starts_with(&root), "honours the configured root");
+        assert_eq!(
+            std::fs::read_to_string(wt.join("tracked.txt")).unwrap(),
+            "dirty\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(wt.join("new.txt")).unwrap(),
+            "untracked\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(repo.join("tracked.txt")).unwrap(),
+            "dirty\n",
+            "source checkout untouched"
+        );
     }
 
     #[test]

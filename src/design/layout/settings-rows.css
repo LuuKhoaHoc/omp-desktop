@@ -120,3 +120,6 @@
 }
 .st-rem-dialog-head { display: flex; align-items: center; justify-content: space-between; width: 100%; color: var(--fg-2); }
 .st-rem-qr { background: #fff; border-radius: 8px; padding: 8px; }
+/* rows-worktree.jsx: the worktree location path takes the row's width. */
+.st-worktree-root { width: 100%; }
+.st-worktree-root .st-rem-input { flex: 1; min-width: 0; width: auto; }

@@ -179,6 +179,7 @@
 
   <!-- Empty-workspace worktree picker state; dependency-free IIFE used by the welcome screen. -->
   <script src="app/empty-worktree-start.js"></script>
+  <script src="app/worktree-ux.js"></script>
   <!-- Per-tab composer draft + plan-mode state (issue #28): pure map and
        transition helpers. Dependency-free IIFE; design/composer.jsx,
        app/use-goal-mode.jsx and app-live.jsx destructure
@@ -496,6 +497,7 @@
        window.BranchMenu at top level, and it destructures OMP_GIT_BROWSER
        (app/git-browser.js) and calls usePopoverDismiss. -->
   <script type="text/babel" src="design/branch-menu.jsx"></script>
+  <script type="text/babel" src="design/worktree-menu.jsx"></script>
   <script type="text/babel" src="design/chrome.jsx"></script>
   <!-- App toolbar between the title bar and the tabs; app-live.jsx
        destructures window.Toolbar. -->
@@ -600,6 +602,7 @@
   <script type="text/babel" src="design/settings/rows-layout.jsx"></script>
   <script type="text/babel" src="design/settings/rows-programs.jsx"></script>
   <script type="text/babel" src="design/settings/rows-agent.jsx"></script>
+  <script type="text/babel" src="design/settings/rows-worktree.jsx"></script>
   <script type="text/babel" src="design/settings/rows-models.jsx"></script>
   <script type="text/babel" src="design/settings/rows-local-stt.jsx"></script>
   <script type="text/babel" src="design/settings/rows-voice.jsx"></script>

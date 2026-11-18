@@ -155,18 +155,19 @@ fn restorable(layout: Layout) -> Restore {
         {
             tab.session_file = None;
         }
-        if let (Some(source_repo), Some(branch)) =
-            (tab.source_repo.as_deref(), tab.worktree_branch.as_deref())
-        {
-            if crate::worktree::validate_created(&tab.path, source_repo, branch).is_err() {
+        // A worktree tab: still a linked worktree of its repository, or one
+        // cleanup removed that reopening restores (`worktree_prepare`).
+        let restorable = crate::worktree_ops::is_restorable(&tab.path);
+        if let Some(source_repo) = tab.source_repo.as_deref() {
+            if !restorable && crate::worktree::validate_created(&tab.path, source_repo).is_err() {
                 skipped.push(tab.path);
                 continue;
             }
-        } else if tab.source_repo.is_some() || tab.worktree_branch.is_some() {
+        } else if tab.worktree_branch.is_some() {
             skipped.push(tab.path);
             continue;
         }
-        if !tab.path.is_empty() && !Path::new(&tab.path).is_dir() {
+        if !restorable && !tab.path.is_empty() && !Path::new(&tab.path).is_dir() {
             skipped.push(tab.path);
             continue;
         }

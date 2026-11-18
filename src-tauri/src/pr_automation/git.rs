@@ -16,7 +16,7 @@ pub(super) fn local_branch(folder: &Path) -> Result<LocalBranch, String> {
     let name = repo
         .head_name()
         .map_err(|e| format!("Could not read Git branch: {e}"))?
-        .ok_or_else(|| "Auto-fix requires a checked-out branch, not detached HEAD".to_string())?;
+        .ok_or_else(|| DETACHED.to_string())?;
     let short = name.shorten();
     let branch = std::str::from_utf8(short.as_ref())
         .map_err(|_| "Git branch name is not UTF-8".to_string())?
@@ -27,7 +27,7 @@ pub(super) fn local_branch(folder: &Path) -> Result<LocalBranch, String> {
         .to_string();
     let upstream = repo
         .branch_remote_ref_name(name.as_ref(), gix::remote::Direction::Fetch)
-        .ok_or_else(|| "Auto-fix requires a configured upstream branch".to_string())?
+        .ok_or_else(|| NO_UPSTREAM.to_string())?
         .map_err(|e| format!("Invalid upstream branch: {e}"))?;
     let remote_ref = std::str::from_utf8(upstream.as_bstr().as_ref())
         .map_err(|_| "Upstream branch name is not UTF-8".to_string())?
@@ -51,6 +51,11 @@ pub(super) fn local_branch(folder: &Path) -> Result<LocalBranch, String> {
         remote_ref,
     })
 }
+
+/// Branch states, not failures: the webview shows them as a quiet line with
+/// the next step (create a branch, push it) instead of an error.
+pub(super) const DETACHED: &str = "Auto-fix requires a checked-out branch, not detached HEAD";
+pub(super) const NO_UPSTREAM: &str = "Auto-fix requires a configured upstream branch";
 
 /// The one error the webview reads as "this project is not on GitHub" (fork):
 /// the Changes card hides itself for that tab instead of showing it.

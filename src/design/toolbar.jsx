@@ -10,7 +10,7 @@
      browser. An open panel's own actions sit under its toggle.
    - SidebarFooter: settings, history, usage, at the foot of the project
      sidebar (project-sidebar.jsx `footer`).
-   - SessionPills: the tab's approval mode and omp profile, in the
+   - SessionPills: the tab's approval mode, Local / Worktree and omp profile, in the
      composer's foot beside model / thinking / plan / goal.
    Panels carry no close button of their own: their toggle closes them.
    ═════════════════════════════════════════════════════════════════════ */
@@ -154,7 +154,7 @@ function SidebarFooter({ settings, onHistory, onStats, onAccounts }) {
 // `warn` and amber; a change waiting for the turn to end reads
 // `running ⇢ target` with the running mode muted.
 /** approvals: { cell, onOpen }; profile: ProfileMenu's props */
-function SessionPills({ approvals, profile }) {
+function SessionPills({ approvals, profile, worktree }) {
   const { cell } = approvals;
   const targetColor = cell.warn ? "var(--amber)" : undefined;
   return (
@@ -169,6 +169,8 @@ function SessionPills({ approvals, profile }) {
           {OMP_TR(cell.target)}
         </span>
       </button>
+      {/* Local / Worktree for this chat (worktree-menu.jsx). */}
+      {worktree && <window.WorktreeMenu key={worktree.tab?.id} {...worktree} />}
       {/* Per-tab omp profile — the selector acts on the active tab only. */}
       <span className="composer-profile"><_TB_ProfileMenu {...profile} /></span>
     </>
