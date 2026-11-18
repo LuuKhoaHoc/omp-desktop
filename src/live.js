@@ -186,6 +186,11 @@
   }
   const respawnVoice = new Map(); // same-conversation voice awaiting a fresh process activation
   const gitListeners = new Map();  // session_id → Tauri unlisten fn for git://branch/{id}
+  const titleWatchers = new Map(); // session_id → Tauri unlisten fn for the background title watch (`_watchBackgroundTitles`)
+  // Replay batching: while held, `notify` only marks the snapshot stale, so
+  // a tab switch replaying dozens of journal frames renders once.
+  let _notifyHold = 0;
+  let _notifyHeldDirty = false;
   // Prompt history — one list per tab, newest-first, in memory only. Never
   // persisted to disk/localStorage: filled as the user sends (_recordPrompt)
   // and backfilled from the transcript whenever get_messages arrives (tab
@@ -832,6 +837,7 @@
   }
 
   function notify() {
+    if (_notifyHold > 0) { _notifyHeldDirty = true; return; }
     _streamNotify?.cancel(); // the full snapshot below carries what a queued streaming one would
     _trimMessages();
     // Stamp stable IDs on any message that doesn't have one yet (new pushes,
@@ -1225,7 +1231,7 @@
         if (!current()) return; // superseded by a newer switch, or detached
         streamSnapshot = streaming;
       }
-      for (const ev of replay.events) _dispatchEnvelope(ev);
+      _dispatchHeld(replay.events);
       // A pending auto-`/rename` whose outcome note fell out of the ring
       // will never be swallowed, and nothing else would release the flag:
       // refinements would stay blocked for good. The replayed events above
@@ -1251,7 +1257,7 @@
     // de-duplicated against lastSeq inside _dispatchEnvelope.
     const buffered = _replayBuffer;
     _replayBuffer = null;
-    for (const envelope of buffered) _dispatchEnvelope(envelope);
+    _dispatchHeld(buffered);
 
     // Surface any cached startup error for this session. A background tab
     // (or a respawn) can fail before any listener is attached, so a spawn
@@ -1387,6 +1393,7 @@
     // reportable again. Cleared after the spawn resolved, so a spawn that
     // threw leaves the previous reason still deduped.
     _notedStartupErrors.delete(id);
+    void _watchBackgroundTitles(id).catch(e => console.warn(`[live] title watch for '${id}' failed:`, e));
     // The conversation tree needs to know which cache touches this process
     // could have made: a new process rebuilds its system prompt (recalled
     // memories change it), so earlier processes' cache is not reusable.
@@ -1426,6 +1433,80 @@
     }
   }
 
+  /** Dispatch a run of journal envelopes (a tab switch's replay) with
+   *  `notify` held, then publish one snapshot: the intermediate states (a
+   *  title replayed over an older one, run-state steps) never reach React,
+   *  and the snapshot is built once instead of once per frame. */
+  function _dispatchHeld(envelopes) {
+    if (!envelopes.length) return;
+    _notifyHold++;
+    try {
+      for (const envelope of envelopes) _dispatchEnvelope(envelope);
+    } finally {
+      _notifyHold--;
+    }
+    if (_notifyHold === 0 && _notifyHeldDirty) {
+      _notifyHeldDirty = false;
+      notify();
+    }
+  }
+
+  /** Background title watch: only the active tab's frames are processed,
+   *  so without this a tab whose first turn ends in the background stays
+   *  named after its folder and renames itself only once shown — a title
+   *  that changes right after the switch. The watcher peeks at the tab's
+   *  raw lines (pre-filtered by `mayCarryTitleFrame`) and does two things:
+   *  applies a `session_info_update` title to the tab at once, and fires the
+   *  first automatic `/rename` on a clean yield (`shouldAutoRenameOnYield`),
+   *  with the same registry flags `_applyRpcState` sets. Everything else
+   *  (refinement counting, swallowing the outcome note, releasing
+   *  in-flight) stays with the normal replay when the tab is shown, so no
+   *  frame is applied twice. A frame omp sent as `rpc_chunk` is not seen
+   *  here; that tab falls back to renaming on activation. */
+  async function _watchBackgroundTitles(id) {
+    if (!window.__TAURI__) return;
+    const unlisten = await window.__TAURI__.event.listen(`agent://line/${id}`, ev => {
+      if (id === activeSessionId || _switchTarget === id) return;
+      const text = ev.payload?.text;
+      if (!STITLE.mayCarryTitleFrame(text)) return;
+      let frame;
+      try { frame = JSON.parse(text); } catch { return; }
+      const entry = sessionRegistry.get(id);
+      if (!entry || !frame || typeof frame !== "object") return;
+      if (frame.type === "session_info_update") {
+        const title = STITLE.sessionTitleFromEvent(frame);
+        if (title && title !== entry.name) {
+          sessionRegistry.set(id, { ...entry, name: title });
+          notify();
+        }
+        return;
+      }
+      if (!STITLE.shouldAutoRenameOnYield(frame, entry, sessionPrefs.autoName)) return;
+      sessionRegistry.set(id, {
+        ...entry, autoRenameArmed: false, autoRenameInFlight: true,
+        autoRenameLeft: STITLE.initialRefineBudget(true), autoRenameTurns: 0,
+      });
+      window.__TAURI__.core
+        .invoke("send_command", { sessionId: id, json: JSON.stringify({ type: "prompt", message: "/rename" }) })
+        .catch(e => {
+          console.warn(`[live] background /rename for '${id}' not sent:`, e);
+          // Nothing went out: arm again so activation retries.
+          const cur = sessionRegistry.get(id);
+          if (cur) sessionRegistry.set(id, { ...cur, autoRenameArmed: true, autoRenameInFlight: false });
+        });
+    });
+    // Same race as the git listener: a respawn of this id may have installed
+    // its own watcher meanwhile, and a closed tab must not keep one.
+    _dropTitleWatcher(id);
+    if (sessionRegistry.has(id)) titleWatchers.set(id, unlisten);
+    else unlisten();
+  }
+
+  function _dropTitleWatcher(id) {
+    const unlisten = titleWatchers.get(id);
+    if (unlisten) { unlisten(); titleWatchers.delete(id); }
+  }
+
   /** Drop a session's git-branch listener, if it has one. Every teardown
    *  path (tab close, profile respawn) must do this or the stale listener
    *  keeps writing branch updates for a dead process into the registry. */
@@ -1458,6 +1539,7 @@
       window.__TAURI__.core.invoke("stop_git_watch", { sessionId: id }).catch(() => {});
     }
     _dropGitListener(id);
+    _dropTitleWatcher(id);
     sessionSnapshots.delete(id);
     suspendedTabs.delete(id); // a respawn starts the tab's omp itself, so nothing is left to resume
     return stopped;
@@ -1477,6 +1559,7 @@
     _dictationCompleted = _dictationCompleted.filter(item => item.sessionId !== id);
     const closed = _invokeSafe("close_tab", { sessionId: id });
     _dropGitListener(id);
+    _dropTitleWatcher(id);
     respawnVoice.delete(id);
     sessionSnapshots.delete(id);
     suspendedTabs.delete(id);

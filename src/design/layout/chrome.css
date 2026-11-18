@@ -41,7 +41,8 @@
 }
 /* Baseline, not center: JetBrains Mono ("OMP ·") sits its glyphs higher in
    the line box than Geist (the project name), so centred boxes misalign the text. */
-.chrome-title { display: flex; align-items: baseline; gap: 6px; font-size: var(--d-text-sm); flex: 1; justify-content: center; }
+.chrome-title { display: flex; align-items: baseline; gap: 6px; font-size: var(--d-text-sm); flex: 1; justify-content: center; min-width: 0; }
+.chrome-tab-title { min-width: 0; max-width: 48ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chrome-right { display: flex; align-items: center; gap: 6px; }
 
 /* ── Per-tab profile selector ─────────────────────────────────────────── */

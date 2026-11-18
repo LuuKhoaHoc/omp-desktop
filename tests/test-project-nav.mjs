@@ -452,4 +452,18 @@ check("pruneFoldedGroups clears a key only when a multi-tab project drops to <=1
   assert.deepEqual(N.pruneFoldedGroups(folded, twoA, oneA), { "default|/b": true });
 });
 
+// ── tabTitle ──────────────────────────────────────────────────────────────
+
+check("tabTitle is null while a tab still carries its folder's name", () => {
+  assert.equal(N.tabTitle(tab("a", "/home/me/erp-admin", { name: "erp-admin" })), null);
+  assert.equal(N.tabTitle(tab("a", "C:\\Repo\\", { name: "Repo" })), null);
+  assert.equal(N.tabTitle(null), null);
+});
+
+check("tabTitle returns the conversation title once named, or a folderless tab's name", () => {
+  assert.equal(N.tabTitle(tab("a", "/home/me/erp-admin", { name: "Implement Issue 74" })), "Implement Issue 74");
+  assert.equal(N.tabTitle(tab("a", "", { name: "resumed" })), "resumed");
+  assert.equal(N.tabTitle(tab("a", "/home/me/erp-admin", { name: "" })), null);
+});
+
 console.log(`project-nav: ${passed} checks passed`);

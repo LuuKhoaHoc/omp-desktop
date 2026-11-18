@@ -167,6 +167,32 @@
     return !!(ev && ev.type === "agent_end" && ev.isTerminal !== false);
   }
 
+  /** Whether a background tab's `agent_end` should fire the first automatic
+   *  `/rename` right away, instead of when the tab is next shown (only the
+   *  active tab's frames run `_applyRpcState`). The same gates as
+   *  `shouldAutoRename`, read from the frame instead of `get_state`: a
+   *  yielded run whose last assistant message answered cleanly (an
+   *  assistant reply means the first exchange is persisted), the tab still
+   *  armed and nothing in flight. Fresh tabs only (`autoRenameRefine`):
+   *  a resumed tab may already carry a saved title that only `get_state`
+   *  can report, so it keeps waiting for activation. */
+  function shouldAutoRenameOnYield(ev, entry, autoName) {
+    if (!autoName || !entry || !ev || ev.type !== "agent_end") return false;
+    if (!entry.autoRenameArmed || entry.autoRenameInFlight || entry.autoRenameRefine === false) return false;
+    if (!(ev.yielded ?? ev.isTerminal !== false)) return false;
+    const messages = Array.isArray(ev.messages) ? ev.messages : [];
+    const last = messages.findLast(m => m?.role === "assistant");
+    return !!last && last.stopReason !== "error" && last.stopReason !== "aborted";
+  }
+
+  /** Cheap pre-filter for a background tab's raw RPC line: only these two
+   *  frame types can change its title, and parsing every streaming delta of
+   *  every background tab would cost more than the watcher saves. */
+  function mayCarryTitleFrame(text) {
+    return typeof text === "string"
+      && (text.includes('"agent_end"') || text.includes('"session_info_update"'));
+  }
+
   /** A title the user typed for the manual rename action (#32), as the
    *  `/rename` command that sets it and the confirmation note omp prints
    *  for it; null when nothing is left after cleaning. Cleaning mirrors
@@ -199,7 +225,7 @@
     shouldAutoRename, shouldDisarmTitled, initialRefineBudget,
     shouldRefineTitle, isAutoRenameNote, sessionTitleFromEvent, cleanTabTitle,
     isManualRename, isRenameStateStale, shouldRearmAfterAbort, countsAsRefineTurn,
-    manualRename, dropPendingNote,
+    manualRename, dropPendingNote, shouldAutoRenameOnYield, mayCarryTitleFrame,
     REFINE_EVERY_TURNS, REFINE_MAX,
   };
 })();

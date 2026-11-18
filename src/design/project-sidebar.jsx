@@ -10,7 +10,7 @@
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon, TabRunDot, TabLabel, TabNumber, RenameField } = window;
-const { groupTabs, groupRunState, groupDigits, tabDigits, membersNewestFirst, basename, parentName } = window.OMP_PROJECT_NAV;
+const { groupTabs, groupRunState, groupDigits, tabDigits, membersNewestFirst, basename, parentName, tabTitle: _psbTabTitle } = window.OMP_PROJECT_NAV;
 
 function ProjectSidebar({
   tabs, activeId, recents, profileLabel,
@@ -131,7 +131,9 @@ function ProjectSidebar({
                   ) : (
                     <button className="psb-main" title={t.name} onClick={() => onSelectTab(t.id)}
                       onDoubleClick={() => startRename(t.id)}>
-                      <span className="psb-name">{t.name}</span>
+                      {/* The group row already names the folder: an untitled tab
+                          reads "new conversation", as in the tab bar. */}
+                      <span className="psb-name">{_psbTabTitle(t) ?? OMP_TR("new conversation")}</span>
                       <TabRunDot state={t.runState} />
                       <TabNumber label={digits.get(t.id)} />
                     </button>
