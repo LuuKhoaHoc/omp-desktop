@@ -104,7 +104,7 @@ impl PanelSlot {
     }
 
     /// An agent mouse event was dispatched to Chromium.
-    pub fn agent_cursor(&mut self, cursor: &AgentCursor) {
+    pub fn agent_cursor(&self, cursor: &AgentCursor) {
         if let Some(view) = &self.view {
             view.agent_cursor(cursor);
         }

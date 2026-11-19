@@ -231,7 +231,9 @@ impl Core {
         let (target_id, session) = {
             let inner = lock(&self.inner);
             let active = inner.active.as_ref().ok_or("no active page")?;
-            (active.target_id.clone(), active.session.clone())
+            let ids = (active.target_id.clone(), active.session.clone());
+            drop(inner);
+            ids
         };
         let favicon = super::favicon::fetch_favicon(self, &session, &target_id);
         let mut inner = lock(&self.inner);
@@ -241,6 +243,7 @@ impl Core {
                 self.publish_tabs(&mut inner);
             }
         }
+        drop(inner);
         Ok(())
     }
 

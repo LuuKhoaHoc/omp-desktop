@@ -122,8 +122,7 @@ fn container_for(root: &Path, repo_root: &Path) -> Result<PathBuf, String> {
     let hash = crate::json_store::hex_sha256(repo_root.as_os_str().to_string_lossy().as_bytes());
     let name = repo_root
         .file_name()
-        .map(|n| slug(&n.to_string_lossy()))
-        .unwrap_or_else(|| "repo".into());
+        .map_or_else(|| "repo".into(), |n| slug(&n.to_string_lossy()));
     let container = root.join(format!("{name}-{}", &hash[..8]));
     match std::fs::symlink_metadata(&container) {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
@@ -248,10 +247,10 @@ pub fn create_at(
             match crate::omp_cli::run(&args, "omp worktree add") {
                 Ok(_) if path.is_dir() => return Ok(path),
                 Ok(_) => {
-                    eprintln!("[omp-desktop] worktree: omp worktree add left no folder; using git")
+                    eprintln!("[omp-desktop] worktree: omp worktree add left no folder; using git");
                 }
                 Err(e) => {
-                    eprintln!("[omp-desktop] worktree: omp worktree add failed ({e}); using git")
+                    eprintln!("[omp-desktop] worktree: omp worktree add failed ({e}); using git");
                 }
             }
             if path.exists() {

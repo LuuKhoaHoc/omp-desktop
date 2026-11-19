@@ -1222,6 +1222,7 @@ fn cross_origin_navigation_clears_stored_favicon() {
         inner.set_active("a", "s1");
         inner.pages[0].favicon = Some("data:image/png;base64,abc".to_owned());
         core.publish_tabs(&mut inner);
+        drop(inner);
     }
     assert_eq!(
         seen.last_tabs()[0].favicon.as_deref(),

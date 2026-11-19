@@ -102,17 +102,16 @@ fn lock_of(path: &Path) -> PathBuf {
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or_default()
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 // ── settings ────────────────────────────────────────────────────────────
 
 pub fn settings() -> Settings {
-    match paths() {
-        Ok(p) => crate::json_store::read_or_default(&p.settings),
-        Err(_) => Settings::default(),
-    }
+    paths().map_or_else(
+        |_| Settings::default(),
+        |p| crate::json_store::read_or_default(&p.settings),
+    )
 }
 
 /// Expand `~/` and require an absolute path; empty stays empty (default).
@@ -203,10 +202,10 @@ fn update_registry<R>(modify: impl FnOnce(&mut Registry) -> (bool, R)) -> Result
 }
 
 fn registry() -> Vec<Entry> {
-    match paths() {
-        Ok(p) => crate::json_store::read_or_default::<Registry>(&p.registry).worktrees,
-        Err(_) => Vec::new(),
-    }
+    paths().map_or_else(
+        |_| Vec::new(),
+        |p| crate::json_store::read_or_default::<Registry>(&p.registry).worktrees,
+    )
 }
 
 /// Record a worktree the app created. Best effort: a registry failure only
@@ -360,7 +359,7 @@ pub struct Carried {
 }
 
 impl Carried {
-    pub fn any(&self) -> bool {
+    pub const fn any(&self) -> bool {
         self.stash.is_some() || !self.untracked.is_empty()
     }
 }
@@ -646,8 +645,7 @@ fn snapshot(path: &Path) -> Result<String, String> {
         let commit = commit.trim().to_string();
         let name = path
             .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "worktree".into());
+            .map_or_else(|| "worktree".into(), |n| n.to_string_lossy().into_owned());
         git(
             path,
             &[
@@ -783,7 +781,7 @@ mod tests {
     }
 
     /// PATHS is process-global, so every test shares one settings/registry
-    /// folder that outlives each test's TempDir (tests only rely on entries
+    /// folder that outlives each test's `TempDir` (tests only rely on entries
     /// they register themselves); worktrees go under the test's own root.
     fn setup(temp: &TempDir) -> PathBuf {
         static SHARED: OnceLock<PathBuf> = OnceLock::new();
@@ -823,7 +821,10 @@ mod tests {
         assert_eq!(sh(&local, &["status", "--porcelain"]), "", "local is clean");
         assert!(!local.join("new").exists());
         assert_eq!(head_branch(&wt).unwrap(), None, "worktree is detached");
-        assert!(!sh(&local, &["for-each-ref", "refs/omp-desktop/handoff"]).is_empty());
+        assert_ne!(
+            sh(&local, &["for-each-ref", "refs/omp-desktop/handoff"]),
+            ""
+        );
 
         // The agent commits in the worktree, then the chat comes back local.
         sh(&wt, &["add", "-A"]);
@@ -932,7 +933,7 @@ mod tests {
         let local = repo(&temp);
         let wt = handoff_to_worktree(&root, &local, None, "chat", crate::worktree::Checkout::Git)
             .unwrap();
-        let path = wt.path.clone();
+        let path = wt.path;
         let wt = PathBuf::from(&path);
         std::fs::write(wt.join("tracked.txt"), "wip\n").unwrap();
         std::fs::write(wt.join("note.md"), "untracked wip\n").unwrap();
