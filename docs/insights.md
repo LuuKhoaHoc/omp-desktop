@@ -1,14 +1,15 @@
 # Insights panel (fork)
 
 The Insights panel (`Ctrl+Shift+Y`, flask icon in the toolbar) draws what an
-agent writes into the open project's `.omp/insights/` folder. Rust reads only
+agent writes into the open project's `docs/insights/` folder (a project that
+only has the older `.omp/insights/` keeps showing it until the files move). Rust reads only
 the fixed names below (`insights_read`, `src-tauri/src/work.rs`), each file at
 most 2 MB, at most 60 diagrams. The panel re-reads every 4 s, so files appear
 while the agent works. Bad JSON shows as an error card instead of breaking the
 panel.
 
 ```
-.omp/insights/
+docs/insights/
   docs/<slug>.json       one document analysis per file (doc-analysis.json at the root still reads)
   testcases/<slug>.json  one test case set per document (testcases.json at the root still reads)
   diagrams/*             .mmd/.mermaid, .svg, .png, .html, .excalidraw; sorted by name
@@ -76,11 +77,13 @@ security level (labels sanitised, no click callbacks or scripts).
 
 ```json
 {
+  "source": "docs/payroll-spec-v2.pdf",
   "cases": [
     {
       "id": "TC-01",
       "title": "Create a period from a locked timesheet",
       "requirement": "REQ-01",
+      "source": "§3.2 Main flow",
       "priority": "High",
       "type": "functional",
       "preconditions": "Timesheet for October is locked",
@@ -96,6 +99,22 @@ security level (labels sanitised, no click callbacks or scripts).
 ```
 
 `status` is one of `untested` (default), `pass`, `fail`, `blocked`.
+`source` (file and per case) and `note` are optional and shown in the case body.
+
+### Test cases follow their source
+
+Every prompt the panel drafts for test cases carries the same rules
+(`_IP_CASE_RULES` in `src/design/insights-panel.jsx`):
+
+- **Spec:** each case names the requirement id or section it checks
+  (`requirement`, `source`) and reuses the spec's field names, values and
+  messages. Nothing the spec does not state.
+- **Code:** the agent reads the implementation first and covers only what it
+  does, with the real UI labels, routes, roles, validation messages and API
+  fields; `source` is `path:line`.
+- **Gap** (spec and code disagree, or the source is silent): the case stays,
+  as `blocked` with a `note` naming the gap.
+- Titles and steps use the source's language.
 `priority` colours `High`/`P0`/`P1`/`Critical` red and `Medium`/`P2` amber.
 
 ## Asking the agent
@@ -106,7 +125,7 @@ Breakdown**) plus **Analyze attached document (all-in-one)** to draft a full
 request into the composer. Any prompt works as long as it names this folder and
 these formats, e.g.:
 
-> Read the attached spec, then draw its flows into `.omp/insights/diagrams/`
+> Read the attached spec, then draw its flows into `docs/insights/diagrams/`
 > and write `doc-analysis.json` and `testcases.json` in the formats of
 > `docs/insights.md`.
 

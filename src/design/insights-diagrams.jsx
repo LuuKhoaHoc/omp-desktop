@@ -69,7 +69,7 @@ function _ipSkillText(s) {
 
 function _ipSkillPrompt(skill) {
   return `Use the \`${skill.id}\` skill (load it; if it is not loaded, read its SKILL.md under ~/.agents/skills or ~/.hermes/skills) to draw: <what to draw, or attach the spec>.\n`
-    + `Save the result into this project's .omp/insights/diagrams/<kebab-name>.${skill.ext}, one diagram per file. ${skill.how} `
+    + `Save the result into this project's docs/insights/diagrams/<kebab-name>.${skill.ext}, one diagram per file. ${skill.how} `
     + "The Insights panel shows that folder.";
 }
 
@@ -343,7 +343,7 @@ function _IP_Diagrams({ diagrams, onAsk, onDelete }) {
         <_IP_Diagram key={d.file} file={d.file} kind={d.kind} source={d.source} data={d.data} error={d.error}
           isOpen={expanded.has(d.file)} onToggle={toggleOne} onDelete={onDelete} />
       ))}
-      {!diagrams.length && <div className="wp-empty-line pad">{OMP_TR("No diagrams yet. Pick a skill under \"New diagram\"; files land in .omp/insights/diagrams/.")}</div>}
+      {!diagrams.length && <div className="wp-empty-line pad">{OMP_TR("No diagrams yet. Pick a skill under \"New diagram\"; files land in docs/insights/diagrams/.")}</div>}
       {diagrams.length > 0 && !shown.length && (
         <div className="wp-empty-line pad">
           {OMP_TR("No diagram matches \"{q}\".", { q })}{" "}

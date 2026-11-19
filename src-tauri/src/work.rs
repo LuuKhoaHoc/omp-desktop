@@ -306,15 +306,24 @@ fn json_files(dir: &std::path::Path, legacy: &str, sub: &str) -> Vec<serde_json:
     out
 }
 
+/// `<project>/docs/insights/`, so the analysis lives with the project's docs.
+/// A project that only has the older `.omp/insights/` keeps showing it until
+/// its files are moved.
 fn insights_dir(project: &str) -> Result<std::path::PathBuf, String> {
     let root = std::path::Path::new(project);
     if !root.is_absolute() || !root.is_dir() {
         return Err("project folder not found".into());
     }
-    Ok(root.join(".omp").join("insights"))
+    let dir = root.join("docs").join("insights");
+    let legacy = root.join(".omp").join("insights");
+    Ok(if !dir.is_dir() && legacy.is_dir() {
+        legacy
+    } else {
+        dir
+    })
 }
 
-/// The Insights panel's data: `<project>/.omp/insights/` → documents
+/// The Insights panel's data: `<project>/docs/insights/` → documents
 /// (`doc-analysis.json`, `docs/*.json`), test case sets (`testcases.json`,
 /// `testcases/*.json`) and `diagrams/*` (see `diagrams`). Fixed places only,
 /// so the webview cannot read elsewhere. A missing folder is not an error:
@@ -399,9 +408,9 @@ mod tests {
     #[test]
     fn insights_reads_fixed_files_only() {
         let tmp = std::env::temp_dir().join(format!("omp-insights-{}", std::process::id()));
-        std::fs::create_dir_all(tmp.join(".omp/insights")).unwrap();
-        std::fs::write(tmp.join(".omp/insights/testcases.json"), r#"{"cases":[]}"#).unwrap();
-        let dg = tmp.join(".omp/insights/diagrams");
+        std::fs::create_dir_all(tmp.join("docs/insights")).unwrap();
+        std::fs::write(tmp.join("docs/insights/testcases.json"), r#"{"cases":[]}"#).unwrap();
+        let dg = tmp.join("docs/insights/diagrams");
         std::fs::create_dir_all(&dg).unwrap();
         std::fs::write(dg.join("b.mermaid"), "sequenceDiagram\n A->>B: hi").unwrap();
         std::fs::write(dg.join("a.mmd"), "flowchart LR\n A-->B").unwrap();
@@ -427,7 +436,7 @@ mod tests {
             v["testcases"],
             serde_json::json!([{ "file": "testcases.json", "data": { "cases": [] } }])
         );
-        let ins = tmp.join(".omp/insights");
+        let ins = tmp.join("docs/insights");
         std::fs::create_dir_all(ins.join("docs")).unwrap();
         std::fs::write(ins.join("docs/b.json"), r#"{"title":"B"}"#).unwrap();
         std::fs::write(ins.join("docs/a.json"), "{bad").unwrap();
@@ -470,6 +479,16 @@ mod tests {
             "project folder not found"
         );
         std::fs::remove_dir_all(&tmp).unwrap();
+        let old = std::env::temp_dir().join(format!("omp-insights-old-{}", std::process::id()));
+        std::fs::create_dir_all(old.join(".omp/insights")).unwrap();
+        std::fs::write(old.join(".omp/insights/testcases.json"), r#"{"cases":[]}"#).unwrap();
+        let v = insights(old.to_str().unwrap()).unwrap();
+        assert_eq!(v["exists"], true);
+        assert!(v["dir"].as_str().unwrap().ends_with(".omp/insights"));
+        std::fs::create_dir_all(old.join("docs/insights")).unwrap();
+        let v = insights(old.to_str().unwrap()).unwrap();
+        assert!(v["dir"].as_str().unwrap().ends_with("docs/insights"));
+        std::fs::remove_dir_all(&old).unwrap();
         let empty = std::env::temp_dir();
         assert_eq!(insights(empty.to_str().unwrap()).unwrap()["exists"], false);
     }

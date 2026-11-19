@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Insights read `<project>/docs/insights/` instead of `.omp/insights/` (a project with only the old folder keeps showing it). Test case prompts now make the agent ground each case in its source: requirement ids and spec wording for a spec, `path:line` and real labels/routes/messages for code, `blocked` plus a `note` for gaps. Cases show their `source` and `note`.
 - Opening a long tab mounts only its newest 60 transcript rows; scrolling near the top loads 40 more without moving what you are reading, and jumping to an older subagent call loads it first.
 - A background tab's omp process stops after ten minutes of quiet with nothing running, queued or pending, and resumes its conversation when the tab is shown again. Its browser and terminal stay.
 - Turning the browser panel off stops that tab's Chromium; the next panel open or agent browser call starts a new one, which takes longer.

@@ -2,13 +2,16 @@
    design/insights-panel.jsx — the Insights panel (fork): header tabs,
    actionable empty state, test cases and document analysis beside the
    chat. Diagram rendering lives in design/insights-diagrams.jsx.
-   Data: `<project>/.omp/insights/` read by Rust (`insights_read`).
+   Data: `<project>/docs/insights/` read by Rust (`insights_read`).
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon: _IP_Icon } = window;
 const _IP_POLL_MS = 4000;
 const _IP_STATUS = ["untested", "pass", "fail", "blocked"];
 const _IP_EMPTY_ARR = [];
+// Appended to every prompt that writes test cases: cases must match the
+// source they come from (spec wording or the code as implemented).
+const _IP_CASE_RULES = "Ground every case in that source and nothing else, and set the file\'s \"source\" to what you read. From a spec: each case names the requirement id or section it checks in \"requirement\" and uses the spec\'s own field names, values and messages; add no behaviour the spec does not state. From code: read the implementation first and cover only behaviour it implements, with the real UI labels, routes, roles, validation messages and API fields found there, and set each case\'s \"source\" to path:line. Where spec and code disagree or the source is silent, keep the case with status \"blocked\" and a \"note\" naming the gap instead of guessing. Write titles and steps in the source\'s language.";
 
 function _ipStatusLabel(s) {
   if (s === "all") return OMP_TR("all");
@@ -81,7 +84,8 @@ function _IP_Cases({ sets, onDelete, onAdd }) {
   const valid = sets.filter(s => Array.isArray(s.data?.cases));
   const pick = valid.some(s => s.file === sel) ? sel : null;
   const cases = valid.filter(s => pick === null || s.file === pick)
-    .flatMap(s => s.data.cases.map(c => ({ ...c, _key: `${s.file}#${c.id}` })));
+    // A case without its own `source` shows the file's.
+    .flatMap(s => s.data.cases.map(c => ({ source: s.data.source, ...c, _key: `${s.file}#${c.id}` })));
   const [q, setQ] = React.useState("");
   const [status, setStatus] = React.useState("all");
   const [openId, setOpenId] = React.useState(null);
@@ -145,7 +149,9 @@ function _IP_Cases({ sets, onDelete, onAdd }) {
                   <div className="ip-case-meta">
                     {c.requirement && <span>{OMP_TR("Requirement")} <b className="mono">{c.requirement}</b></span>}
                     {c.type && <span>{OMP_TR("Type")} <b>{c.type}</b></span>}
+                    {c.source && <span>{OMP_TR("Source")} <b className="mono">{c.source}</b></span>}
                   </div>
+                  {c.note && <p className="ip-pre"><b>{OMP_TR("Note")}</b> {c.note}</p>}
                   {c.preconditions && <p className="ip-pre"><b>{OMP_TR("Preconditions")}</b> {Array.isArray(c.preconditions) ? c.preconditions.join("; ") : c.preconditions}</p>}
                   <ol className="ip-steps">
                     {(c.steps ?? []).map((s, i) => (
@@ -243,15 +249,15 @@ function _IP_Doc({ doc, q = "", onSearch }) {
 function _IP_Empty({ onAsk, prompt }) {
   const [pickSkill, setPickSkill] = React.useState(false);
   const { _IP_SKILLS: skills = [], _ipSkillPrompt: skillPrompt } = window;
-  const casesPrompt = "Read the document or feature I attach. Pick a short kebab-case slug (not one already used in .omp/insights/testcases/) and write .omp/insights/testcases/<slug>.json in the format of docs/insights.md in omp-desktop.";
-  const docPrompt = "Read the document I attach. Pick a short kebab-case slug (not one already used in .omp/insights/docs/) and write .omp/insights/docs/<slug>.json with summary, sections, and prioritized requirements in the format of docs/insights.md in omp-desktop.";
+  const casesPrompt = "Read the document, feature or code I point to. Pick a short kebab-case slug (not one already used in docs/insights/testcases/) and write docs/insights/testcases/<slug>.json in the format of docs/insights.md in omp-desktop. " + _IP_CASE_RULES;
+  const docPrompt = "Read the document I attach. Pick a short kebab-case slug (not one already used in docs/insights/docs/) and write docs/insights/docs/<slug>.json with summary, sections, and prioritized requirements in the format of docs/insights.md in omp-desktop.";
   return (
     <div className="ip-empty-shell">
       <div className="ip-empty-hero">
         <div className="ip-empty-icon" aria-hidden="true"><_IP_Icon name="test" size={18} /></div>
         <div className="ip-empty-copy">
           <h3>{OMP_TR("Project Insights")}</h3>
-          <p>{OMP_TR("Ask the agent to analyze a spec, codebase, or flow. Outputs save into `.omp/insights/` and appear live here.").split("`").map((p, i) => (i % 2 ? <code key={i} className="mono">{p}</code> : <React.Fragment key={i}>{p}</React.Fragment>))}</p>
+          <p>{OMP_TR("Ask the agent to analyze a spec, codebase, or flow. Outputs save into `docs/insights/` and appear live here.").split("`").map((p, i) => (i % 2 ? <code key={i} className="mono">{p}</code> : <React.Fragment key={i}>{p}</React.Fragment>))}</p>
         </div>
       </div>
       <div className="ip-action-list">
@@ -346,7 +352,7 @@ function InsightsPanel({ projectPath, onAsk }) {
     { id: "cases", label: OMP_TR("Test cases"), n: nCases },
     { id: "doc", label: OMP_TR("Documents"), n: docs.length },
   ];
-  const prompt = "Read the document I attach. Pick a short kebab-case slug for it (not one already used in .omp/insights/docs/). Draw its flows as Mermaid diagrams in .omp/insights/diagrams/<slug>-*.mmd (one diagram per file: flowchart for business flows, sequenceDiagram for FE/BE/API calls, stateDiagram-v2 for statuses, erDiagram for data; first line `%% title: <name>`), and write .omp/insights/docs/<slug>.json and .omp/insights/testcases/<slug>.json in the formats the Insights panel expects (see docs/insights.md in omp-desktop). Do not touch other documents' files.";
+  const prompt = "Read the document I attach. Pick a short kebab-case slug for it (not one already used in docs/insights/docs/). Draw its flows as Mermaid diagrams in docs/insights/diagrams/<slug>-*.mmd (one diagram per file: flowchart for business flows, sequenceDiagram for FE/BE/API calls, stateDiagram-v2 for statuses, erDiagram for data; first line `%% title: <name>`), and write docs/insights/docs/<slug>.json and docs/insights/testcases/<slug>.json in the formats the Insights panel expects (see docs/insights.md in omp-desktop). Do not touch other documents' files. Test cases: " + _IP_CASE_RULES;
   const add = onAsk ? () => onAsk(prompt) : null;
   const Diagrams = window._IP_Diagrams;
 
@@ -365,7 +371,7 @@ function InsightsPanel({ projectPath, onAsk }) {
       </div>
       {err && <div className="wp-note err wp-banner"><_IP_Icon name="warn" size={12} /> {err === "Insights needs the desktop app." ? OMP_TR("Insights needs the desktop app.") : err}</div>}
       <div className="wp-scroll ip-scroll">
-        {!projectPath && <div className="wp-empty"><div className="wp-empty-title">{OMP_TR("Open a project")}</div><p>{OMP_TR("Insights read the project's .omp/insights folder.")}</p></div>}
+        {!projectPath && <div className="wp-empty"><div className="wp-empty-title">{OMP_TR("Open a project")}</div><p>{OMP_TR("Insights read the project's docs/insights folder.")}</p></div>}
         {projectPath && !data && !err && <div className="wp-empty-line pad" role="status">{OMP_TR("Loading insights…")}</div>}
         {projectPath && data && !data.exists && <_IP_Empty onAsk={onAsk} prompt={prompt} />}
         {data?.exists && (
