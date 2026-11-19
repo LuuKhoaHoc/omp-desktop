@@ -549,7 +549,6 @@ function App() {
   browser.files = files;
   browser.project = activeProject.path ?? null;
   browser.submitKey = t.submitKey;
-  browser.canSendNow = !goalUi.mode;
   browser.onSendNow = () => handleSend("", []);
   browser.onOpenGit = handleOpenFile;
   // A comment added as a chip (a chat quote, a file mark, a browser
@@ -827,6 +826,8 @@ function App() {
       files.restoreMarks(marks ?? [], tabId);
     },
   });
+  // After useGoalMode: `goalUi` is a const declared above this line, not at the top.
+  browser.canSendNow = !goalUi.mode;
 
   const prAutomation = usePrAutomation({
     bridge, tabId: planKey, sessionIds, projectKey: activeProject.path,
