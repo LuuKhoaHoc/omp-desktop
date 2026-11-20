@@ -306,6 +306,7 @@
   }
 
   const FOLDED_TAB_GROUPS_KEY = "omp-desktop:folded-tab-groups";
+  const FOLDED_PROJECT_GROUPS_KEY = "omp-desktop:folded-project-groups";
   const MAX_FOLDED_GROUPS = 200;
 
   /** Parses the stored folded project keys (`localStorage` JSON array of
@@ -398,6 +399,7 @@
     restoreSpec,
     RESUME_PROMPT,
     FOLDED_TAB_GROUPS_KEY,
+    FOLDED_PROJECT_GROUPS_KEY,
     parseFoldedGroups,
     serializeFoldedGroups,
     toggleFoldedGroup,

@@ -37,6 +37,8 @@ pub struct StatusView {
     /// sits in `tree` (the files panel shows only that part). `None` when
     /// either path can't be resolved.
     pub folder: Option<String>,
+    /// Paths changed in the index relative to `HEAD`, independent of tree cap.
+    pub staged: Vec<String>,
 }
 
 /// `path` relative to `work_dir`, both resolved on disk, `/`-separated.
@@ -161,6 +163,12 @@ fn event(item: &gix::status::Item) -> Option<Event> {
 /// gix opens it with the submodule's config, whose filter drivers
 /// [`super::open`] cannot strip.
 pub(super) fn changes(repo: &gix::Repository) -> Result<Changes, String> {
+    changes_with_staged(repo).map(|(changes, _)| changes)
+}
+
+pub(super) fn changes_with_staged(
+    repo: &gix::Repository,
+) -> Result<(Changes, Vec<String>), String> {
     let items = repo
         .status(gix::progress::Discard)
         .map_err(fail("failed to start status"))?
@@ -171,13 +179,20 @@ pub(super) fn changes(repo: &gix::Repository) -> Result<Changes, String> {
         })
         .into_iter(None)
         .map_err(fail("failed to run status"))?;
-    let mut failure = None;
-    let changes = merge(
-        items
-            .map_while(|item| item.map_err(|e| failure = Some(e)).ok())
-            .filter_map(|item| event(&item)),
-    );
-    failure.map_or(Ok(changes), |e| Err(format!("status failed: {e}")))
+    let mut events = Vec::new();
+    let mut staged = std::collections::BTreeSet::new();
+    for item in items {
+        let item = item.map_err(|e| format!("status failed: {e}"))?;
+        if let gix::status::Item::TreeIndex(_) = &item {
+            if let Some(event) = event(&item) {
+                staged.insert(event.path.clone());
+            }
+        }
+        if let Some(event) = event(&item) {
+            events.push(event);
+        }
+    }
+    Ok((merge(events), staged.into_iter().collect()))
 }
 
 /// The files the tree lists: every changed one first, so `cap` only ever
@@ -222,7 +237,7 @@ fn under(path: &str, prefix: &str) -> bool {
 /// `git_browser_status(path)`.
 pub fn status(path: &Path) -> Result<StatusView, String> {
     let (_gate, repo, work_dir) = open(path)?;
-    let changes = changes(&repo)?;
+    let (changes, staged) = changes_with_staged(&repo)?;
     let index = repo
         .index_or_empty()
         .map_err(fail("failed to read index"))?;
@@ -272,6 +287,7 @@ pub fn status(path: &Path) -> Result<StatusView, String> {
         tree,
         truncated,
         folder,
+        staged,
     })
 }
 
@@ -515,6 +531,7 @@ mod tests {
         repo.write("keep.txt", "keep\n");
         repo.write("edit.txt", "edit\n");
         repo.write("gone.txt", "gone\n");
+        repo.write("staged-gone.txt", "gone\n");
         repo.write("move.txt", "move me\nsecond line\nthird line\n");
         repo.write("dir/nested.txt", "nested\n");
         repo.write(".gitignore", "ignored.log\n");
@@ -523,6 +540,8 @@ mod tests {
 
         repo.write("edit.txt", "edited\n");
         std::fs::remove_file(repo.path().join("gone.txt")).expect("delete tracked file");
+        std::fs::remove_file(repo.path().join("staged-gone.txt")).expect("delete staged file");
+        repo.git(&["add", "-u", "staged-gone.txt"]);
         repo.git(&["mv", "move.txt", "moved.txt"]);
         repo.write("new.txt", "staged\n");
         repo.git(&["add", "new.txt"]);
@@ -543,6 +562,10 @@ mod tests {
         assert!(find(tree, "move.txt").is_none(), "rename source is gone");
         assert_eq!(status_of(tree, "new.txt"), Some(StatusKind::Added));
         assert_eq!(
+            status_of(tree, "staged-gone.txt"),
+            Some(StatusKind::Deleted)
+        );
+        assert_eq!(
             status_of(tree, "fresh/untracked.txt"),
             Some(StatusKind::Untracked)
         );
@@ -551,8 +574,9 @@ mod tests {
             "ignored files never appear"
         );
         assert_eq!(find(tree, "dir/nested.txt").map(|n| n.status), Some(None));
-        assert_eq!(view.changed, 5);
-        assert_eq!(tree.changed, 5);
+        assert_eq!(view.changed, 6);
+        assert_eq!(tree.changed, 6);
+        assert_eq!(view.staged, ["moved.txt", "new.txt", "staged-gone.txt"]);
         assert!(!view.truncated);
 
         assert_eq!(view.repo.branch.as_deref(), Some("main"));

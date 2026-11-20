@@ -430,6 +430,18 @@ check("serializeFoldedGroups writes only truthy non-ephemeral keys", () => {
   assert.equal(N.serializeFoldedGroups({}), "[]");
 });
 
+check("project sidebar fold state round-trips under its own storage key", () => {
+  assert.notEqual(N.FOLDED_PROJECT_GROUPS_KEY, N.FOLDED_TAB_GROUPS_KEY);
+  const stored = N.serializeFoldedGroups({ "default|/a": true, "work|/b": true });
+  assert.deepEqual(N.parseFoldedGroups(stored), { "default|/a": true, "work|/b": true });
+});
+
+check("project sidebar fold state ignores malformed JSON and invalid stored entries", () => {
+  assert.deepEqual(N.parseFoldedGroups("{broken"), {});
+  assert.deepEqual(N.parseFoldedGroups(JSON.stringify(["default|/a", null, 7, "", "tab:temporary"])),
+    { "default|/a": true });
+});
+
 check("toggleFoldedGroup flips a project key cleanly and ignores ephemeral tab: keys", () => {
   const f1 = N.toggleFoldedGroup({}, "default|/a");
   assert.deepEqual(f1, { "default|/a": true });

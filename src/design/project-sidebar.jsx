@@ -10,17 +10,30 @@
    ═════════════════════════════════════════════════════════════════════ */
 
 const { Icon, TabRunDot, TabLabel, TabNumber, RenameField } = window;
-const { groupTabs, groupRunState, groupDigits, tabDigits, membersNewestFirst, basename, parentName, tabTitle: _psbTabTitle } = window.OMP_PROJECT_NAV;
+const {
+  groupTabs, groupRunState, groupDigits, tabDigits, membersNewestFirst, basename, parentName, tabTitle: _psbTabTitle,
+  FOLDED_PROJECT_GROUPS_KEY, parseFoldedGroups, serializeFoldedGroups, toggleFoldedGroup,
+} = window.OMP_PROJECT_NAV;
 
 function ProjectSidebar({
   tabs, activeId, recents, profileLabel,
   onSelectTab, onCloseTab, onRenameTab, onNewInProject, onOpenRecent, onForgetRecent,
   onOpenFolder, onReorder, footer = null, style,
 }) {
-  // Group keys the user folded. Not persisted: tab ids (and so pathless
-  // groups' keys) don't survive a restart anyway.
-  const [collapsed, setCollapsed] = React.useState({});
-  const toggle = key => setCollapsed(c => ({ ...c, [key]: !c[key] }));
+  // Project keys are stable across tab/app switches; keep them separate from
+  // the tab bar's own folded-group preference.
+  const [collapsed, setCollapsed] = React.useState(() => {
+    try { return parseFoldedGroups(localStorage.getItem(FOLDED_PROJECT_GROUPS_KEY)); }
+    catch { return {}; }
+  });
+  React.useEffect(() => {
+    try {
+      const raw = serializeFoldedGroups(collapsed);
+      if (raw === "[]") localStorage.removeItem(FOLDED_PROJECT_GROUPS_KEY);
+      else localStorage.setItem(FOLDED_PROJECT_GROUPS_KEY, raw);
+    } catch (_) { /* private mode / quota */ }
+  }, [collapsed]);
+  const toggle = key => setCollapsed(c => toggleFoldedGroup(c, key));
   // Tab whose name is being edited inline (#32). Starting selects it, the
   // same as the first click of a double-click does.
   const [renaming, setRenaming] = React.useState(null);

@@ -118,8 +118,14 @@ function EmptyWorkspace({ notes, screen, paused, bridge, recentProjects, profile
           <input type="checkbox" checked={newWorktree} onChange={e => setNewWorktree(e.target.checked)} />
           <span>{OMP_TR("New worktree")}</span>
         </label>
-        {newWorktree && <p className="empty-ws-hint">{OMP_TR("Creates a new branch from the selected base. Uncommitted changes stay in the original folder.")}</p>}
-        {error && <div className="empty-ws-error" role="alert">{error}</div>}
+        {newWorktree && <p className="empty-ws-hint">{OMP_TR("Creates a detached worktree at the selected base. Uncommitted changes are copied into it when applicable.")}</p>}
+        {error && (() => {
+          const shown = window.OMP_GIT_ERROR.present(error);
+          return <div className="empty-ws-error" role="alert">
+            <div>{OMP_TR(shown.message)}</div>
+            <details><summary>{OMP_TR("Show technical details")}</summary><pre>{shown.detail}</pre></details>
+          </div>;
+        })()}
         <button type="button" className="btn primary empty-ws-open" disabled={!_EMPTY_WORKTREE_START.canOpen({ project, branches, branchesProject, baseBranch, branchesLoading }, newWorktree, loading)} onClick={open}>
           {loading ? OMP_TR("Opening…") : OMP_TR("Open session")}
         </button>

@@ -4992,6 +4992,35 @@
       return _gitBrowserInvoke("git_browser_commit_file", { sha, relPath });
     },
 
+    // Ship mutations are session-bound: the webview sends a session id plus
+    // text and a remote name Rust validated; never a filesystem path, git
+    // args or a token.
+    /** Configured remotes for this session's repository. */
+    shipRemotes() {
+      if (!activeSessionId) return Promise.resolve(null);
+      return _invokeResult("ship_remotes", { sessionId: activeSessionId });
+    },
+
+    /** Commit only the content already staged in this session. */
+    shipCommit(message) {
+      if (!activeSessionId) return Promise.resolve(null);
+      return _invokeResult("ship_commit_staged", { sessionId: activeSessionId, message });
+    },
+
+    /** Push this session's current branch to the selected remote. */
+    shipPush(remote) {
+      if (!activeSessionId) return Promise.resolve(null);
+      return _invokeResult("ship_push", { sessionId: activeSessionId, remote });
+    },
+
+    /** Create or locate this session branch's pull/merge request. */
+    shipCreatePr(title, body, draft) {
+      if (!activeSessionId) return Promise.resolve(null);
+      return _invokeResult("ship_create_pr", {
+        sessionId: activeSessionId, title, body, draft,
+      });
+    },
+
     /** All local and remote-tracking branches for a new-session worktree picker. */
     listWorktreeBranches(sourcePath) {
       return _invokeResult("list_session_worktree_branches", { sourcePath });

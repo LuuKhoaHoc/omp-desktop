@@ -11,6 +11,8 @@
    button, after stage/discard, when the active tab's branch changes and
    when an edit/write tool card finishes; the log on the refresh button and
    a branch change; a commit and its files never (a commit cannot change).
+   The embedded ship bar optionally adds staged paths, remotes and
+   session-bound commit/push/PR actions; the modal opts out of that state.
    A project change remounts the browser (app-live.jsx keys it). Each fetch
    is tagged with what it was for, so only the newest lands and a previous
    file never shows under a new selection. */
@@ -31,12 +33,46 @@ function _ugbResult(res) {
 
 /** `edits`: the count of finished edit/write cards (OMP_GIT_BROWSER
  *  `finishedEdits`); a rise means a file on disk changed. */
-function useGitBrowser({ bridge, initialPath, branch, edits }) {
+function useGitBrowser({ bridge, initialPath, branch, edits, ship }) {
   const [nonce, setNonce] = React.useState(0);
   // A change refetches the log; with `edits`, the working tree too.
   const logTick = `${branch ?? ""}\0${nonce}`;
   const tick = `${logTick}\0${edits}`;
   const refresh = React.useCallback(() => setNonce(n => n + 1), []);
+  const [staged, setStaged] = React.useState([]);
+  const [remotes, setRemotes] = React.useState([]);
+  const [shipBusy, setShipBusy] = React.useState(false);
+  const [shipResult, setShipResult] = React.useState(null);
+
+  const runShipAction = React.useCallback(async (kind, request, format) => {
+    setShipBusy(true);
+    try {
+      const r = _ugbResult(await request());
+      if (r.error) {
+        setShipResult({ kind, ok: false, text: r.error, detail: null });
+        return;
+      }
+      refresh();
+      setShipResult({ kind, ok: true, text: format(r.value), detail: null });
+    } catch (error) {
+      setShipResult({ kind, ok: false, text: String(error?.message ?? error), detail: null });
+    } finally {
+      setShipBusy(false);
+    }
+  }, [refresh]);
+
+  const shipCommit = React.useCallback(message =>
+    runShipAction("commit", () => bridge.shipCommit(message),
+      value => String(value?.sha ?? "").slice(0, 7)),
+  [bridge, runShipAction]);
+  const shipPush = React.useCallback(remote =>
+    runShipAction("push", () => bridge.shipPush(remote),
+      value => `${value?.branch ?? ""} → ${value?.remote ?? ""}`),
+  [bridge, runShipAction]);
+  const shipCreatePr = React.useCallback((title, body, draft) =>
+    runShipAction("pullRequest", () => bridge.shipCreatePr(title, body, draft),
+      value => `#${value?.number ?? ""} ${value?.url ?? ""}`),
+  [bridge, runShipAction]);
 
   // The browsed commit; null = the working tree.
   const [commitSha, setCommitSha] = React.useState(null);
@@ -70,6 +106,7 @@ function useGitBrowser({ bridge, initialPath, branch, edits }) {
       if (!current) return;
       const r = _ugbResult(res);
       setStatus(r);
+      if (ship) setStaged(Array.isArray(r.value?.staged) ? r.value.staged : []);
       const tree = r.value?.tree;
       if (!tree) return;
       if (!expandedInit.current) {
@@ -83,7 +120,20 @@ function useGitBrowser({ bridge, initialPath, branch, edits }) {
       setSelected(prev => prev ?? _UGB_firstFile(tree, true)?.path ?? null);
     });
     return () => { current = false; };
-  }, [bridge, tick]);
+  }, [bridge, tick, ship]);
+
+  React.useEffect(() => {
+    if (!ship) return undefined;
+    let current = true;
+    bridge.shipRemotes().then(res => {
+      if (!current) return;
+      const r = _ugbResult(res);
+      setRemotes(Array.isArray(r.value) ? r.value : []);
+    }, () => {
+      if (current) setRemotes([]);
+    });
+    return () => { current = false; };
+  }, [bridge, ship, tick]);
 
   React.useEffect(() => {
     let current = true;
@@ -185,6 +235,15 @@ function useGitBrowser({ bridge, initialPath, branch, edits }) {
   const shownFile = fileKey && file.key === fileKey ? file : null;
   // Commit mode shows the commit's touched files, the working tree its own.
   const shownTree = commitSha ? browsing?.value : status.value;
+  const shipState = ship ? {
+    staged,
+    remotes,
+    busy: shipBusy,
+    result: shipResult,
+    commit: shipCommit,
+    push: shipPush,
+    createPr: shipCreatePr,
+  } : null;
   return {
     status: status.value,
     log: log.value,
@@ -200,6 +259,7 @@ function useGitBrowser({ bridge, initialPath, branch, edits }) {
     fileError: shownFile?.error ?? null,
     selected, expanded, changedOnly, filter,
     select: setSelected, toggleDir, setChangedOnly, setFilter, browse, refresh, stage, discard,
+    ship: shipState,
   };
 }
 

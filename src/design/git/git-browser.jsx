@@ -7,16 +7,21 @@
    click browses that commit read-only, the working-tree row returns.
    Keys (while no field has the focus): j / k the next / previous file,
    n / p the next / previous change, f folded or full file, s stage the
-   file, / the file filter. */
+   file, / the file filter.
 
-const { Icon: _GB_Icon, GitFileTree: _GB_Tree, GitFileView: _GB_View, GitHistory: _GB_History } = window;
+   Docked (`embedded`, the dock's Changes tool), the panes carry the ship
+   bar under them (git/commit-bar.jsx): staged summary, message, commit,
+   push and pull request. The hook is asked for that state only there
+   (`ship: true`), so the full-window overlay never mounts it. */
+
+const { Icon: _GB_Icon, GitFileTree: _GB_Tree, GitFileView: _GB_View, GitHistory: _GB_History, CommitBar: _GB_CommitBar } = window;
 const { listRows: _GB_listRows, stepFile: _GB_stepFile } = window.OMP_GIT_BROWSER;
 
 // Memoised: App re-renders on every streamed frame, and none of them touch
 // these props (`edits` is a count, not the transcript).
 const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath, branch, edits, project, embedded }) {
   window.OMP_I18N.useLocale();
-  const g = window.useGitBrowser({ bridge, initialPath, branch, edits });
+  const g = window.useGitBrowser({ bridge, initialPath, branch, edits, ship: Boolean(embedded) });
   const rootRef = React.useRef(null);
   const viewRef = React.useRef(null);   // the file view's { next, prev, toggleFull }
   // The worktree manager (git/worktree-panel.jsx), open over this browser.
@@ -107,20 +112,31 @@ const GitBrowser = React.memo(function GitBrowser({ bridge, onClose, initialPath
         <button type="button" className="btn ghost" onClick={onClose} title={OMP_TR("close (Esc)")} aria-label={OMP_TR("close")}><_GB_Icon name="close" size={12} /></button>
       </div>
       {g.error ? (
-        <div className="gitb-empty tall gitb-error">{g.error}</div>
+        (() => {
+          const shown = window.OMP_GIT_ERROR.present(g.error);
+          return <div className="gitb-empty tall gitb-error">
+            <div>{OMP_TR(shown.message)}</div>
+            <details><summary>{OMP_TR("Show technical details")}</summary><pre>{shown.detail}</pre></details>
+          </div>;
+        })()
       ) : (
-        <div className="gitb-body">
-          <_GB_Tree root={g.tree} error={g.commitError}
-            expanded={g.expanded} onToggle={g.toggleDir} selected={g.selected} onSelect={g.select}
-            changedOnly={inCommit || g.changedOnly} onChangedOnly={inCommit ? null : g.setChangedOnly}
-            filter={g.filter} onFilter={g.setFilter} changedCount={changed}
-            commit={g.commit} truncated={g.truncated} />
-          <_GB_View path={g.selected} file={g.file} error={g.fileError} commit={g.commit} onBrowse={g.browse} jumpRef={viewRef}
-            onStage={inCommit ? null : () => g.stage(g.selected)}
-            onDiscard={inCommit ? null : () => g.discard(g.selected, g.file?.status ?? null)} />
-          <_GB_History log={g.log} changedCount={changed}
-            selected={g.commitSha ?? "@"} onSelect={g.browse} />
-        </div>
+        <>
+          <div className="gitb-body">
+            <_GB_Tree root={g.tree} error={g.commitError}
+              expanded={g.expanded} onToggle={g.toggleDir} selected={g.selected} onSelect={g.select}
+              changedOnly={inCommit || g.changedOnly} onChangedOnly={inCommit ? null : g.setChangedOnly}
+              filter={g.filter} onFilter={g.setFilter} changedCount={changed}
+              commit={g.commit} truncated={g.truncated} />
+            <_GB_View path={g.selected} file={g.file} error={g.fileError} commit={g.commit} onBrowse={g.browse} jumpRef={viewRef}
+              onStage={inCommit ? null : () => g.stage(g.selected)}
+              onDiscard={inCommit ? null : () => g.discard(g.selected, g.file?.status ?? null)} />
+            <_GB_History log={g.log} changedCount={changed}
+              selected={g.commitSha ?? "@"} onSelect={g.browse} />
+          </div>
+          {/* The docked Changes tab is where staged work is shipped; the
+              full-window overlay stays a reading surface. */}
+          {embedded && _GB_CommitBar ? <_GB_CommitBar ship={g.ship} repo={repo} /> : null}
+        </>
       )}
     </div>
   );

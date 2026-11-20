@@ -31,6 +31,14 @@ function _SRW_useSettings(bridge) {
   return { settings, error, save };
 }
 
+function _SRW_Error({ error }) {
+  const shown = window.OMP_GIT_ERROR.present(error);
+  return <div className="st-row-error">
+    <div>{OMP_TR(shown.message)}</div>
+    <details><summary>{OMP_TR("Show technical details")}</summary><pre>{shown.detail}</pre></details>
+  </div>;
+}
+
 /** A text input that commits on blur / Enter and reverts on Escape. */
 function _SRW_Input({ value, label, placeholder, disabled, onCommit, type = "text" }) {
   const [draft, setDraft] = React.useState(value ?? "");
@@ -64,7 +72,7 @@ function _SRW_Root({ row, ctx, query }) {
           <Button disabled={!settings} onClick={browse}>{OMP_TR("Browse…")}</Button>
         </div>
       </Row>
-      {error && <div className="st-row-error">{error}</div>}
+      {error && <_SRW_Error error={error} />}
     </>
   );
 }
@@ -79,7 +87,7 @@ function _SRW_Keep({ row, ctx, query }) {
         <_SRW_Input type="number" value={settings?.keep} label={row.label} disabled={!settings}
           onCommit={v => save({ keep: Math.max(0, Math.round(Number(v) || 0)) })} />
       </Row>
-      {error && <div className="st-row-error">{error}</div>}
+      {error && <_SRW_Error error={error} />}
     </>
   );
 }
@@ -94,7 +102,7 @@ function _SRW_Prefix({ row, ctx, query }) {
         <_SRW_Input value={settings?.branchPrefix} label={row.label} disabled={!settings}
           onCommit={v => save({ branchPrefix: v })} />
       </Row>
-      {error && <div className="st-row-error">{error}</div>}
+      {error && <_SRW_Error error={error} />}
     </>
   );
 }

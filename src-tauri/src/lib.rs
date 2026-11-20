@@ -42,6 +42,7 @@ mod recent_projects;
 mod redaction;
 mod remote;
 mod saved_sessions;
+mod ship;
 mod spawn_gate;
 mod speech_config;
 mod stats;
@@ -996,6 +997,57 @@ async fn git_browser_commit_file(
 #[tauri::command]
 async fn git_browser_branches(path: String) -> Result<Vec<git_browser::Branch>, String> {
     off_ipc(move || git_browser::branches(Path::new(&path))).await?
+}
+
+/// Commit exactly the active tab's current index; the webview supplies no
+/// project path and Git hooks remain enabled.
+#[tauri::command]
+async fn ship_commit_staged(
+    session_id: String,
+    message: String,
+    terminal: State<'_, Arc<terminal::TerminalManager>>,
+) -> Result<ship::CommitResult, String> {
+    let root = terminal
+        .folder(&session_id)
+        .ok_or_else(|| "this tab has no project folder".to_owned())?;
+    off_ipc(move || ship::commit_staged(&root, &message)).await?
+}
+
+#[tauri::command]
+async fn ship_remotes(
+    session_id: String,
+    terminal: State<'_, Arc<terminal::TerminalManager>>,
+) -> Result<Vec<ship::Remote>, String> {
+    let root = terminal
+        .folder(&session_id)
+        .ok_or_else(|| "this tab has no project folder".to_owned())?;
+    off_ipc(move || ship::remotes(&root)).await?
+}
+
+#[tauri::command]
+async fn ship_push(
+    session_id: String,
+    remote: String,
+    terminal: State<'_, Arc<terminal::TerminalManager>>,
+) -> Result<ship::PushInfo, String> {
+    let root = terminal
+        .folder(&session_id)
+        .ok_or_else(|| "this tab has no project folder".to_owned())?;
+    off_ipc(move || ship::push(&root, &remote)).await?
+}
+
+#[tauri::command]
+async fn ship_create_pr(
+    session_id: String,
+    title: String,
+    body: String,
+    draft: bool,
+    terminal: State<'_, Arc<terminal::TerminalManager>>,
+) -> Result<ship::PrInfo, String> {
+    let root = terminal
+        .folder(&session_id)
+        .ok_or_else(|| "this tab has no project folder".to_owned())?;
+    off_ipc(move || ship::create_pr(&root, &title, &body, draft)).await?
 }
 
 /// Every worktree of the tab's repository, the primary checkout first — see
@@ -2254,6 +2306,10 @@ pub fn run() {
             approval_mode_set_default,
             approval_mode_set_project,
             git_browser_status,
+            ship_commit_staged,
+            ship_remotes,
+            ship_push,
+            ship_create_pr,
             git_browser_file,
             git_browser_log,
             git_browser_branches,

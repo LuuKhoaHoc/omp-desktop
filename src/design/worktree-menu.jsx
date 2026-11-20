@@ -155,7 +155,13 @@ function WorktreeMenu({ tab, messageCount, busy: agentBusy, bridge }) {
               </div>
               <div className="branch-pop-list">
                 {!branches ? <div className="branch-pop-note">{OMP_TR("loading…")}</div>
-                  : branches.error ? <div className="branch-pop-note error">{branches.error}</div>
+                  : branches.error ? (() => {
+                    const shown = window.OMP_GIT_ERROR.present(branches.error);
+                    return <div className="branch-pop-note error">
+                      <div>{OMP_TR(shown.message)}</div>
+                      <details><summary>{OMP_TR("Show technical details")}</summary><pre>{shown.detail}</pre></details>
+                    </div>;
+                  })()
                   : (<>
                     {rows.local.length > 0 && <div className="branch-pop-head mono" role="none">{OMP_TR("local")}</div>}
                     {rows.local.map(baseRow)}
@@ -203,7 +209,13 @@ function WorktreeMenu({ tab, messageCount, busy: agentBusy, bridge }) {
             </form>
           )}
           {locked && <div className="branch-pop-note" role="status">{OMP_TR("the agent is working — hand off once it's idle")}</div>}
-          {error && <div className="branch-pop-note error" role="alert">{error}</div>}
+          {error && (() => {
+            const shown = window.OMP_GIT_ERROR.present(error);
+            return <div className="branch-pop-note error" role="alert">
+              <div>{OMP_TR(shown.message)}</div>
+              <details><summary>{OMP_TR("Show technical details")}</summary><pre>{shown.detail}</pre></details>
+            </div>;
+          })()}
         </div>,
         document.body,
       )}

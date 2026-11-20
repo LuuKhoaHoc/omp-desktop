@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Git and worktree failures read as a sentence, with the raw error kept behind a "Show technical details" disclosure instead of shown verbatim.
+- The new-worktree hint now describes what happens: an isolated checkout starts at the chosen base, and uncommitted changes are copied into it.
 - Insights read `<project>/docs/insights/` instead of `.omp/insights/` (a project with only the old folder keeps showing it). Test case prompts now make the agent ground each case in its source: requirement ids and spec wording for a spec, `path:line` and real labels/routes/messages for code, `blocked` plus a `note` for gaps. Cases show their `source` and `note`.
 - Opening a long tab mounts only its newest 60 transcript rows; scrolling near the top loads 40 more without moving what you are reading, and jumping to an older subagent call loads it first.
 - A background tab's omp process stops after ten minutes of quiet with nothing running, queued or pending, and resumes its conversation when the tab is shown again. Its browser and terminal stay.
@@ -24,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Agent mouse cursor overlay: simulated mouse positions and click actions (`Input.dispatchMouseEvent`) dispatched by the agent are captured in the CDP proxy and visualized in real time on the browser panel with an accent pointer, an "Agent" badge, and click pulse ripples.
 - Browser panel: a context menu on right click with open link in new tab or the system browser, copy link address, cut, copy, paste, select all, back, forward, reload and copy page address.
 - The empty workspace can start a chat in a selected project or create a new isolated worktree from a base branch; choosing the base branch is required.
+- The docked Changes tab now finishes the work: commit exactly what is already staged, push to a chosen remote, and open a GitHub or GitLab pull request, each as an explicit click with its result shown inline. The commit message and the pull-request text start from the staged paths and stay editable; Git hooks may run on commit.
+- The browser start page's Terminal, Changes and Files tiles open their dock tab.
 
 ### Fixed
 
@@ -32,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Browser panel on Linux: pages render on the GPU instead of the CPU. A page with blur, shadows or WebGL went from about 14 to 60 frames a second in the panel; without a usable GPU it renders as before.
 - Streaming replies no longer throw `Illegal invocation` on every delta frame, so the 16 ms refresh window actually takes effect in a browser-based webview.
 - Work panel: Gantt's timeline scrolls vertically without trapping scrolling in a nested view container; other issue types keep their normal list scrolling.
+- Folding a project in the left sidebar survives switching tabs and relaunching the app.
 - Tool cards with a long tool name (MCP tools such as `hindsight_search_pages`) cut the name with an ellipsis instead of drawing it over the card's title.
 - Running tab indicators stay visible between assistant turns in the same agent run.
 - Sending a prompt positions the transcript before paint rather than scrolling after it appears.

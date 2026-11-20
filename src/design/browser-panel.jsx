@@ -127,7 +127,7 @@ function BrowserPanel({ ui }) {
           <textarea className="browser-sink" ref={ui.sinkRef} aria-label={OMP_TR("page keyboard input")} tabIndex={0}
             autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
           <canvas className="browser-canvas" ref={ui.canvasRef} />
-          {showStart && _BP_Start && <_BP_Start ui={ui} />}
+          {showStart && _BP_Start && <_BP_Start ui={ui} onOpenTool={ui.dock?.openTool} />}
           {ui.agentCursor && _BP_Cursor && <_BP_Cursor cursor={ui.agentCursor} page={page} />}
           {marked.map((c) => (
             <span

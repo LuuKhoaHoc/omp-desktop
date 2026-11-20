@@ -60,6 +60,14 @@ check("openTool adds tool and activates it without duplicates", () => {
   assert.equal(state.activeId, "tool:terminal");
 });
 
+check("BrowserStart receives the dock openTool handler", () => {
+  const browserPanel = readFileSync(join(root, "src/design/browser-panel.jsx"), "utf8");
+  assert.match(
+    browserPanel,
+    /<_BP_Start\s+ui=\{ui\}\s+onOpenTool=\{ui\.dock\?\.openTool\}\s*\/>/
+  );
+});
+
 check("closeTool removes tool and resolves activeId fallback", () => {
   let state = { activeId: "tool:terminal", tools: ["terminal", "changes"] };
   state = DOCK.closeTool(state, "terminal", "page:123");

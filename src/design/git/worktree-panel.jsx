@@ -6,6 +6,14 @@
 
 const { Icon: _WP_Icon } = window;
 
+function _WP_Error({ error, className }) {
+  const shown = window.OMP_GIT_ERROR.present(error);
+  return <div className={className}>
+    <div>{OMP_TR(shown.message)}</div>
+    <details><summary>{OMP_TR("Show technical details")}</summary><pre>{shown.detail}</pre></details>
+  </div>;
+}
+
 /** The folder a new worktree goes in: a sibling of the repository, named
  *  after the branch. The user can edit it before adding. */
 function _WP_defaultTarget(repoPath, branch) {
@@ -91,7 +99,7 @@ function WorktreePanel({ bridge, repoPath, onClose, onOpened }) {
           <button type="button" className="btn ghost" onClick={onClose} aria-label={OMP_TR("close")}><_WP_Icon name="close" size={12} /></button>
         </div>
         <div className="wtp-body">
-          {list?.error && <div className="gitb-empty gitb-error">{list.error}</div>}
+          {list?.error && <_WP_Error className="gitb-empty gitb-error" error={list.error} />}
           {list?.value && (
             <ul className="wtp-list">
               {list.value.map(w => (
@@ -127,7 +135,7 @@ function WorktreePanel({ bridge, repoPath, onClose, onOpened }) {
               <button type="button" className="btn" disabled={busy} onClick={() => remove(notice.removeTarget, true)}>{OMP_TR("force remove")}</button>
             </div>
           )}
-          {notice?.error && <div className="gitb-error">{notice.error}</div>}
+          {notice?.error && <_WP_Error className="gitb-error" error={notice.error} />}
         </div>
       </div>
     </div>

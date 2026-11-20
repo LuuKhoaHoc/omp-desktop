@@ -180,6 +180,14 @@
   <!-- Empty-workspace worktree picker state; dependency-free IIFE used by the welcome screen. -->
   <script src="app/empty-worktree-start.js"></script>
   <script src="app/worktree-ux.js"></script>
+  <!-- Worktree/Git error summaries with raw details retained for disclosure;
+       the worktree and git JSX surfaces below read this at render time. -->
+  <script src="app/git-error.js"></script>
+  <!-- Offline default commit/PR text and the enable matrix for the docked
+       Changes tab's ship bar; pure IIFEs, read at render time by
+       design/git/commit-bar.jsx. -->
+  <script src="app/ship-text.js"></script>
+  <script src="app/ship-bar.js"></script>
   <!-- Per-tab composer draft + plan-mode state (issue #28): pure map and
        transition helpers. Dependency-free IIFE; design/composer.jsx,
        app/use-goal-mode.jsx and app-live.jsx destructure
@@ -549,6 +557,9 @@
   <script type="text/babel" src="design/git/commit-info.jsx"></script>
   <script type="text/babel" src="design/git/file-view.jsx"></script>
   <script type="text/babel" src="design/git/history.jsx"></script>
+  <!-- The ship bar (commit / push / pull request) is destructured by
+       git-browser.jsx, so it loads first. -->
+  <script type="text/babel" src="design/git/commit-bar.jsx"></script>
   <script type="text/babel" src="design/git/git-browser.jsx"></script>
   <script type="text/babel" src="design/git/worktree-panel.jsx"></script>
   <!-- Files panel: file-code.jsx (the commentable rows; destructures
